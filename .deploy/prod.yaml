@@ -13,8 +13,7 @@ tls:
 
 envFrom:
   configMaps:
-    - name: coke-common-cm
-    - name: redis1-cm
+    - name: xm-common-cm
     - name: keycloak-cm
 
 hpa:

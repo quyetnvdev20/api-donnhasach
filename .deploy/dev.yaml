@@ -6,8 +6,7 @@ ingress:
 
 envFrom:
   configMaps:
-    - name: common-cm
-    - name: redis1-cm
+    - name: xm-common-cm
     - name: keycloak-cm
 
 resources:
