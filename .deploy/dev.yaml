@@ -1,15 +1,15 @@
-targetPort: 5000 # port of pod container
+targetPort: 8000 # port of pod container
 ingress:
   enable: true
   host: dev-api-insurance.baohiemtasco.vn
   path: /acg-xm
-#  annotations:
-#     nginx.ingress.kubernetes.io/rewrite-target: /$1
+
 envFrom:
   configMaps:
     - name: common-cm
     - name: redis1-cm
     - name: keycloak-cm
+
 resources:
   requests:
     cpu: "50m"
@@ -17,6 +17,7 @@ resources:
   limits:
     cpu: "400m"
     memory: "1Gi"
+
 celeries:
   - name: image_processor
     replicas: 1
@@ -28,6 +29,7 @@ celeries:
       limits:
         cpu: 500m
         memory: 1Gi
+
   - name: policy_creator
     replicas: 1
     runCommand: python -m app.workers.policy_creator
@@ -39,5 +41,5 @@ celeries:
         cpu: 500m
         memory: 1Gi 
 
-depCommand: ./run.sh
+# depCommand: ./run.sh
 
