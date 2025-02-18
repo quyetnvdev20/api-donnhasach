@@ -3,6 +3,12 @@ ingress:
   enable: true
   host: dev-api-insurance.baohiemtasco.vn
   path: /acg-xm
+  annotations:
+    nginx.ingress.kubernetes.io/whitelist-source-range: "123.68.86.123/32"
+    nginx.ingress.kubernetes.io/proxy-body-size: "1000m"
+    nginx.ingress.kubernetes.io/client-header-buffer-size: "100k"
+    nginx.ingress.kubernetes.io/http2-max-header-size: "100k"
+    nginx.ingress.kubernetes.io/large-client-header-buffers: "4 100k"
 
 envFrom:
   configMaps:
