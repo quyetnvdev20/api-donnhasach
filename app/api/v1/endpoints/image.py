@@ -4,10 +4,12 @@ from typing import List
 from ....database import get_db
 from ....models.image import Image
 from ....models.session import Session as SessionModel
-from ....schemas.image import ImageCreate, ImageResponse, SessionImagesResponse
+from ....schemas.image import ImageCreate, ImageResponse, SessionImagesResponse, ImageUrlRequest
 from ....services.rabbitmq import publish_event
 from ...deps import get_current_user
 import uuid
+from pydantic import BaseModel
+from ....workers.image_processor import process_image
 
 router = APIRouter()
 
@@ -87,3 +89,22 @@ def get_session_image_urls(
         image_urls=[image.image_url for image in images],
         total_images=len(images)
     )
+
+
+# Add new endpoint
+@router.post("/images/chat_gpt")
+async def process_image_with_chatgpt(
+    request: ImageUrlRequest
+):
+    try:
+        # Call process_image function from image_processor
+        result = await process_image(request.image_url)
+        return {
+            "status": "success",
+            "data": result
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing image: {str(e)}"
+        )

@@ -8,6 +8,10 @@ class ImageBase(BaseModel):
 class ImageCreate(ImageBase):
     pass
 
+# Add new schema
+class ImageUrlRequest(BaseModel):
+    image_url: str
+
 class ImageResponse(ImageBase):
     id: UUID4
     session_id: UUID4

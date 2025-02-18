@@ -20,32 +20,34 @@ async def process_image(image_url: str) -> dict:
     Sử dụng OpenAI Vision API để trích xuất thông tin từ ảnh giấy bảo hiểm
     """
     client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-    
-    prompt = """
-    Hãy trích xuất các thông tin sau từ ảnh giấy bảo hiểm xe máy:
-    - Số tiền phí bảo hiểm
-    - Tên chủ xe
-    - Địa chỉ
-    - Số điện thoại
-    - Biển kiểm soát
-    - Số khung
-    - Số máy
-    - Loại xe
-    - Thời hạn bảo hiểm từ ngày
-    - Thời hạn bảo hiểm đến ngày
-    - Ngày giờ cấp đơn
-    - Thời hạn thanh toán phí
-    - Số serial ấn chỉ giấy
 
-    Trả về kết quả dưới dạng JSON với các key:
-    premium_amount, owner_name, address, phone_number, plate_number, 
-    chassis_number, engine_number, vehicle_type, insurance_start_date,
-    insurance_end_date, policy_issued_datetime, premium_payment_due_date,
-    serial_number
+    prompt = """
+    Hãy trích xuất chính xác các thông tin sau từ hình ảnh được cung cấp và trả về dưới dạng JSON:
+    {
+        "owner_name": "Chủ xe",
+        "number_seats": "Số người được bảo hiểm",
+        "liability_amount": "Mức trách nhiệm bảo hiểm",
+        "accident_premium": "Phí bảo hiểm tai nạn",
+        "address": "Địa chỉ",
+        "plate_number": "Biển kiểm soát",
+        "phone_number": "Điện thoại",
+        "vin": "Số khung",
+        "engine_number": "Số máy",
+        "vehicle_type": "Loại xe",
+        "insurance_period": {
+        "start": "Thời gian bắt đầu (DD/MM/YYYY HH:mm)",
+        "end": "Thời gian kết thúc (DD/MM/YYYY HH:mm)"
+        },
+        "premium_amount": "Tổng phí",
+        "issue_date": "Cấp hồi (DD/MM/YYYY HH:mm)"
+        }
+        Lưu ý:
+        - Chỉ trả về JSON, không thêm bất kỳ văn bản nào khác
+        - Đảm bảo định dạng ngày tháng theo mẫu
     """
 
     response = await client.chat.completions.create(
-        model="gpt-4-vision-preview",
+        model="gpt-4o-mini",
         messages=[
             {
                 "role": "user",
@@ -56,41 +58,41 @@ async def process_image(image_url: str) -> dict:
                     },
                     {
                         "type": "image_url",
-                        "image_url": image_url
+                        "image_url": {"url": image_url},
                     }
                 ]
             }
         ],
-        max_tokens=1000
+        response_format={ "type": "json_object" }
     )
 
     # Parse JSON response
     try:
         result = json.loads(response.choices[0].message.content)
-        
-        # Convert string dates to proper format
-        date_fields = [
-            'insurance_start_date',
-            'insurance_end_date',
-            'premium_payment_due_date'
-        ]
-        for field in date_fields:
-            if field in result:
-                result[field] = datetime.strptime(
-                    result[field], 
-                    '%Y-%m-%d'
-                ).date().isoformat()
 
-        # Convert policy issued datetime
-        if 'policy_issued_datetime' in result:
-            result['policy_issued_datetime'] = datetime.strptime(
-                result['policy_issued_datetime'],
-                '%Y-%m-%dT%H:%M:%S'
-            ).isoformat()
+        # # Convert string dates to proper format
+        # date_fields = [
+        #     'insurance_start_date',
+        #     'insurance_end_date',
+        #     'premium_payment_due_date'
+        # ]
+        # for field in date_fields:
+        #     if field in result and result.get(field):
+        #         result[field] = datetime.strptime(
+        #             result[field],
+        #             '%Y-%m-%d'
+        #         ).date().isoformat()
+        #
+        # # Convert policy issued datetime
+        # if 'policy_issued_datetime' in result and result.get('policy_issued_datetime'):
+        #     result['policy_issued_datetime'] = datetime.strptime(
+        #         result['policy_issued_datetime'],
+        #         '%d-%m-%Y'
+        #     ).isoformat()
 
         # Convert premium amount to decimal
         if 'premium_amount' in result:
-            result['premium_amount'] = float(str(result['premium_amount']).replace(',', ''))
+            result['premium_amount'] = float(str(result['premium_amount']).replace(',', '').replace('.', ''))
 
         return result
 
@@ -126,9 +128,10 @@ async def process_message(message: aio_pika.IncomingMessage):
                     **insurance_info
                 )
                 db.add(insurance_detail)
-                
+
                 # Update image status
                 image.status = "COMPLETED"
+                image.json_data = insurance_info
                 db.commit()
 
                 # Publish event
@@ -180,7 +183,7 @@ async def main():
     # Declare exchange and queue
     exchange = await channel.declare_exchange("acg.xm.direct", aio_pika.ExchangeType.DIRECT)
     queue = await channel.declare_queue("acg.xm.image.processing", durable=True)
-    
+
     # Bind queue to exchange
     await queue.bind(exchange, routing_key="image.uploaded")
 
@@ -194,4 +197,4 @@ async def main():
         await connection.close()
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    asyncio.run(main())
