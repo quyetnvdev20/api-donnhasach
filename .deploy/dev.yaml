@@ -19,7 +19,7 @@ resources:
     memory: "1Gi"
 
 celeries:
-  - name: image_processor
+  - name: acg-xm-image-processor
     replicas: 1
     runCommand: python -m app.workers.image_processor
     resources:
@@ -30,7 +30,7 @@ celeries:
         cpu: 500m
         memory: 1Gi
 
-  - name: policy_creator
+  - name: acg-xm-policy-creator
     replicas: 1
     runCommand: python -m app.workers.policy_creator
     resources:
