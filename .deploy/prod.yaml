@@ -1,0 +1,36 @@
+targetPort: 5000 # port of pod container
+ingress:
+  enable: true
+  host: api-insurance.baohiemtasco.vn
+  path: /acg-xm
+#  annotations:
+#     nginx.ingress.kubernetes.io/rewrite-target: /$1
+
+tls:
+  - hosts:
+      - '*.baohiemtasco.vn'
+    secretName: baohiemtasco-vn-tls-sectigo-wildcard
+
+envFrom:
+  configMaps:
+    - name: coke-common-cm
+    - name: redis1-cm
+    - name: keycloak-cm
+
+hpa:
+  enable: true
+  minReplicas: 1
+  maxReplicas: 3
+  memoryAvgUtilization: 300
+  cpuAvgUtilization: 600
+
+resources:
+  requests:
+    cpu: "50m"
+    memory: "200Mi"
+  limits:
+    cpu: "400m"
+    memory: "1Gi"
+
+
+depCommand: ./run.sh
