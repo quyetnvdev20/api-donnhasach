@@ -1,0 +1,9 @@
+
+#Common Info
+commonInfo:
+  gitBranch: ${GIT_BRANCH}
+  gitCommitSha8: ${GIT_COMMIT_SHA8}
+  gitMsg: "${GIT_MSG}"
+  author: "${AUTHOR}"
+  version: "${VERSION}"
+
