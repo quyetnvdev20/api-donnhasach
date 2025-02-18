@@ -3,6 +3,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from .base import Base
 import uuid
+from sqlalchemy.dialects.postgresql import JSONB
 
 class Image(Base):
     __tablename__ = "images"
@@ -13,6 +14,7 @@ class Image(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     status = Column(String(20), nullable=False)
+    json_data = Column(JSONB)
 
     session = relationship("Session", back_populates="images")
     insurance_detail = relationship("InsuranceDetail", back_populates="image", uselist=False, cascade="all, delete-orphan") 

@@ -3,6 +3,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from .base import Base
 import uuid
+from sqlalchemy.dialects.postgresql import JSONB
 
 class Session(Base):
     __tablename__ = "sessions"
