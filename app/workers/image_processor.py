@@ -31,19 +31,18 @@ async def process_image(image_url: str) -> dict:
         "address": "Địa chỉ",
         "plate_number": "Biển kiểm soát",
         "phone_number": "Điện thoại",
-        "vin": "Số khung",
+        "chassis_number": "Số khung",
         "engine_number": "Số máy",
         "vehicle_type": "Loại xe",
-        "insurance_period": {
-        "start": "Thời gian bắt đầu (DD/MM/YYYY HH:mm)",
-        "end": "Thời gian kết thúc (DD/MM/YYYY HH:mm)"
-        },
-        "premium_amount": "Tổng phí",
-        "issue_date": "Cấp hồi (DD/MM/YYYY HH:mm)"
+        "insurance_start_date": "Thời gian bắt đầu (DD/MM/YYYY HH:mm:00)",
+        "insurance_end_date": "Thời gian kết thúc (DD/MM/YYYY HH:mm:00)"
+        "premium_amount": "TỔNG PHÍ",
+        "policy_issued_datetime": "Cấp hồi (DD/MM/YYYY HH:mm:00)"
         }
         Lưu ý:
         - Chỉ trả về JSON, không thêm bất kỳ văn bản nào khác
         - Đảm bảo định dạng ngày tháng theo mẫu
+        - Số tiền không có dấu phẩy hoặc dấu chấm phân cách
     """
 
     response = await client.chat.completions.create(
@@ -70,29 +69,39 @@ async def process_image(image_url: str) -> dict:
     try:
         result = json.loads(response.choices[0].message.content)
 
-        # # Convert string dates to proper format
-        # date_fields = [
-        #     'insurance_start_date',
-        #     'insurance_end_date',
-        #     'premium_payment_due_date'
-        # ]
-        # for field in date_fields:
-        #     if field in result and result.get(field):
-        #         result[field] = datetime.strptime(
-        #             result[field],
-        #             '%Y-%m-%d'
-        #         ).date().isoformat()
-        #
-        # # Convert policy issued datetime
-        # if 'policy_issued_datetime' in result and result.get('policy_issued_datetime'):
-        #     result['policy_issued_datetime'] = datetime.strptime(
-        #         result['policy_issued_datetime'],
-        #         '%d-%m-%Y'
-        #     ).isoformat()
+        # Convert string dates to proper format
+        date_fields = [
+            'insurance_start_date',
+            'insurance_end_date',
+            'premium_payment_due_date',
+            'policy_issued_datetime'
+        ]
+        for field in date_fields:
+            if field in result and result.get(field):
+                result[field] = datetime.strptime(
+                    result[field],
+                    '%d/%m/%Y %H:%M:%S'
+                ).isoformat()
 
-        # Convert premium amount to decimal
-        if 'premium_amount' in result:
-            result['premium_amount'] = float(str(result['premium_amount']).replace(',', '').replace('.', ''))
+        # Convert policy issued datetime
+        if 'premium_payment_due_date' in result and result.get('premium_payment_due_date'):
+            result['premium_payment_due_date'] = datetime.strptime(
+                result['premium_payment_due_date'],
+                '%d/%m/%Y'
+            ).isoformat()
+
+        float_fields = [
+            'premium_amount',
+            'liability_amount',
+            'accident_premium',
+        ]
+
+        for f in float_fields:
+            if result.get(f):
+                result[f] = float(str(result[f]))
+
+        if 'number_seats' in result:
+            result['number_seats'] = int(str(result['number_seats']))
 
         return result
 
