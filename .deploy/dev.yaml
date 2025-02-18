@@ -6,6 +6,12 @@ ingress:
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$2
 
+
+tls:
+  - hosts:
+      - '*.baohiemtasco.vn'
+    secretName: baohiemtasco-vn-tls-sectigo-wildcard
+
 envFrom:
   configMaps:
     - name: xm-common-cm
