@@ -98,7 +98,10 @@ async def process_image(image_url: str) -> dict:
 
         for f in float_fields:
             if result.get(f):
-                result[f] = float(str(result[f]))
+                value = str(result[f])
+                if '.' in value:
+                    value = value.replace('.', '')
+                result[f] = float(value)
 
         if 'number_seats' in result:
             result['number_seats'] = int(str(result['number_seats']))
@@ -107,7 +110,7 @@ async def process_image(image_url: str) -> dict:
 
     except Exception as e:
         logger.error(f"Error parsing OpenAI response: {str(e)}")
-        raise Exception("Failed to parse insurance information from image")
+        raise Exception(f"Failed to parse insurance information from image: {str(e)}")
 
 async def process_message(message: aio_pika.IncomingMessage):
     async with message.process():
