@@ -18,14 +18,28 @@ def create_session(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
+    # Lấy id_keycloak từ token JWT (field 'sub' là standard cho user id)
+    id_keycloak = current_user.get('sub')
+    if not id_keycloak:
+        raise HTTPException(status_code=400, detail="Invalid token: missing user id")
+
     session = SessionModel(
         status=SessionStatus.NEW,
-        created_by=current_user.get("preferred_username", "unknown")
+        created_by=current_user.get("preferred_username", "unknown"),
+        id_keycloak=id_keycloak  # Thêm id_keycloak vào session
     )
-    db.add(session)
-    db.commit()
-    db.refresh(session)
-    return session
+    
+    try:
+        db.add(session)
+        db.commit()
+        db.refresh(session)
+        return session
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error creating session: {str(e)}"
+        )
 
 @router.put("/sessions/{session_id}/open", response_model=SessionResponse)
 def open_session(
