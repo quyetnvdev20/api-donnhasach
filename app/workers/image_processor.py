@@ -11,6 +11,9 @@ import requests
 from openai import AsyncOpenAI
 from datetime import datetime
 from tenacity import retry, stop_after_attempt, wait_exponential
+import google.generativeai as genai
+from PIL import Image
+from io import BytesIO
 from app.core.settings import ImageStatus, SessionStatus
 
 logging.basicConfig(level=logging.INFO)
@@ -113,6 +116,105 @@ async def process_image(image_url: str) -> dict:
     except Exception as e:
         logger.error(f"Error parsing OpenAI response: {str(e)}")
         raise Exception(f"Failed to parse insurance information from image: {str(e)}")
+
+async def process_image_with_gemini(image_url: str) -> dict:
+    """
+    Sử dụng Google Gemini Vision API để trích xuất thông tin từ ảnh giấy bảo hiểm
+    """
+    # Cấu hình Gemini
+    genai.configure(api_key=settings.GOOGLE_API_KEY)
+    model = genai.GenerativeModel('gemini-1.5-flash')
+
+    prompt = """
+    Hãy trích xuất chính xác các thông tin sau từ hình ảnh được cung cấp và trả về dưới dạng JSON:
+    {
+        "owner_name": "Chủ xe",
+        "number_seats": "Số người được bảo hiểm (Số)",
+        "liability_amount": "Mức trách nhiệm bảo hiểm (Số)",
+        "accident_premium": "Phí bảo hiểm tai nạn (Số)",
+        "address": "Địa chỉ",
+        "plate_number": "Biển kiểm soát",
+        "phone_number": "Điện thoại",
+        "chassis_number": "Số khung",
+        "engine_number": "Số máy",
+        "vehicle_type": "Loại xe",
+        "insurance_start_date": "Thời gian bắt đầu (DD/MM/YYYY HH:mm:00)",
+        "insurance_end_date": "Thời gian kết thúc (DD/MM/YYYY HH:mm:00)"
+        "premium_amount": "TỔNG PHÍ (Số)",
+        "policy_issued_datetime": "Cấp hồi (DD/MM/YYYY HH:mm:00)"
+    }
+    Lưu ý:
+    - Chỉ trả về JSON, không thêm bất kỳ văn bản nào khác
+    - Đảm bảo định dạng ngày tháng theo mẫu
+    - Số tiền không có dấu phẩy hoặc dấu chấm phân cách và chỉ lấy số không lấy chữ
+    - - Các dấu tích v hoặc x là các điều kiện được chọn để lấy lên ví dụ: Loại xe, Số người được bảo hiểm, Mức trách nhiệm bảo hiểm
+    """
+
+    try:
+        # Tải ảnh từ URL
+        response = requests.get(image_url)
+        response.raise_for_status()
+        image = Image.open(BytesIO(response.content))
+
+        # Gọi Gemini API
+        response = model.generate_content([prompt, image])
+        
+        # Log raw response để debug
+        logger.info(f'Raw Gemini response: {response.text}')
+        
+        try:
+            # Lấy kết quả JSON từ response
+            # Thử tìm và parse phần JSON trong response
+            import re
+            json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
+            if json_match:
+                json_str = json_match.group()
+                result = json.loads(json_str)
+            else:
+                raise ValueError("No JSON object found in response")
+                
+            logger.info(f'process_image.gemini.gia tri tra ve tu gemini: {str(result)}')
+
+            # Xử lý các trường datetime
+            date_fields = [
+                'insurance_start_date',
+                'insurance_end_date',
+                'premium_payment_due_date',
+                'policy_issued_datetime'
+            ]
+            for field in date_fields:
+                if field in result and result.get(field):
+                    result[field] = datetime.strptime(
+                        result[field],
+                        '%d/%m/%Y %H:%M:%S'
+                    ).isoformat()
+
+            # Xử lý các trường số
+            float_fields = [
+                'premium_amount',
+                'liability_amount',
+                'accident_premium',
+            ]
+            for f in float_fields:
+                if result.get(f):
+                    value = str(result[f])
+                    if '.' in value:
+                        value = value.replace('.', '')
+                    result[f] = float(value)
+
+            if 'number_seats' in result:
+                result['number_seats'] = int(str(result['number_seats']))
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error parsing Gemini response: {str(e)}")
+            logger.error(f"Response content: {response.text}")
+            raise
+
+    except Exception as e:
+        logger.error(f"Error processing image with Gemini: {str(e)}")
+        raise Exception(f"Failed to process insurance information from image: {str(e)}")
 
 async def process_message(message: aio_pika.IncomingMessage):
     async with message.process():

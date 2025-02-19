@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     KEYCLOAK_CLIENT_ID: str
     KEYCLOAK_CLIENT_SECRET: str
     OPENAI_API_KEY: str
+    GOOGLE_API_KEY: str
 
     class Config:
         env_file = ".env"
