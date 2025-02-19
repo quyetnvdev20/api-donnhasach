@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/sessions/{session_id}/images", response_model=ImageResponse)
-def upload_image(
+async def upload_image(
     session_id: uuid.UUID,
     image: ImageCreate,
     db: Session = Depends(get_db),
@@ -45,20 +45,30 @@ def upload_image(
     db.refresh(db_image)
 
     # Bắn event để xử lý ảnh
-    try:
-        publish_event(
-            "image.uploaded",
-            {
-                "event_type": "IMAGE_UPLOADED",
-                "image_id": str(db_image.id),
-                "session_id": str(session_id),
-                "image_url": str(image.image_url),
-                "timestamp": db_image.created_at.isoformat()
-            }
-        )
-    except Exception as e:
-        logger.info(f'upload_image.post.error: {str(e)}')
-        pass
+    await publish_event(
+        "image.uploaded",
+        {
+            "event_type": "IMAGE_UPLOADED",
+            "image_id": str(db_image.id),
+            "session_id": str(session_id),
+            "image_url": str(image.image_url),
+            "timestamp": db_image.created_at.isoformat()
+        }
+    )
+    # try:
+    #     publish_event(
+    #         "image.uploaded",
+    #         {
+    #             "event_type": "IMAGE_UPLOADED",
+    #             "image_id": str(db_image.id),
+    #             "session_id": str(session_id),
+    #             "image_url": str(image.image_url),
+    #             "timestamp": db_image.created_at.isoformat()
+    #         }
+    #     )
+    # except Exception as e:
+    #     logger.info(f'upload_image.post.error: {str(e)}')
+    #     pass
 
     return db_image
 
