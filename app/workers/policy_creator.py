@@ -4,6 +4,7 @@ import json
 from sqlalchemy.orm import Session
 from ..database import SessionLocal
 from ..models.image import Image
+from ..models.session import Session as SessionModel
 from ..config import settings
 import logging
 import requests
@@ -125,7 +126,7 @@ async def process_message(message: aio_pika.IncomingMessage):
                 logger.error(f"Image {body['image_id']} is not success")
                 return
             
-            session = db.query(Session).filter(Session.id == str(image.session_id)).first()
+            session = db.query(SessionModel).filter(SessionModel.id == str(image.session_id)).first()
             user_id = session.id_keycloak
 
             try:
