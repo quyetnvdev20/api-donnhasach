@@ -9,6 +9,7 @@ from ..config import settings
 import logging
 import requests
 import os
+from datetime import datetime
 from tenacity import retry, stop_after_attempt, wait_exponential
 from app.core.settings import ImageStatus
 
@@ -28,13 +29,14 @@ async def connect_to_rabbitmq():
     return await aio_pika.connect_robust(settings.RABBITMQ_URL)
 
 async def get_token_user(user_id):
-    url = f"{os.getenv('AUTH_BAOBAO_URL')}/user/access-token?user_id={user_id}"
-    payload = {}
-    headers = {
-        'X-API-Key': os.getenv('AUTH_BAOBAO_API_KEY')
-    }
-    response = requests.request("GET", url, headers=headers, data=payload)
-    return response.json().get("access_token")
+    return 'eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICI3d1pHZmJDWlQxUGg1YVNzSXF1NkN4TWpIa3NmZE5Qa0FLb3doLUlnY0FNIn0.eyJleHAiOjE3Mzk5NjI3ODEsImlhdCI6MTczOTk2MjQ4MSwianRpIjoiMWRkN2I5NjQtNmE4My00YjgyLTlmMjgtZjkwZTVjZWVkMzQwIiwiaXNzIjoiaHR0cHM6Ly9kZXYtc3NvLmJhb2hpZW10YXNjby52bi9yZWFsbXMvbWFzdGVyIiwiYXVkIjpbIm1hc3Rlci1yZWFsbSIsImFjY291bnQiXSwic3ViIjoiMDFhZWZmNDgtMTFjOS00ODg2LWJmNWMtNzU1MTA0OGVmM2RmIiwidHlwIjoiQmVhcmVyIiwiYXpwIjoiZXhjaGFuZ2UtYXBpIiwic2Vzc2lvbl9zdGF0ZSI6IjQ4ZTIwNmI2LThlMGYtNGI0My04ODI3LTYzYjQyNTBiZTdjMiIsInJlYWxtX2FjY2VzcyI6eyJyb2xlcyI6WyJjcmVhdGUtcmVhbG0iLCJkZWZhdWx0LXJvbGVzLW1hc3RlciIsIm9mZmxpbmVfYWNjZXNzIiwiYWRtaW4iLCJ1bWFfYXV0aG9yaXphdGlvbiJdfSwicmVzb3VyY2VfYWNjZXNzIjp7Im1hc3Rlci1yZWFsbSI6eyJyb2xlcyI6WyJ2aWV3LWlkZW50aXR5LXByb3ZpZGVycyIsInZpZXctcmVhbG0iLCJtYW5hZ2UtaWRlbnRpdHktcHJvdmlkZXJzIiwiaW1wZXJzb25hdGlvbiIsImNyZWF0ZS1jbGllbnQiLCJtYW5hZ2UtdXNlcnMiLCJxdWVyeS1yZWFsbXMiLCJ2aWV3LWF1dGhvcml6YXRpb24iLCJxdWVyeS1jbGllbnRzIiwicXVlcnktdXNlcnMiLCJtYW5hZ2UtZXZlbnRzIiwibWFuYWdlLXJlYWxtIiwidmlldy1ldmVudHMiLCJ2aWV3LXVzZXJzIiwidmlldy1jbGllbnRzIiwibWFuYWdlLWF1dGhvcml6YXRpb24iLCJtYW5hZ2UtY2xpZW50cyIsInF1ZXJ5LWdyb3VwcyJdfSwiYWNjb3VudCI6eyJyb2xlcyI6WyJtYW5hZ2UtYWNjb3VudCIsIm1hbmFnZS1hY2NvdW50LWxpbmtzIiwidmlldy1wcm9maWxlIl19fSwic2NvcGUiOiJwcm9maWxlIGVtYWlsIiwic2lkIjoiNDhlMjA2YjYtOGUwZi00YjQzLTg4MjctNjNiNDI1MGJlN2MyIiwiZW1haWxfdmVyaWZpZWQiOmZhbHNlLCJuYW1lIjoiSGnhur91IMSQ4buXIiwicHJlZmVycmVkX3VzZXJuYW1lIjoiMDMzMzQwNzQyMCIsImdpdmVuX25hbWUiOiJIaeG6v3UgxJDhu5ciLCJlbWFpbCI6ImhpZXVkdkBjYXJwbGEudm4ifQ.HEP4Wtuv_X46duhzO-owyD6ZQ5vYhwt_ijvkMW5SZzLBgIP-DLbyM3O-Hg5AyL4ysQ7C-CbG7JDC6LcEG_TAwGfP_MFYxbKECG_iRiJHzLEM0D9ChDeRr2XfL16OwVctjwMb08Vl-rNplHq-tACFwlsp9F_KTPejcYW10N9DM114ohPDKydWWe2qwruK01L5boKCYl6JV23uZXjMrshCi-sT_Tx4pbvCcNg7aumiwe_V5ECml7rU0UiKMYjgj9ezdT4NH9t5w48bDCi00_JnJZ7L_LUo5Md8b0m4DOHBXbOdX-mQlVdXfc5WDi4RxZl2AGPAPLxTbRLbHnzuc2VNKQ'
+    # url = f"{os.getenv('AUTH_BAOBAO_URL')}/user/access-token?user_id={user_id}"
+    # payload = {}
+    # headers = {
+    #     'X-API-Key': os.getenv('AUTH_BAOBAO_API_KEY')
+    # }
+    # response = requests.request("GET", url, headers=headers, data=payload)
+    # return response.json().get("access_token")
 
 async def create_policy(insurance_details: dict, user_id: str) -> dict:
     " Gọi Core API để tạo đơn bảo hiểm"
@@ -45,8 +47,8 @@ async def create_policy(insurance_details: dict, user_id: str) -> dict:
         "license_plate": insurance_details.get("plate_number"),
         "vehicle_type_id": None,
         "channel_id": int(os.getenv("CHANNEL_ID")),
-        "date_start": insurance_details.get("insurance_start_date"),
-        "date_end": insurance_details.get("insurance_end_date"),
+        "date_start": datetime.strptime(insurance_details.get("insurance_start_date") , '%Y-%m-%d %H:%M:%S'),
+        "date_end": datetime.strptime(insurance_details.get("insurance_end_date") , '%Y-%m-%d %H:%M:%S'),
         "vin_number": insurance_details.get("chassis_number"),
         "engine_number": insurance_details.get("engine_number"),
         "tnds_insur_coverage": {
