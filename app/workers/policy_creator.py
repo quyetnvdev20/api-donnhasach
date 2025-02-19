@@ -121,7 +121,7 @@ async def process_message(message: aio_pika.IncomingMessage):
                 logger.error(f"Image {body['image_id']} not found")
                 return
             
-            if image.status != "COMPLETED":
+            if image.status not in ("COMPLETED", 'completed'):
                 logger.error(f"Image {body['image_id']} is not success")
                 return
             
