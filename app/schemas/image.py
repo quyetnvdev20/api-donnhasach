@@ -19,6 +19,7 @@ class ImageResponse(ImageBase):
     created_at: datetime
     updated_at: datetime
     json_data: Optional[dict] = None
+    error_message: Optional[str] = None
 
     class Config:
         from_attributes = True
