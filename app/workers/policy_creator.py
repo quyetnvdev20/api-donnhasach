@@ -7,6 +7,7 @@ from ..models.image import Image
 from ..config import settings
 import logging
 import requests
+import os
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 logging.basicConfig(level=logging.INFO)
@@ -18,20 +19,92 @@ logger = logging.getLogger(__name__)
     reraise=True
 )
 async def connect_to_rabbitmq():
-    """Kết nối tới RabbitMQ với retry logic"""
+    """
+    Kết nối tới RabbitMQ với retry logic
+    """
     logger.info(f"Attempting to connect to RabbitMQ at {settings.RABBITMQ_URL}")
     return await aio_pika.connect_robust(settings.RABBITMQ_URL)
 
-async def create_policy(insurance_details: dict) -> dict:
-    """
-    Gọi Core API để tạo đơn bảo hiểm
-    """
+async def get_token_user(user_id):
+    url = f"{os.getenv('AUTH_BAOBAO_URL')}/user/access-token?user_id={user_id}"
+    payload = {}
+    headers = {
+        'X-API-Key': os.getenv('AUTH_BAOBAO_API_KEY')
+    }
+    response = requests.request("GET", url, headers=headers, data=payload)
+    return response.json().get("access_token")
+
+async def create_policy(insurance_details: dict, user_id: str) -> dict:
+    " Gọi Core API để tạo đơn bảo hiểm"
     # TODO: Implement actual Core API call
     # Đây là mock data để test
-    return {
-        "policy_number": "POL123456",
-        "status": "ACTIVE"
+
+    data = {
+        "license_plate": insurance_details.get("plate_number"),
+        "vehicle_type_id": None,
+        "channel_id": int(os.getenv("CHANNEL_ID")),
+        "date_start": insurance_details.get("insurance_start_date"),
+        "date_end": insurance_details.get("insurance_end_date"),
+        "vin_number": insurance_details.get("chassis_number"),
+        "engine_number": insurance_details.get("engine_number"),
+        "tnds_insur_coverage": {
+            "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_ID")),
+            "name": "1. TNDS bắt buộc",
+            "customer_amount": insurance_details.get("premium_amount") - insurance_details.get("accident_premium"),
+            "premium_amount": insurance_details.get("premium_amount") - insurance_details.get("accident_premium"),
+            "tariff_line_id": int(os.getenv("TARIFF_LINE_TNDS_BIKE_ID")),
+            "detail_coverage": [
+                {
+                    "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_1_1_ID")),
+                    "amount": 150_000_000,
+                    "name": "1.1 Về sức khỏe, tính mạng"
+                },
+                {
+                    "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_1_2_ID")),
+                    "amount": 50_000_000,
+                    "name": "1.2 Về tài sản"
+                }
+            ]
+        },
+        "driver_passenger_accident": {
+            "id": int(os.getenv("PRODUCT_CATEGORY_DRIVER_PASSENGER_ACCIDENT_ID")),
+            "amount": insurance_details.get("accident_premium"),
+            "customer_amount": insurance_details.get("accident_premium"),
+            "premium_amount": insurance_details.get("accident_premium"),
+            "rate": 0.001,
+            "number_seats": insurance_details.get("number_seats"),
+            "tariff_line_id": int(os.getenv("TARIFF_LINE_DRIVER_PASSENGER_ACCIDENT_ID")),
+            "name": "2. Tai nạn người ngồi trên xe"
+        },
+        "note": "",
+        "car_owner": {
+            "customer_phone": insurance_details.get("phone_number"),
+            "customer_type": "none",
+            "customer_vat": "",
+            "customer_name": insurance_details.get("owner_name"),
+            "customer_cccd": "",
+            "customer_address": insurance_details.get("address")
+        },
+        "is_other_holders": False
     }
+
+    logger.info(f'create_policy.data: {str(data)}')
+
+    payload = json.dumps(data)
+    headers = {
+        'accept': 'application/json',
+        'Authorization': f'Bearer {await get_token_user(user_id)}'
+    }
+
+    url = f"{os.getenv('INSURANCE_API_URL')}/cobao-sync/cobao-insur-policy/insur-order"
+
+    response = requests.request("POST", url, headers=headers, data=payload)
+    if response.status_code != 200:
+        logger.warning(f"Unexpected response status code: {response.status_code}")
+        return {}
+
+    return response.json()
+
 
 async def process_message(message: aio_pika.IncomingMessage):
     async with message.process():
@@ -46,10 +119,20 @@ async def process_message(message: aio_pika.IncomingMessage):
             if not image:
                 logger.error(f"Image {body['image_id']} not found")
                 return
+            
+            if image.status != "success":
+                logger.error(f"Image {body['image_id']} is not success")
+                return
+            
+            session = db.query(Session).filter(Session.id == str(image.session_id)).first()
+            user_id = session.user_id
 
             try:
                 # Create policy
-                policy_result = await create_policy(body["insurance_details"])
+                policy_result = await create_policy(body["insurance_details"], user_id)
+                if not policy_result:
+                    logger.error(f"Image {body['image_id']} create fail")
+                    return
 
                 # Publish event
                 connection = await connect_to_rabbitmq()
@@ -89,7 +172,7 @@ async def main():
     # Declare exchange and queue
     exchange = await channel.declare_exchange("acg.xm.direct", aio_pika.ExchangeType.DIRECT)
     queue = await channel.declare_queue("acg.xm.policy.creation", durable=True)
-    
+
     # Bind queue to exchange
     await queue.bind(exchange, routing_key="image.processed")
 
@@ -103,4 +186,4 @@ async def main():
         await connection.close()
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    asyncio.run(main())
