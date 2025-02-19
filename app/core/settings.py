@@ -12,6 +12,7 @@ class ImageStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     INVALID = "invalid"
+    DONE = "done"
 
 # Các constant khác có thể thêm vào đây
 MAX_RETRY_COUNT = 3

@@ -9,6 +9,7 @@ import logging
 import requests
 import os
 from tenacity import retry, stop_after_attempt, wait_exponential
+from app.core.settings import ImageStatus
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -120,19 +121,25 @@ async def process_message(message: aio_pika.IncomingMessage):
                 logger.error(f"Image {body['image_id']} not found")
                 return
             
-            if image.status != "success":
+            if image.status != "COMPLETED":
                 logger.error(f"Image {body['image_id']} is not success")
                 return
             
             session = db.query(Session).filter(Session.id == str(image.session_id)).first()
-            user_id = session.user_id
+            user_id = session.id_keycloak
 
             try:
                 # Create policy
                 policy_result = await create_policy(body["insurance_details"], user_id)
                 if not policy_result:
                     logger.error(f"Image {body['image_id']} create fail")
+                    image.status = ImageStatus.INVALID
+                    image.error_message = f"Image create policy fail"
+                    db.commit()
                     return
+
+                image.status = ImageStatus.DONE
+                db.commit()
 
                 # Publish event
                 connection = await connect_to_rabbitmq()
