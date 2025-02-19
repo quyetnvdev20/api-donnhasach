@@ -15,6 +15,11 @@ from ....workers.image_processor import process_image, process_image_with_gemini
 
 router = APIRouter()
 
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
 @router.post("/sessions/{session_id}/images", response_model=ImageResponse)
 def upload_image(
     session_id: uuid.UUID,
@@ -52,6 +57,7 @@ def upload_image(
             }
         )
     except Exception as e:
+        logger.info(f'upload_image.post.error: {str(e)}')
         pass
 
     return db_image
