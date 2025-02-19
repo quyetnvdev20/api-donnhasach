@@ -13,6 +13,7 @@ class InsuranceDetail(Base):
     premium_amount = Column(Numeric(precision=10, scale=2))
     liability_amount = Column(Numeric(precision=10, scale=2))
     accident_premium = Column(Numeric(precision=10, scale=2))
+    number_seats = Column(Numeric(precision=10, scale=2))
     owner_name = Column(String(200))
     address = Column(String)
     phone_number = Column(String(20))
