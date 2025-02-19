@@ -29,7 +29,6 @@ async def connect_to_rabbitmq():
     return await aio_pika.connect_robust(settings.RABBITMQ_URL)
 
 async def get_token_user(user_id):
-    # return 'eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICI3d1pHZmJDWlQxUGg1YVNzSXF1NkN4TWpIa3NmZE5Qa0FLb3doLUlnY0FNIn0.eyJleHAiOjE3NzE0OTIzOTcsImlhdCI6MTczOTk1NjM5NywianRpIjoiZmQwNWMxNWItYzcxYi00NGIxLWFlOTQtN2VjNWM1ODBkZmE5IiwiaXNzIjoiaHR0cHM6Ly9kZXYtc3NvLmJhb2hpZW10YXNjby52bi9yZWFsbXMvbWFzdGVyIiwiYXVkIjpbIm1hc3Rlci1yZWFsbSIsImFjY291bnQiXSwic3ViIjoiMDFhZWZmNDgtMTFjOS00ODg2LWJmNWMtNzU1MTA0OGVmM2RmIiwidHlwIjoiQmVhcmVyIiwiYXpwIjoidGFzY28taW5zdXJhbmNlLWRldiIsInNlc3Npb25fc3RhdGUiOiI4MGJkYmYyYy1mZGNmLTQ5ZTktODFhMy1jYjlmZWZlNzdmMDAiLCJhY3IiOiIxIiwiYWxsb3dlZC1vcmlnaW5zIjpbIiIsIioiXSwicmVhbG1fYWNjZXNzIjp7InJvbGVzIjpbImNyZWF0ZS1yZWFsbSIsImRlZmF1bHQtcm9sZXMtbWFzdGVyIiwib2ZmbGluZV9hY2Nlc3MiLCJhZG1pbiIsInVtYV9hdXRob3JpemF0aW9uIl19LCJyZXNvdXJjZV9hY2Nlc3MiOnsibWFzdGVyLXJlYWxtIjp7InJvbGVzIjpbInZpZXctaWRlbnRpdHktcHJvdmlkZXJzIiwidmlldy1yZWFsbSIsIm1hbmFnZS1pZGVudGl0eS1wcm92aWRlcnMiLCJpbXBlcnNvbmF0aW9uIiwiY3JlYXRlLWNsaWVudCIsIm1hbmFnZS11c2VycyIsInF1ZXJ5LXJlYWxtcyIsInZpZXctYXV0aG9yaXphdGlvbiIsInF1ZXJ5LWNsaWVudHMiLCJxdWVyeS11c2VycyIsIm1hbmFnZS1ldmVudHMiLCJtYW5hZ2UtcmVhbG0iLCJ2aWV3LWV2ZW50cyIsInZpZXctdXNlcnMiLCJ2aWV3LWNsaWVudHMiLCJtYW5hZ2UtYXV0aG9yaXphdGlvbiIsIm1hbmFnZS1jbGllbnRzIiwicXVlcnktZ3JvdXBzIl19LCJhY2NvdW50Ijp7InJvbGVzIjpbIm1hbmFnZS1hY2NvdW50IiwibWFuYWdlLWFjY291bnQtbGlua3MiLCJ2aWV3LXByb2ZpbGUiXX19LCJzY29wZSI6Im9wZW5pZCBwcm9maWxlIGVtYWlsIiwic2lkIjoiODBiZGJmMmMtZmRjZi00OWU5LTgxYTMtY2I5ZmVmZTc3ZjAwIiwiZW1haWxfdmVyaWZpZWQiOmZhbHNlLCJ1c2VyX2lkIjoiMDFhZWZmNDgtMTFjOS00ODg2LWJmNWMtNzU1MTA0OGVmM2RmIiwibmFtZSI6Ikhp4bq_dSDEkOG7lyIsInByZWZlcnJlZF91c2VybmFtZSI6IjAzMzM0MDc0MjAiLCJnaXZlbl9uYW1lIjoiSGnhur91IMSQ4buXIiwiZW1haWwiOiJoaWV1ZHZAY2FycGxhLnZuIn0.eBlEkDc5uzR7qixwRwZkI1w68ulbMyt30BzwO7fp76eJwzwixU2jw6DW6ueR8JeX43Rf_kt35_oQ9ItbH3wUgIWS5epqbSIGY9SNHnQSYt9SVm_9lzyyAgZz0ZVya84apUUKH_YEobAtEjXZb8mQWIGlWn6UppB74XNR19eLE114GuE8GEaENbZA6lyVz3EvG4KAVr1wZazxlx707_8kV0jsoP7E2MvqG__zUTe6cgcvL-focw4W3a7CTHTbCFpDQDIifhTweoY8pFJsc6y9oPMIxDIinGzufqWk706j4yw19P4rQo2yixC84Std-c7DcznbUIjPYSM7Q5XUB-1OUQ'
     url = f"{os.getenv('AUTH_BAOBAO_URL')}/user/access-token?user_id={user_id}"
     payload = {}
     headers = {
@@ -115,7 +114,10 @@ async def create_policy(insurance_details: dict, user_id: str) -> dict:
         logger.warning(f"Unexpected response status code: {response.status_code}")
         return {}
 
-    return response.json()
+    result = response.json()
+    logger.warning(f"response_create_policy: {str(result)}")
+
+    return result
 
 
 async def process_message(message: aio_pika.IncomingMessage):
@@ -148,9 +150,6 @@ async def process_message(message: aio_pika.IncomingMessage):
                     image.error_message = f"Image create policy fail"
                     db.commit()
                     return
-
-                image.status = ImageStatus.DONE
-                db.commit()
 
                 # Publish event
                 connection = await connect_to_rabbitmq()
