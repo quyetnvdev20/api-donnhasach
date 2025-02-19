@@ -18,4 +18,6 @@ class Image(Base):
     json_data = Column(JSONB)
 
     session = relationship("Session", back_populates="images")
-    insurance_detail = relationship("InsuranceDetail", back_populates="image", uselist=False, cascade="all, delete-orphan") 
+    insurance_detail = relationship("InsuranceDetail", back_populates="image", uselist=False, cascade="all, delete-orphan")
+
+    error_message = Column(String)
