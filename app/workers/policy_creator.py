@@ -51,13 +51,13 @@ async def create_policy(insurance_details: dict, user_id: str) -> dict:
     date_end = date_end.strftime('%Y-%m-%d %H:%M:%S')
 
     data = {
-        "license_plate": insurance_details.get("plate_number").replace(' ', ''),
+        "license_plate": insurance_details.get("plate_number"),
         "vehicle_type_id": None,
         "channel_id": int(os.getenv("CHANNEL_ID")),
         "date_start": date_start,
         "date_end": date_end,
-        "vin_number": insurance_details.get("chassis_number", '').replace(' ', ''),
-        "engine_number": insurance_details.get("engine_number", '').replace(' ', ''),
+        "vin_number": insurance_details.get("chassis_number", ''),
+        "engine_number": insurance_details.get("engine_number", ''),
         "tnds_insur_coverage": {
             "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_ID")),
             "name": "1. TNDS bắt buộc",
@@ -89,7 +89,7 @@ async def create_policy(insurance_details: dict, user_id: str) -> dict:
         },
         "note": "",
         "car_owner": {
-            "customer_phone": insurance_details.get("phone_number").replace(' ', ''),
+            "customer_phone": insurance_details.get("phone_number"),
             "customer_type": "none",
             "customer_vat": None,
             "customer_name": insurance_details.get("owner_name"),
