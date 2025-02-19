@@ -51,13 +51,13 @@ async def create_policy(insurance_details: dict, user_id: str) -> dict:
     date_end = date_end.strftime('%Y-%m-%d %H:%M:%S')
 
     data = {
-        "license_plate": insurance_details.get("plate_number"),
+        "license_plate": insurance_details.get("plate_number").replace(' ', ''),
         "vehicle_type_id": None,
         "channel_id": int(os.getenv("CHANNEL_ID")),
         "date_start": date_start,
         "date_end": date_end,
-        "vin_number": insurance_details.get("chassis_number"),
-        "engine_number": insurance_details.get("engine_number"),
+        "vin_number": insurance_details.get("chassis_number", '').replace(' ', ''),
+        "engine_number": insurance_details.get("engine_number", '').replace(' ', ''),
         "tnds_insur_coverage": {
             "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_ID")),
             "name": "1. TNDS bắt buộc",
@@ -89,11 +89,11 @@ async def create_policy(insurance_details: dict, user_id: str) -> dict:
         },
         "note": "",
         "car_owner": {
-            "customer_phone": insurance_details.get("phone_number"),
+            "customer_phone": insurance_details.get("phone_number").replace(' ', ''),
             "customer_type": "none",
-            "customer_vat": "",
+            "customer_vat": None,
             "customer_name": insurance_details.get("owner_name"),
-            "customer_cccd": "",
+            "customer_cccd": None,
             "customer_address": insurance_details.get("address")
         },
         "is_other_holders": False
@@ -104,7 +104,8 @@ async def create_policy(insurance_details: dict, user_id: str) -> dict:
     payload = json.dumps(data)
     headers = {
         'accept': 'application/json',
-        'Authorization': f'Bearer {await get_token_user(user_id)}'
+        'Authorization': f'{await get_token_user(user_id)}',
+        'Content-Type': 'application/json'
     }
 
     url = f"{os.getenv('INSURANCE_API_URL')}/cobao-sync/cobao-insur-policy/insur-order"
