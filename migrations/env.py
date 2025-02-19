@@ -1,17 +1,12 @@
-import os
-import sys
 from logging.config import fileConfig
-
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
-
 from alembic import context
-
-# Add the app directory to the python path
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-
 from app.models import Base
 from app.config import settings
+from app.models.image import Image
+from app.models.session import Session
+from app.models.insurance_detail import InsuranceDetail
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -22,7 +17,14 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# add your model's MetaData object here
+# for 'autogenerate' support
 target_metadata = Base.metadata
+
+# other values from the config, defined by the needs of env.py,
+# can be acquired:
+# my_important_option = config.get_main_option("my_important_option")
+# ... etc.
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
@@ -49,8 +51,7 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection,
-            target_metadata=target_metadata
+            connection=connection, target_metadata=target_metadata
         )
 
         with context.begin_transaction():

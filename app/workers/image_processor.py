@@ -11,6 +11,7 @@ import requests
 from openai import AsyncOpenAI
 from datetime import datetime
 from tenacity import retry, stop_after_attempt, wait_exponential
+from app.core.settings import ImageStatus, SessionStatus
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -128,7 +129,7 @@ async def process_message(message: aio_pika.IncomingMessage):
                 return
 
             # Update image status
-            image.status = "PROCESSING"
+            image.status = ImageStatus.PROCESSING
             db.commit()
 
             try:
@@ -143,7 +144,7 @@ async def process_message(message: aio_pika.IncomingMessage):
                 db.add(insurance_detail)
 
                 # Update image status
-                image.status = "COMPLETED"
+                image.status = ImageStatus.COMPLETED
                 image.json_data = insurance_info
                 db.commit()
 
@@ -170,7 +171,7 @@ async def process_message(message: aio_pika.IncomingMessage):
 
             except Exception as e:
                 logger.error(f"Error processing image: {str(e)}")
-                image.status = "ERROR"
+                image.status = ImageStatus.FAILED
                 db.commit()
 
         except Exception as e:

@@ -8,6 +8,8 @@ from datetime import datetime
 from ...deps import get_current_user
 import uuid
 from sqlalchemy.sql import func
+from app.core.settings import SessionStatus
+from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -17,7 +19,7 @@ def create_session(
     current_user: dict = Depends(get_current_user)
 ):
     session = SessionModel(
-        status="NEW",
+        status=SessionStatus.NEW,
         created_by=current_user.get("preferred_username", "unknown")
     )
     db.add(session)
@@ -35,10 +37,10 @@ def open_session(
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    if session.status != "NEW":
+    if session.status != SessionStatus.NEW:
         raise HTTPException(status_code=400, detail="Session can only be opened from NEW status")
     
-    session.status = "OPEN"
+    session.status = SessionStatus.OPEN
     session.note = session_update.note
     db.commit()
     db.refresh(session)
@@ -53,10 +55,10 @@ def close_session(
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    if session.status != "OPEN":
+    if session.status != SessionStatus.OPEN:
         raise HTTPException(status_code=400, detail="Only OPEN session can be closed")
     
-    session.status = "CLOSED"
+    session.status = SessionStatus.CLOSED
     session.closed_at = datetime.utcnow()
     session.closed_by = current_user.get("preferred_username", "unknown")
     db.commit()
@@ -80,4 +82,7 @@ def list_sessions(
     db: Session = Depends(get_db)
 ):
     sessions = db.query(SessionModel).offset(skip).limit(limit).all()
-    return sessions 
+    return sessions
+
+class Session(BaseModel):
+    status: SessionStatus = SessionStatus.NEW

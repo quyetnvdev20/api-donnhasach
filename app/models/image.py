@@ -1,9 +1,10 @@
-from sqlalchemy import Column, String, DateTime, UUID, ForeignKey
+from sqlalchemy import Column, String, DateTime, UUID, ForeignKey, Enum
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from .base import Base
 import uuid
 from sqlalchemy.dialects.postgresql import JSONB
+from app.core.settings import ImageStatus
 
 class Image(Base):
     __tablename__ = "images"
@@ -13,7 +14,7 @@ class Image(Base):
     image_url = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    status = Column(String(20), nullable=False)
+    status = Column(Enum(ImageStatus), default=ImageStatus.PENDING)
     json_data = Column(JSONB)
 
     session = relationship("Session", back_populates="images")

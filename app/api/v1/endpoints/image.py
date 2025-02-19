@@ -10,11 +10,12 @@ from ...deps import get_current_user
 import uuid
 from pydantic import BaseModel
 from ....workers.image_processor import process_image
+from app.core.settings import ImageStatus, SessionStatus
 
 router = APIRouter()
 
 @router.post("/sessions/{session_id}/images", response_model=ImageResponse)
-async def upload_image(
+def upload_image(
     session_id: uuid.UUID,
     image: ImageCreate,
     db: Session = Depends(get_db),
@@ -24,30 +25,33 @@ async def upload_image(
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    if session.status != "OPEN":
+    if session.status != SessionStatus.OPEN:
         raise HTTPException(status_code=400, detail="Session is not open")
 
     # Tạo record image mới
     db_image = Image(
         session_id=session_id,
         image_url=str(image.image_url),
-        status="NEW"
+        status=ImageStatus.PENDING
     )
     db.add(db_image)
     db.commit()
     db.refresh(db_image)
 
     # Bắn event để xử lý ảnh
-    await publish_event(
-        "image.uploaded",
-        {
-            "event_type": "IMAGE_UPLOADED",
-            "image_id": str(db_image.id),
-            "session_id": str(session_id),
-            "image_url": str(image.image_url),
-            "timestamp": db_image.created_at.isoformat()
-        }
-    )
+    try:
+        publish_event(
+            "image.uploaded",
+            {
+                "event_type": "IMAGE_UPLOADED",
+                "image_id": str(db_image.id),
+                "session_id": str(session_id),
+                "image_url": str(image.image_url),
+                "timestamp": db_image.created_at.isoformat()
+            }
+        )
+    except Exception as e:
+        pass
 
     return db_image
 
