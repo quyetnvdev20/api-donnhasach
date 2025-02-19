@@ -9,12 +9,9 @@ from ....services.rabbitmq import publish_event
 from ...deps import get_current_user
 import uuid
 from pydantic import BaseModel
-<<<<<<< HEAD
 from ....workers.image_processor import process_image
 from app.core.settings import ImageStatus, SessionStatus
-=======
 from ....workers.image_processor import process_image, process_image_with_gemini
->>>>>>> f43daeb (update code)
 
 router = APIRouter()
 
