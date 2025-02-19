@@ -43,12 +43,19 @@ async def create_policy(insurance_details: dict, user_id: str) -> dict:
     # TODO: Implement actual Core API call
     # Đây là mock data để test
 
+    # Chuyển đổi thành đối tượng datetime
+    date_start = datetime.strptime(insurance_details.get("insurance_start_date"), '%Y-%m-%dT%H:%M:%S')
+    date_end = datetime.strptime(insurance_details.get("insurance_end_date"), '%Y-%m-%dT%H:%M:%S')
+    # Định dạng lại thành chuỗi mong muốn
+    date_start = date_start.strftime('%Y-%m-%d %H:%M:%S')
+    date_end = date_end.strftime('%Y-%m-%d %H:%M:%S')
+
     data = {
         "license_plate": insurance_details.get("plate_number"),
         "vehicle_type_id": None,
         "channel_id": int(os.getenv("CHANNEL_ID")),
-        "date_start": datetime.strptime(insurance_details.get("insurance_start_date") , '%Y-%m-%d %H:%M:%S'),
-        "date_end": datetime.strptime(insurance_details.get("insurance_end_date") , '%Y-%m-%d %H:%M:%S'),
+        "date_start": date_start,
+        "date_end": date_end,
         "vin_number": insurance_details.get("chassis_number"),
         "engine_number": insurance_details.get("engine_number"),
         "tnds_insur_coverage": {
