@@ -17,7 +17,7 @@ class SessionResponse(SessionBase):
     created_by: str
     closed_at: Optional[datetime] = None
     closed_by: Optional[str] = None
-    images: Optional[List[ImageResponse]] = []
+    images: Optional[List[ImageResponse]] = None
 
     class Config:
         from_attributes = True
