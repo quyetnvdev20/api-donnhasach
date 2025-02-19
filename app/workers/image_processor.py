@@ -25,9 +25,9 @@ async def process_image(image_url: str) -> dict:
     Hãy trích xuất chính xác các thông tin sau từ hình ảnh được cung cấp và trả về dưới dạng JSON:
     {
         "owner_name": "Chủ xe",
-        "number_seats": "Số người được bảo hiểm",
-        "liability_amount": "Mức trách nhiệm bảo hiểm",
-        "accident_premium": "Phí bảo hiểm tai nạn",
+        "number_seats": "Số người được bảo hiểm (Số)",
+        "liability_amount": "Mức trách nhiệm bảo hiểm (Số)",
+        "accident_premium": "Phí bảo hiểm tai nạn (Số)",
         "address": "Địa chỉ",
         "plate_number": "Biển kiểm soát",
         "phone_number": "Điện thoại",
@@ -36,13 +36,13 @@ async def process_image(image_url: str) -> dict:
         "vehicle_type": "Loại xe",
         "insurance_start_date": "Thời gian bắt đầu (DD/MM/YYYY HH:mm:00)",
         "insurance_end_date": "Thời gian kết thúc (DD/MM/YYYY HH:mm:00)"
-        "premium_amount": "TỔNG PHÍ",
+        "premium_amount": "TỔNG PHÍ (Số)",
         "policy_issued_datetime": "Cấp hồi (DD/MM/YYYY HH:mm:00)"
         }
         Lưu ý:
         - Chỉ trả về JSON, không thêm bất kỳ văn bản nào khác
         - Đảm bảo định dạng ngày tháng theo mẫu
-        - Số tiền không có dấu phẩy hoặc dấu chấm phân cách
+        - Số tiền không có dấu phẩy hoặc dấu chấm phân cách và chỉ lấy số không lấy chữ
     """
 
     response = await client.chat.completions.create(
@@ -68,6 +68,7 @@ async def process_image(image_url: str) -> dict:
     # Parse JSON response
     try:
         result = json.loads(response.choices[0].message.content)
+        logger.info(f'process_image.chat_gpt.gia tri tra ve tu chatgpt: {str(result)}')
 
         # Convert string dates to proper format
         date_fields = [
