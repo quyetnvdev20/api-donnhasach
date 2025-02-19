@@ -236,7 +236,8 @@ async def process_message(message: aio_pika.IncomingMessage):
 
             try:
                 # Process image
-                insurance_info = await process_image(image.image_url)
+                # insurance_info = await process_image(image.image_url)
+                insurance_info = await process_image_with_gemini(image.image_url)
 
                 # Create insurance detail
                 insurance_detail = InsuranceDetail(
