@@ -1,12 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-<<<<<<< HEAD
 from fastapi.openapi.utils import get_openapi
 from .api.v1.endpoints import session, image, insurance_detail
-=======
-from .api.v1.endpoints import session, image
->>>>>>> f43daeb (update code)
-
 app = FastAPI(
     title="ACG XM Service",
     description="Service xử lý ảnh giấy bảo hiểm xe máy",
