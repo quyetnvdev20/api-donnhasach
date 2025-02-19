@@ -12,7 +12,7 @@ from openai import AsyncOpenAI
 from datetime import datetime
 from tenacity import retry, stop_after_attempt, wait_exponential
 import google.generativeai as genai
-from PIL import Image
+from PIL import Image as PIL_Image
 from io import BytesIO
 from app.core.settings import ImageStatus, SessionStatus
 
@@ -154,7 +154,7 @@ async def process_image_with_gemini(image_url: str) -> dict:
         # Tải ảnh từ URL
         response = requests.get(image_url)
         response.raise_for_status()
-        image = Image.open(BytesIO(response.content))
+        image = PIL_Image.open(BytesIO(response.content))
 
         # Gọi Gemini API
         response = model.generate_content([prompt, image])
