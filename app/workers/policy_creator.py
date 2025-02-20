@@ -100,7 +100,7 @@ async def create_policy(insurance_details: dict, user_id: str, image_url: str) -
         "is_other_holders": False,
         "client_source": "acg_xm",
         "is_policy_indicative": True,
-        "motor_license_plate_image": image_url
+        "indicative_image_url": image_url
     }
 
     logger.info(f'create_policy.data: {str(data)}')
@@ -168,7 +168,8 @@ async def create_policy_group_insured(images, user_id):
             "date_start": date_start,
             "date_end": date_end,
             "policy_object_date": None,
-            "motor_license_plate_image": image.image_url,
+            "indicative_image_url": image.image_url,
+            "indicative": insurance_details.get("serial_number", ''),
             "tnds_insur_coverage": {
                 "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_ID")),
                 "name": "1. TNDS bắt buộc",
