@@ -19,6 +19,19 @@ from app.core.settings import ImageStatus, SessionStatus
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+LIST_FIELD_REQUIRED = [
+    'insurance_start_date',
+    'insurance_end_date',
+    'plate_number',
+    'premium_amount',
+    'serial_number',
+    'owner_name',
+    'address',
+    'policy_issued_datetime',
+]
+
+
 async def process_image(image_url: str) -> dict:
     """
     Sử dụng OpenAI Vision API để trích xuất thông tin từ ảnh giấy bảo hiểm
@@ -147,6 +160,7 @@ async def process_image_with_gemini(image_url: str) -> dict:
     Lưu ý:
     - Chỉ trả về JSON, không thêm bất kỳ văn bản nào khác
     - Đảm bảo định dạng ngày tháng theo mẫu
+    - Ngày giờ của thời gian kết thúc trùng với ngày giờ của thời gian bắt đầu, chỉ khác nhau mỗi năm, năm của thời gian kết thúc ở ngay dưới năm của thời gian bắt đầu
     - Số tiền không có dấu phẩy hoặc dấu chấm phân cách và chỉ lấy số không lấy chữ
     - - Các dấu tích v hoặc x là các điều kiện được chọn để lấy lên ví dụ: Loại xe, Số người được bảo hiểm, Mức trách nhiệm bảo hiểm
     """
@@ -203,7 +217,7 @@ async def process_image_with_gemini(image_url: str) -> dict:
                         value = value.replace('.', '')
                     result[f] = float(value)
 
-            if 'number_seats' in result:
+            if result.get('number_seats'):
                 result['number_seats'] = int(str(result['number_seats']))
 
             return result
@@ -237,8 +251,18 @@ async def process_message(message: aio_pika.IncomingMessage):
 
             try:
                 # Process image
-                # insurance_info = await process_image(image.image_url)
                 insurance_info = await process_image_with_gemini(image.image_url)
+
+                # Kiểm tra các trường bắt buộc
+                missing_fields = []
+                for field in LIST_FIELD_REQUIRED:
+                    if not insurance_info.get(field):
+                        missing_fields.append(field)
+
+                if missing_fields:
+                    error_message = f"Missing required fields: {', '.join(missing_fields)}"
+                    logger.error(error_message)
+                    raise ValueError(error_message)
 
                 # Create insurance detail
                 insurance_detail = InsuranceDetail(
@@ -273,9 +297,16 @@ async def process_message(message: aio_pika.IncomingMessage):
 
                 await connection.close()
 
+            except ValueError as e:
+                logger.error(f"Error processing image: {str(e)}")
+                image.status = ImageStatus.FAILED
+                image.json_data = insurance_info
+                image.error_message = str(e)
+                db.commit()
             except Exception as e:
                 logger.error(f"Error processing image: {str(e)}")
                 image.status = ImageStatus.FAILED
+                image.error_message = str(e)
                 db.commit()
 
         except Exception as e:
