@@ -24,11 +24,7 @@ LIST_FIELD_REQUIRED = [
     'insurance_start_date',
     'insurance_end_date',
     'plate_number',
-    'premium_amount',
-    'serial_number',
-    'owner_name',
-    'address',
-    'policy_issued_datetime',
+    'premium_amount'
 ]
 
 
