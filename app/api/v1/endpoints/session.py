@@ -131,7 +131,7 @@ def list_sessions(
     total_count = query.count()
     
     # Apply pagination
-    sessions = query.offset(skip * limit).limit(limit).all()
+    sessions = query.offset(skip).limit(limit).all()
 
     # Count images by status for each session
     for session in sessions:
