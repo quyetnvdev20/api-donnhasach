@@ -117,7 +117,8 @@ async def upload_image(
 # Add new endpoint
 @router.post("/images/chat_gpt")
 async def process_image_with_chatgpt(
-    request: ImageUrlRequest
+    request: ImageUrlRequest,
+    current_user: dict = Depends(get_current_user)
 ):
     try:
         # Call process_image function from image_processor
@@ -134,7 +135,8 @@ async def process_image_with_chatgpt(
 
 @router.post("/images/gemini")
 async def process_image_with_gemini_api(
-    request: ImageUrlRequest
+    request: ImageUrlRequest,
+    current_user: dict = Depends(get_current_user)
 ):
     try:
         # Call process_image function from image_processor

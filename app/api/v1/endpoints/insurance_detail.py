@@ -16,11 +16,13 @@ from ....workers.image_processor import process_message
 
 router = APIRouter()
 
+
 @router.patch("/images/{image_id}/insurance-detail", response_model=Dict[str, Any])
 def update_insurance_detail(
-    image_id: uuid.UUID,
-    update_data: InsuranceDetailUpdate,
-    db: Session = Depends(get_db)
+        image_id: uuid.UUID,
+        update_data: InsuranceDetailUpdate,
+        db: Session = Depends(get_db),
+        current_user: dict = Depends(get_current_user)
 ):
     # Lấy image từ database
     image = db.query(Image).filter(Image.id == image_id).first()
@@ -33,19 +35,19 @@ def update_insurance_detail(
     insurance_detail = db.query(InsuranceDetail).filter(
         InsuranceDetail.image_id == image_id
     ).first()
-    
+
     if not insurance_detail:
         raise HTTPException(
             status_code=404,
             detail="Insurance detail not found for this image"
         )
-    
+
     try:
         # Cập nhật insurance_detail
         update_dict = update_data.dict(exclude_unset=True)
         for field, value in update_dict.items():
             setattr(insurance_detail, field, value)
-        
+
         # Cập nhật json_data của image
         current_json_data = image.json_data or {}
         # Chuyển đổi datetime objects thành ISO format để có thể serialize
@@ -55,19 +57,19 @@ def update_insurance_detail(
         }
         current_json_data.update(update_json)
         image.json_data = current_json_data
-        
+
         # Lưu các thay đổi vào database
         db.commit()
         db.refresh(insurance_detail)
         db.refresh(image)
-        
+
         # Chuẩn bị response
         response_data = {
             key: value.isoformat() if isinstance(value, datetime) else value
             for key, value in insurance_detail.__dict__.items()
             if not key.startswith('_')
         }
-        
+
         return {
             "status": "success",
             "message": "Insurance detail updated successfully",
