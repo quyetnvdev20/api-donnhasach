@@ -85,15 +85,15 @@ async def upload_image(
     
 #     return db.query(Image).filter(Image.session_id == session_id).all()
 
-# @router.get("/images/{image_id}", response_model=ImageResponse)
-# def get_image(
-#     image_id: uuid.UUID,
-#     db: Session = Depends(get_db)
-# ):
-#     image = db.query(Image).filter(Image.id == image_id).first()
-#     if not image:
-#         raise HTTPException(status_code=404, detail="Image not found")
-#     return image
+@router.get("/images/{image_id}", response_model=ImageResponse)
+def get_image(
+    image_id: uuid.UUID,
+    db: Session = Depends(get_db)
+):
+    image = db.query(Image).filter(Image.id == image_id).first()
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return image
 
 # @router.get("/sessions/{session_id}/urls", response_model=SessionImagesResponse)
 # def get_session_image_urls(
