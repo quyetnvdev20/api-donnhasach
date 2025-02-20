@@ -5,6 +5,8 @@ from .base import Base
 import uuid
 from sqlalchemy.dialects.postgresql import JSONB
 from app.core.settings import ImageStatus
+from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy.ext.mutable import MutableDict
 
 class Image(Base):
     __tablename__ = "images"
@@ -15,7 +17,7 @@ class Image(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     status = Column(Enum(ImageStatus), default=ImageStatus.PENDING)
-    json_data = Column(JSONB)
+    json_data = Column(MutableDict.as_mutable(JSON))
 
     session = relationship("Session", back_populates="images")
     insurance_detail = relationship("InsuranceDetail", back_populates="image", uselist=False, cascade="all, delete-orphan")
