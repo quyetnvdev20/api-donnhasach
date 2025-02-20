@@ -114,11 +114,11 @@ async def create_policy(insurance_details: dict, user_id: str) -> dict:
         async with session.post(url, headers=headers, json=data) as response:
             result = await response.json()
 
-            if response.status != 200:
-                logger.warning(f"API create_policy failed: {response.status}, Response: {result}")
-                return {}
-
-            logger.info(f"create_policy response: {json.dumps(result, indent=2)}")
+            # if response.status != 200:
+            #     logger.warning(f"API create_policy failed: {response.status}, Response: {result}")
+            #     return {}
+            #
+            # logger.info(f"create_policy response: {json.dumps(result, indent=2)}")
             return result
 
 
@@ -143,9 +143,8 @@ async def process_message(message: aio_pika.IncomingMessage):
             try:
                 # Create policy
                 policy_result = await create_policy(body["insurance_details"], user_id)
-                if not policy_result:
-                    logger.error(f"Image {body['image_id']} create fail")
-                    raise Exception(f"Image {body['image_id']} create fail")
+                if policy_result.status_code != 200:
+                    raise Exception(f"{policy_result.get('message')}")
 
                 image.status = ImageStatus.DONE
                 db.commit()
@@ -174,13 +173,13 @@ async def process_message(message: aio_pika.IncomingMessage):
 
             except Exception as e:
                 logger.error(f"Error creating policy: {str(e)}")
-                image.status = ImageStatus.FAILED
+                image.status = ImageStatus.INVALID
                 image.error_message = f"Error creating policy: {str(e)}"
                 db.commit()
 
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}")
-            image.status = ImageStatus.FAILED
+            image.status = ImageStatus.INVALID
             image.error_message = f"Error processing message: {str(e)}"
             db.commit()
         finally:
