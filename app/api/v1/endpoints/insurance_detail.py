@@ -22,7 +22,7 @@ def update_insurance_detail(
     update_data: InsuranceDetailUpdate,
     db: Session = Depends(get_db)
 ):
-    # Lấy image và insurance detail từ database
+    # Lấy image từ database
     image = db.query(Image).filter(Image.id == image_id).first()
     if not image:
         raise HTTPException(
@@ -40,16 +40,28 @@ def update_insurance_detail(
             detail="Insurance detail not found for this image"
         )
     
-    # Cập nhật các trường được cung cấp
-    update_dict = update_data.dict(exclude_unset=True)
-    for field, value in update_dict.items():
-        setattr(insurance_detail, field, value)
-    
     try:
+        # Cập nhật insurance_detail
+        update_dict = update_data.dict(exclude_unset=True)
+        for field, value in update_dict.items():
+            setattr(insurance_detail, field, value)
+        
+        # Cập nhật json_data của image
+        current_json_data = image.json_data or {}
+        # Chuyển đổi datetime objects thành ISO format để có thể serialize
+        update_json = {
+            key: value.isoformat() if isinstance(value, datetime) else value
+            for key, value in update_dict.items()
+        }
+        current_json_data.update(update_json)
+        image.json_data = current_json_data
+        
+        # Lưu các thay đổi vào database
         db.commit()
         db.refresh(insurance_detail)
+        db.refresh(image)
         
-        # Convert datetime objects to ISO format for JSON response
+        # Chuẩn bị response
         response_data = {
             key: value.isoformat() if isinstance(value, datetime) else value
             for key, value in insurance_detail.__dict__.items()
@@ -59,7 +71,8 @@ def update_insurance_detail(
         return {
             "status": "success",
             "message": "Insurance detail updated successfully",
-            "data": response_data
+            "data": response_data,
+            "json_data": image.json_data  # Thêm json_data vào response
         }
     except Exception as e:
         db.rollback()
