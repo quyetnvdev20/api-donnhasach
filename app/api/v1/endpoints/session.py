@@ -2,14 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ....database import get_db
 from ....models.session import Session as SessionModel
-from ....schemas.session import SessionCreate, SessionResponse, SessionUpdate
+from ....schemas.session import SessionCreate, SessionResponse, SessionUpdate, ListSessionResponse
 from ....services.rabbitmq import publish_event
 from datetime import datetime
 from ...deps import get_current_user
 import uuid
 from sqlalchemy.sql import func
-from app.core.settings import SessionStatus
+from app.core.settings import SessionStatus, ImageStatus
 from pydantic import BaseModel
+from ....models.image import Image
+from sqlalchemy import func, String
 
 router = APIRouter()
 
@@ -89,13 +91,67 @@ def get_session(
         raise HTTPException(status_code=404, detail="Session not found")
     return session
 
-@router.get("/sessions", response_model=list[SessionResponse])
+@router.get("/sessions", response_model=list[ListSessionResponse])
 def list_sessions(
     skip: int = 0,
     limit: int = 100,
+    status: SessionStatus = None,
+    name: str = None,
+    from_date: datetime = None,
+    to_date: datetime = None,
     db: Session = Depends(get_db)
 ):
-    sessions = db.query(SessionModel).offset(skip).limit(limit).all()
+    query = db.query(SessionModel)
+    
+    if status:
+        query = query.filter(SessionModel.status == status)
+    
+    if name:
+        query = query.filter(
+            (SessionModel.id.cast(String).ilike(f"%{name}%")) |
+            (SessionModel.note.ilike(f"%{name}%")) |
+            (SessionModel.created_by.ilike(f"%{name}%"))
+        )
+        
+    if from_date:
+        query = query.filter(SessionModel.created_at >= from_date)
+        
+    if to_date:
+        query = query.filter(SessionModel.created_at <= to_date)
+
+    query = query.order_by(
+        SessionModel.status.asc(),
+        SessionModel.created_at.desc()
+    )
+    
+    sessions = query.offset(skip).limit(limit).all()
+
+    # Count images by status for each session
+    for session in sessions:
+        # Initialize counts for all possible statuses
+        status_counts = {
+            ImageStatus.PENDING: 0,
+            ImageStatus.PROCESSING: 0,
+            ImageStatus.COMPLETED: 0,
+            ImageStatus.FAILED: 0,
+            ImageStatus.INVALID: 0,
+            ImageStatus.DONE: 0
+        }
+
+        # Get counts grouped by status
+        image_counts = (
+            db.query(Image.status, func.count(Image.id))
+            .filter(Image.session_id == session.id)
+            .group_by(Image.status)
+            .all()
+        )
+
+        # Update counts
+        for status, count in image_counts:
+            status_counts[status] = count
+
+        session.image_status_counts = status_counts
+
     return sessions
 
 class Session(BaseModel):

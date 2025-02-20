@@ -9,9 +9,11 @@ from ....services.rabbitmq import publish_event
 from ...deps import get_current_user
 import uuid
 from pydantic import BaseModel
-from ....workers.image_processor import process_image
+from ....workers.image_processor import process_image, process_image_with_gemini, process_message
 from app.core.settings import ImageStatus, SessionStatus
-from ....workers.image_processor import process_image, process_image_with_gemini
+import aio_pika
+import json
+from datetime import datetime
 
 router = APIRouter()
 
@@ -72,44 +74,44 @@ async def upload_image(
 
     return db_image
 
-@router.get("/sessions/{session_id}/images", response_model=List[ImageResponse])
-def list_session_images(
-    session_id: uuid.UUID,
-    db: Session = Depends(get_db)
-):
-    session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+# @router.get("/sessions/{session_id}/images", response_model=List[ImageResponse])
+# def list_session_images(
+#     session_id: uuid.UUID,
+#     db: Session = Depends(get_db)
+# ):
+#     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+#     if not session:
+#         raise HTTPException(status_code=404, detail="Session not found")
     
-    return db.query(Image).filter(Image.session_id == session_id).all()
+#     return db.query(Image).filter(Image.session_id == session_id).all()
 
-@router.get("/images/{image_id}", response_model=ImageResponse)
-def get_image(
-    image_id: uuid.UUID,
-    db: Session = Depends(get_db)
-):
-    image = db.query(Image).filter(Image.id == image_id).first()
-    if not image:
-        raise HTTPException(status_code=404, detail="Image not found")
-    return image
+# @router.get("/images/{image_id}", response_model=ImageResponse)
+# def get_image(
+#     image_id: uuid.UUID,
+#     db: Session = Depends(get_db)
+# ):
+#     image = db.query(Image).filter(Image.id == image_id).first()
+#     if not image:
+#         raise HTTPException(status_code=404, detail="Image not found")
+#     return image
 
-@router.get("/sessions/{session_id}/urls", response_model=SessionImagesResponse)
-def get_session_image_urls(
-    session_id: uuid.UUID,
-    db: Session = Depends(get_db)
-):
-    session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+# @router.get("/sessions/{session_id}/urls", response_model=SessionImagesResponse)
+# def get_session_image_urls(
+#     session_id: uuid.UUID,
+#     db: Session = Depends(get_db)
+# ):
+#     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+#     if not session:
+#         raise HTTPException(status_code=404, detail="Session not found")
     
-    images = db.query(Image).filter(Image.session_id == session_id).all()
+#     images = db.query(Image).filter(Image.session_id == session_id).all()
     
-    return SessionImagesResponse(
-        session_id=session_id,
-        status=session.status,
-        image_urls=[image.image_url for image in images],
-        total_images=len(images)
-    )
+#     return SessionImagesResponse(
+#         session_id=session_id,
+#         status=session.status,
+#         image_urls=[image.image_url for image in images],
+#         total_images=len(images)
+#     )
 
 
 # Add new endpoint

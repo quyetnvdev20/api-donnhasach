@@ -1,7 +1,8 @@
 from pydantic import BaseModel, UUID4
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict
 from .image import ImageResponse
+from uuid import UUID
 
 class SessionBase(BaseModel):
     note: Optional[str] = None
@@ -9,8 +10,22 @@ class SessionBase(BaseModel):
 class SessionCreate(SessionBase):
     pass
 
+class ListSessionResponse(BaseModel):
+    id: UUID
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    created_by: str
+    closed_at: Optional[datetime] = None
+    closed_by: Optional[str] = None
+    id_keycloak: Optional[str] = None
+    image_status_counts: Optional[Dict[str, int]] = None
+
+    class Config:
+        from_attributes = True
+
 class SessionResponse(SessionBase):
-    id: UUID4
+    id: UUID
     status: str
     created_at: datetime
     updated_at: datetime
