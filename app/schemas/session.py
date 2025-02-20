@@ -40,4 +40,13 @@ class SessionResponse(SessionBase):
 class SessionUpdate(SessionBase):
     status: Optional[str] = None
     closed_at: Optional[datetime] = None
-    closed_by: Optional[str] = None 
+    closed_by: Optional[str] = None
+
+class SessionListResponse(BaseModel):
+    total: int
+    skip: int
+    limit: int
+    data: List[ListSessionResponse]
+
+    class Config:
+        from_attributes = True 

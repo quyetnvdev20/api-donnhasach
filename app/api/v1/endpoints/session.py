@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ....database import get_db
 from ....models.session import Session as SessionModel
-from ....schemas.session import SessionCreate, SessionResponse, SessionUpdate, ListSessionResponse
+from ....schemas.session import SessionCreate, SessionResponse, SessionUpdate, ListSessionResponse, SessionListResponse
 from ....services.rabbitmq import publish_event
 from datetime import datetime
 from ...deps import get_current_user
@@ -91,7 +91,7 @@ def get_session(
         raise HTTPException(status_code=404, detail="Session not found")
     return session
 
-@router.get("/sessions", response_model=list[ListSessionResponse])
+@router.get("/sessions", response_model=SessionListResponse)
 def list_sessions(
     skip: int = 0,
     limit: int = 100,
@@ -101,8 +101,10 @@ def list_sessions(
     to_date: datetime = None,
     db: Session = Depends(get_db)
 ):
+    # Base query
     query = db.query(SessionModel)
     
+    # Apply filters
     if status:
         query = query.filter(SessionModel.status == status)
     
@@ -119,16 +121,20 @@ def list_sessions(
     if to_date:
         query = query.filter(SessionModel.created_at <= to_date)
 
+    # Order by
     query = query.order_by(
         SessionModel.status.asc(),
         SessionModel.created_at.desc()
     )
     
-    sessions = query.offset(skip).limit(limit).all()
+    # Get total count before pagination
+    total_count = query.count()
+    
+    # Apply pagination
+    sessions = query.offset(skip * limit).limit(limit).all()
 
     # Count images by status for each session
     for session in sessions:
-        # Initialize counts for all possible statuses
         status_counts = {
             ImageStatus.PENDING: 0,
             ImageStatus.PROCESSING: 0,
@@ -138,7 +144,6 @@ def list_sessions(
             ImageStatus.DONE: 0
         }
 
-        # Get counts grouped by status
         image_counts = (
             db.query(Image.status, func.count(Image.id))
             .filter(Image.session_id == session.id)
@@ -146,13 +151,33 @@ def list_sessions(
             .all()
         )
 
-        # Update counts
         for status, count in image_counts:
             status_counts[status] = count
 
         session.image_status_counts = status_counts
 
-    return sessions
+    # Convert model instances to dict for serialization
+    session_list = []
+    for session in sessions:
+        session_dict = {
+            "id": session.id,
+            "status": session.status,
+            "created_at": session.created_at,
+            "updated_at": session.updated_at,
+            "created_by": session.created_by,
+            "closed_at": session.closed_at,
+            "closed_by": session.closed_by,
+            "id_keycloak": session.id_keycloak,
+            "image_status_counts": session.image_status_counts
+        }
+        session_list.append(session_dict)
+
+    return {
+        "total": total_count,
+        "skip": skip,
+        "limit": limit,
+        "data": session_list
+    }
 
 class Session(BaseModel):
     status: SessionStatus = SessionStatus.NEW
