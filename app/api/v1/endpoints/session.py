@@ -123,7 +123,7 @@ def list_sessions(
 
     # Order by
     query = query.order_by(
-        SessionModel.status.asc(),
+        # SessionModel.status.asc(),
         SessionModel.created_at.desc()
     )
     
