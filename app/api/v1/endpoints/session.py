@@ -168,6 +168,7 @@ def list_sessions(
             "closed_at": session.closed_at,
             "closed_by": session.closed_by,
             "id_keycloak": session.id_keycloak,
+            "note": session.note,
             "image_status_counts": session.image_status_counts
         }
         session_list.append(session_dict)

@@ -19,6 +19,7 @@ class ListSessionResponse(BaseModel):
     closed_at: Optional[datetime] = None
     closed_by: Optional[str] = None
     id_keycloak: Optional[str] = None
+    note: Optional[str] = None
     image_status_counts: Optional[Dict[str, int]] = None
 
     class Config:
