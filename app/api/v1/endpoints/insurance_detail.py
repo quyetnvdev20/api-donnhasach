@@ -12,10 +12,19 @@ from typing import Dict, Any
 from datetime import datetime
 import aio_pika
 import json
-from ....workers.image_processor import process_message
+from tenacity import retry, stop_after_attempt, wait_exponential
+from ....config import settings
 
 router = APIRouter()
 
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    reraise=True
+)
+async def connect_to_rabbitmq():
+    """Kết nối tới RabbitMQ với retry logic"""
+    return await aio_pika.connect_robust(settings.RABBITMQ_URL)
 
 @router.patch("/images/{image_id}/insurance-detail", response_model=Dict[str, Any])
 def update_insurance_detail(
@@ -83,7 +92,6 @@ def update_insurance_detail(
             detail=f"Error updating insurance detail: {str(e)}"
         )
 
-
 @router.post("/images/{image_id}/retry", response_model=ImageResponse)
 async def retry_process_image(
         image_id: uuid.UUID,
@@ -106,37 +114,41 @@ async def retry_process_image(
         )
 
     try:
-        # Reset trạng thái image
+        # Reset trạng thái image và lưu trạng thái lỗi cũ
+        old_error = image.error_message
         image.status = ImageStatus.PENDING
         image.error_message = None
         image.updated_at = datetime.utcnow()
         db.commit()
         db.refresh(image)
 
-        # Tạo message body
-        message_body = {
-            "event_type": "IMAGE_RETRY",
-            "image_id": str(image.id),
-            "session_id": str(image.session_id),
-            "image_url": str(image.image_url),
-            "retry_by": current_user.get("preferred_username", "unknown"),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        # Publish event
+        connection = await connect_to_rabbitmq()
+        channel = await connection.channel()
+        exchange = await channel.declare_exchange("acg.xm.direct", aio_pika.ExchangeType.DIRECT)
 
-        # Gọi process_message với message body
-        await process_message(aio_pika.Message(
-            body=json.dumps(message_body).encode(),
-            content_type="application/json"
-        ))
+        await exchange.publish(
+            aio_pika.Message(
+                body=json.dumps({
+                    "event_type": "IMAGE_PROCESSED",
+                    "image_id": str(image.id),
+                    "session_id": str(image.session_id),
+                    "insurance_details": image.json_data,
+                    "timestamp": image.updated_at.isoformat()
+                }).encode(),
+                content_type="application/json"
+            ),
+            routing_key="image.processed"
+        )
+
+        await connection.close()
 
         # Refresh image để lấy trạng thái mới nhất
         db.refresh(image)
-
         return image
 
     except Exception as e:
         db.rollback()
-        # Cập nhật trạng thái lỗi
         image.status = ImageStatus.FAILED
         image.error_message = str(e)
         db.commit()

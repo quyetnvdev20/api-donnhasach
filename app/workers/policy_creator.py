@@ -132,7 +132,7 @@ async def process_message(message: aio_pika.IncomingMessage):
             # Get image from database
             db: Session = SessionLocal()
             image = db.query(Image).filter(Image.id == body["image_id"]).first()
-            if not image or image.status.lower() != "completed":
+            if not image:
                 raise ValueError(f"Image {body['image_id']} not found or not completed")
 
             session = db.query(SessionModel).filter(SessionModel.id == str(image.session_id)).first()
