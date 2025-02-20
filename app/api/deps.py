@@ -1,20 +1,20 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import APIKeyHeader
 from ..config import settings
 import requests
 from typing import Optional
-import json
 
-security = HTTPBearer()
+# Thay thế HTTPBearer bằng APIKeyHeader
+api_key_header = APIKeyHeader(name="Authorization", auto_error=True)
 
 def get_token_introspection_url():
     return f"{settings.KEYCLOAK_HOST}/realms/{settings.KEYCLOAK_REALM}/protocol/openid-connect/token/introspect"
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+async def get_current_user(token: str = Depends(api_key_header)) -> dict:
     """
     Validate token bằng Keycloak introspection endpoint
     """
-    token = credentials.credentials
+    # Không cần kiểm tra prefix "Bearer" nữa
     introspection_url = get_token_introspection_url()
     
     # Gọi Keycloak introspection endpoint
