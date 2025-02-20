@@ -27,7 +27,7 @@ async def process_image(image_url: str) -> dict:
 
     prompt = """
     Hãy trích xuất chính xác các thông tin sau từ hình ảnh được cung cấp và trả về dưới dạng JSON:
-    {
+    {   "serial_number": "Số Serial (Ví dụ: AA00358056/25)",
         "owner_name": "Chủ xe",
         "number_seats": "Số người được bảo hiểm (Số)",
         "liability_amount": "Mức trách nhiệm bảo hiểm (Số)",
