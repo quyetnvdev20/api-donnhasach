@@ -38,6 +38,12 @@ class SessionResponse(SessionBase):
     class Config:
         from_attributes = True
 
+class SessionClose(SessionBase):
+    id: UUID
+
+    class Config:
+        from_attributes = True
+
 class SessionUpdate(SessionBase):
     status: Optional[str] = None
     closed_at: Optional[datetime] = None

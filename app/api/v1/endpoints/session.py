@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ....database import get_db
 from ....models.session import Session as SessionModel
-from ....schemas.session import SessionCreate, SessionResponse, SessionUpdate, ListSessionResponse, SessionListResponse
+from ....schemas.session import SessionCreate, SessionResponse, SessionUpdate, ListSessionResponse, SessionListResponse, SessionClose
 from ....services.rabbitmq import publish_event
 from datetime import datetime
 from ...deps import get_current_user
@@ -62,9 +62,10 @@ def open_session(
     db.refresh(session)
     return session
 
-@router.put("/sessions/{session_id}/close", response_model=SessionResponse)
+@router.put("/sessions/{session_id}/close", response_model=SessionClose)
 def close_session(
     session_id: uuid.UUID,
+    quantity_picture: int,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -73,6 +74,11 @@ def close_session(
         raise HTTPException(status_code=404, detail="Session not found")
     if session.status != SessionStatus.OPEN:
         raise HTTPException(status_code=400, detail="Only OPEN session can be closed")
+
+    image_counts = db.query(Image).filter(Image.session_id == session.id).all()
+
+    if len(image_counts) != quantity_picture:
+        raise HTTPException(status_code=422, detail="Number of images does not match the quantity of pictures. Please check again.")
     
     session.status = SessionStatus.CLOSED
     session.closed_at = datetime.utcnow()
