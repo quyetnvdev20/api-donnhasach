@@ -174,13 +174,13 @@ async def process_message(message: aio_pika.IncomingMessage):
 
             except Exception as e:
                 logger.error(f"Error creating policy: {str(e)}")
-                image.status = ImageStatus.INVALID
+                image.status = ImageStatus.FAILED
                 image.error_message = f"Error creating policy: {str(e)}"
                 db.commit()
 
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}")
-            image.status = ImageStatus.INVALID
+            image.status = ImageStatus.FAILED
             image.error_message = f"Error processing message: {str(e)}"
             db.commit()
         finally:
