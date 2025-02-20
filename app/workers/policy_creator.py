@@ -38,7 +38,7 @@ async def get_token_user(user_id):
     response = requests.request("GET", url, headers=headers, data=payload)
     return response.json().get("access_token")
 
-async def create_policy(insurance_details: dict, user_id: str) -> dict:
+async def create_policy(insurance_details: dict, user_id: str, image_url: str) -> dict:
     " Gọi Core API để tạo đơn bảo hiểm"
     # TODO: Implement actual Core API call
     # Đây là mock data để test
@@ -96,12 +96,14 @@ async def create_policy(insurance_details: dict, user_id: str) -> dict:
             "customer_cccd": None,
             "customer_address": insurance_details.get("address")
         },
-        "is_other_holders": False
+        "is_other_holders": False,
+        "client_source": "acg_xm",
+        "is_policy_indicative": True,
+        "motor_license_plate_image": image_url
     }
 
     logger.info(f'create_policy.data: {str(data)}')
 
-    # payload = json.dumps(data)
     headers = {
         'accept': 'application/json',
         'Authorization':  f'{await get_token_user(user_id)}',
@@ -116,12 +118,128 @@ async def create_policy(insurance_details: dict, user_id: str) -> dict:
             result.update({
                 'status_code': response.status
             })
+            return result
 
-            # if response.status != 200:
-            #     logger.warning(f"API create_policy failed: {response.status}, Response: {result}")
-            #     return {}
-            #
-            # logger.info(f"create_policy response: {json.dumps(result, indent=2)}")
+
+async def create_policy_group_insured(images, user_id):
+    " Gọi Core API để tạo đơn bảo hiểm"
+    # TODO: Implement actual Core API call
+    # Đây là mock data để test
+
+    images_master = images[0]
+    insurance_details_first = images_master.insurance_detail
+
+    # Chuyển đổi thành đối tượng datetime
+    date_start_mater = datetime.strptime(insurance_details_first.get("insurance_start_date"), '%Y-%m-%dT%H:%M:%S')
+    date_end_master = datetime.strptime(insurance_details_first.get("insurance_end_date"), '%Y-%m-%dT%H:%M:%S')
+
+    object_list = []
+
+    for image in images:
+        insurance_details = image.insurance_detail
+
+        # Chuyển đổi thành đối tượng datetime
+        date_start = datetime.strptime(insurance_details.get("insurance_start_date"), '%Y-%m-%dT%H:%M:%S')
+
+        if date_start < date_start_mater:
+            date_start_mater = date_start
+
+        date_end = datetime.strptime(insurance_details.get("insurance_end_date"), '%Y-%m-%dT%H:%M:%S')
+        if date_end > date_end_master:
+            date_end_master = date_end
+
+        # Định dạng lại thành chuỗi mong muốn
+        date_start = date_start.strftime('%Y-%m-%d %H:%M:%S')
+        date_end = date_end.strftime('%Y-%m-%d %H:%M:%S')
+
+        data = {
+            "car_owner": {
+                "customer_phone": insurance_details.get("phone_number"),
+                "customer_type": "none",
+                "customer_vat": None,
+                "customer_name": insurance_details.get("owner_name"),
+                "customer_cccd": None,
+                "customer_address": insurance_details.get("address")
+            },
+            "license_plate": insurance_details.get("plate_number"),
+            "vin_number": insurance_details.get("chassis_number", ''),
+            "engine_number": insurance_details.get("engine_number", ''),
+            "date_start": date_start,
+            "date_end": date_end,
+            "policy_object_date": None,
+            "motor_license_plate_image": image.image_url,
+            "tnds_insur_coverage": {
+                "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_ID")),
+                "name": "1. TNDS bắt buộc",
+                "customer_amount": insurance_details.get("premium_amount") - insurance_details.get("accident_premium"),
+                "premium_amount": insurance_details.get("premium_amount") - insurance_details.get("accident_premium"),
+                "tariff_line_id": int(os.getenv("TARIFF_LINE_TNDS_BIKE_ID")),
+                "detail_coverage": [
+                    {
+                        "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_1_1_ID")),
+                        "amount": 150_000_000,
+                        "name": "1.1 Về sức khỏe, tính mạng"
+                    },
+                    {
+                        "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_1_2_ID")),
+                        "amount": 50_000_000,
+                        "name": "1.2 Về tài sản"
+                    }
+                ]
+            },
+            "driver_passenger_accident": {
+                "id": int(os.getenv("PRODUCT_CATEGORY_DRIVER_PASSENGER_ACCIDENT_ID")),
+                "amount": insurance_details.get("accident_premium"),
+                "customer_amount": insurance_details.get("accident_premium"),
+                "premium_amount": insurance_details.get("accident_premium"),
+                "rate": 0.001,
+                "number_seats": insurance_details.get("number_seats"),
+                "tariff_line_id": int(os.getenv("TARIFF_LINE_DRIVER_PASSENGER_ACCIDENT_ID")),
+                "name": "2. Tai nạn người ngồi trên xe"
+            }
+        }
+
+        object_list.append(data)
+
+    # Định dạng lại thành chuỗi mong muốn
+    date_start_mater = date_start_mater.strftime('%Y-%m-%d %H:%M:%S')
+    date_end_master = date_end_master.strftime('%Y-%m-%d %H:%M:%S')
+
+    policy_vals = {
+        "channel_id": int(os.getenv("CHANNEL_ID")),
+        "date_start": date_start_mater,
+        "date_end": date_end_master,
+        "policy_date": None,
+        "note": "",
+        "car_owner": {
+            "customer_phone": insurance_details_first.get("phone_number"),
+            "customer_type": "none",
+            "customer_vat": None,
+            "customer_name": insurance_details_first.get("owner_name"),
+            "customer_cccd": None,
+            "customer_address": insurance_details_first.get("address")
+        },
+        "client_source": "acg_xm",
+        "is_policy_indicative": True,
+        "object_list": object_list
+    }
+
+    logger.info(f'create_policy.data: {str(policy_vals)}')
+
+    headers = {
+        'accept': 'application/json',
+        'Authorization':  f'{await get_token_user(user_id)}',
+        'Content-Type': 'application/json'
+    }
+
+    url = f"{os.getenv('INSURANCE_API_URL')}/cobao-sync/cobao-insur-policy/insur-order-multi-object"
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, headers=headers, json=policy_vals) as response:
+            result = await response.json()
+            result.update({
+                'status_code': response.status
+            })
             return result
 
 
@@ -134,51 +252,53 @@ async def process_message(message: aio_pika.IncomingMessage):
 
             # Get image from database
             db: Session = SessionLocal()
-            image = db.query(Image).filter(Image.id == body["image_id"]).first()
-            if not image:
-                raise ValueError(f"Image {body['image_id']} not found or not completed")
 
-            session = db.query(SessionModel).filter(SessionModel.id == str(image.session_id)).first()
-            if not session:
-                raise ValueError(f"Session {image.session_id} not found")
-            user_id = session.id_keycloak
+            if body.get('session_type') == 'group_insured':
+                session = db.query(SessionModel).filter(SessionModel.id == body["session_id"]).first()
+                if not session:
+                    raise ValueError(f"Session {body['session_id']} not found")
+                user_id = session.id_keycloak
 
-            try:
-                # Create policy
-                policy_result = await create_policy(body["insurance_details"], user_id)
-                if policy_result.get('status_code') != 200:
-                    raise Exception(f"{policy_result.get('message')}")
+                images = db.query(Image).filter(Image.session_id == session.id and Image.state == 'COMPLETED').all()
 
-                image.status = ImageStatus.DONE
-                db.commit()
+                try:
+                    # Create policy
+                    policy_result = await create_policy_group_insured(images, user_id)
+                    if policy_result.get('status_code') != 200:
+                        raise Exception(f"{policy_result.get('message')}")
 
-                # Publish event
-                connection = await connect_to_rabbitmq()
-                channel = await connection.channel()
-                exchange = await channel.declare_exchange("acg.xm.direct", aio_pika.ExchangeType.DIRECT)
+                    for image in images:
+                        image.status = ImageStatus.DONE
+                    db.commit()
 
-                await exchange.publish(
-                    aio_pika.Message(
-                        body=json.dumps({
-                            "event_type": "POLICY_CREATED",
-                            "image_id": str(image.id),
-                            "session_id": str(image.session_id),
-                            "policy_number": policy_result["policy_number"],
-                            "status": policy_result["status"],
-                            "timestamp": image.updated_at.isoformat()
-                        }).encode(),
-                        content_type="application/json"
-                    ),
-                    routing_key="policy.created"
-                )
+                except Exception as e:
+                    logger.error(f"Error creating policy: {str(e)}")
+                    image.status = ImageStatus.INVALID
+                    image.error_message = f"Error creating policy: {str(e)}"
+                    db.commit()
+            else:
+                image = db.query(Image).filter(Image.id == body["image_id"]).first()
+                if not image:
+                    raise ValueError(f"Image {body['image_id']} not found or not completed")
 
-                await connection.close()
+                session = db.query(SessionModel).filter(SessionModel.id == str(image.session_id)).first()
+                if not session:
+                    raise ValueError(f"Session {image.session_id} not found")
+                user_id = session.id_keycloak
 
-            except Exception as e:
-                logger.error(f"Error creating policy: {str(e)}")
-                image.status = ImageStatus.INVALID
-                image.error_message = f"Error creating policy: {str(e)}"
-                db.commit()
+                try:
+                    # Create policy
+                    policy_result = await create_policy(body["insurance_details"], user_id, image.image_url)
+                    if policy_result.get('status_code') != 200:
+                        raise Exception(f"{policy_result.get('message')}")
+
+                    image.status = ImageStatus.DONE
+                    db.commit()
+                except Exception as e:
+                    logger.error(f"Error creating policy: {str(e)}")
+                    image.status = ImageStatus.INVALID
+                    image.error_message = f"Error creating policy: {str(e)}"
+                    db.commit()
 
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}")

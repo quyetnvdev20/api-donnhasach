@@ -1,17 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from ....database import get_db
-from ....models.session import Session as SessionModel
-from ....schemas.session import SessionCreate, SessionResponse, SessionUpdate, ListSessionResponse, SessionListResponse, SessionClose
-from ....services.rabbitmq import publish_event
-from datetime import datetime
-from ...deps import get_current_user
 import uuid
-from sqlalchemy.sql import func
-from app.core.settings import SessionStatus, ImageStatus
+from datetime import datetime
+
+import aio_pika
+import json
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from ....models.image import Image
 from sqlalchemy import func, String
+from sqlalchemy.orm import Session
+
+from app.core.settings import SessionStatus, ImageStatus
+from .insurance_detail import connect_to_rabbitmq
+from ...deps import get_current_user
+from ....database import get_db
+from ....models.image import Image
+from ....models.session import Session as SessionModel
+from ....schemas.session import SessionCreate, SessionResponse, SessionListResponse, SessionClose
 
 router = APIRouter()
 
@@ -63,7 +66,7 @@ def open_session(
     return session
 
 @router.put("/sessions/{session_id}/close", response_model=SessionClose)
-def close_session(
+async def close_session(
     session_id: uuid.UUID,
     quantity_picture: int,
     db: Session = Depends(get_db),
@@ -79,6 +82,26 @@ def close_session(
 
     if len(image_counts) != quantity_picture:
         raise HTTPException(status_code=422, detail="Number of images does not match the quantity of pictures. Please check again.")
+
+    if session.policy_type == 'group_insured':
+        # Publish event
+        connection = await connect_to_rabbitmq()
+        channel = await connection.channel()
+        exchange = await channel.declare_exchange("acg.xm.direct", aio_pika.ExchangeType.DIRECT)
+
+        await exchange.publish(
+            aio_pika.Message(
+                body=json.dumps({
+                    "event_type": "IMAGE_PROCESSED",
+                    "session_id": str(session.id),
+                    "session_type": 'group_insured',
+                }).encode(),
+                content_type="application/json"
+            ),
+            routing_key="image.processed"
+        )
+
+        await connection.close()
     
     session.status = SessionStatus.CLOSED
     session.closed_at = datetime.utcnow()
