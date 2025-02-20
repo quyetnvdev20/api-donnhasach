@@ -1,5 +1,6 @@
 import asyncio
 import aio_pika
+import aiohttp
 import json
 from sqlalchemy.orm import Session
 from ..database import SessionLocal
@@ -100,7 +101,7 @@ async def create_policy(insurance_details: dict, user_id: str) -> dict:
 
     logger.info(f'create_policy.data: {str(data)}')
 
-    payload = json.dumps(data)
+    # payload = json.dumps(data)
     headers = {
         'accept': 'application/json',
         'Authorization':  f'{await get_token_user(user_id)}',
@@ -109,15 +110,16 @@ async def create_policy(insurance_details: dict, user_id: str) -> dict:
 
     url = f"{os.getenv('INSURANCE_API_URL')}/cobao-sync/cobao-insur-policy/insur-order"
 
-    response = requests.request("POST", url, headers=headers, data=payload)
-    if response.status_code != 200:
-        logger.warning(f"Unexpected response status code: {response.status_code}")
-        return {}
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, headers=headers, json=data) as response:
+            result = await response.json()
 
-    result = response.json()
-    logger.warning(f"response_create_policy: {str(result)}")
+            if response.status != 200:
+                logger.warning(f"API create_policy failed: {response.status}, Response: {result}")
+                return {}
 
-    return result
+            logger.info(f"create_policy response: {json.dumps(result, indent=2)}")
+            return result
 
 
 async def process_message(message: aio_pika.IncomingMessage):
@@ -130,15 +132,12 @@ async def process_message(message: aio_pika.IncomingMessage):
             # Get image from database
             db: Session = SessionLocal()
             image = db.query(Image).filter(Image.id == body["image_id"]).first()
-            if not image:
-                logger.error(f"Image {body['image_id']} not found")
-                return
-            
-            if image.status not in ("COMPLETED", 'completed'):
-                logger.error(f"Image {body['image_id']} is not success")
-                return
-            
+            if not image or image.status.lower() != "completed":
+                raise ValueError(f"Image {body['image_id']} not found or not completed")
+
             session = db.query(SessionModel).filter(SessionModel.id == str(image.session_id)).first()
+            if not session:
+                raise ValueError(f"Session {image.session_id} not found")
             user_id = session.id_keycloak
 
             try:
@@ -146,10 +145,10 @@ async def process_message(message: aio_pika.IncomingMessage):
                 policy_result = await create_policy(body["insurance_details"], user_id)
                 if not policy_result:
                     logger.error(f"Image {body['image_id']} create fail")
-                    image.status = ImageStatus.INVALID
-                    image.error_message = f"Image create policy fail"
-                    db.commit()
-                    return
+                    raise Exception(f"Image {body['image_id']} create fail")
+
+                image.status = ImageStatus.DONE
+                db.commit()
 
                 # Publish event
                 connection = await connect_to_rabbitmq()
@@ -175,9 +174,15 @@ async def process_message(message: aio_pika.IncomingMessage):
 
             except Exception as e:
                 logger.error(f"Error creating policy: {str(e)}")
+                image.status = ImageStatus.INVALID
+                image.error_message = f"Error creating policy: {str(e)}"
+                db.commit()
 
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}")
+            image.status = ImageStatus.INVALID
+            image.error_message = f"Error processing message: {str(e)}"
+            db.commit()
         finally:
             db.close()
 
