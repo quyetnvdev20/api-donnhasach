@@ -113,21 +113,21 @@ async def retry_process_image(
         db.commit()
         db.refresh(image)
 
-        # Tạo message để xử lý
-        message = aio_pika.Message(
-            body=json.dumps({
-                "event_type": "IMAGE_RETRY",
-                "image_id": str(image.id),
-                "session_id": str(image.session_id),
-                "image_url": str(image.image_url),
-                "retry_by": current_user.get("preferred_username", "unknown"),
-                "timestamp": datetime.utcnow().isoformat()
-            }).encode(),
-            content_type="application/json"
-        )
+        # Tạo message body
+        message_body = {
+            "event_type": "IMAGE_RETRY",
+            "image_id": str(image.id),
+            "session_id": str(image.session_id),
+            "image_url": str(image.image_url),
+            "retry_by": current_user.get("preferred_username", "unknown"),
+            "timestamp": datetime.utcnow().isoformat()
+        }
 
-        # Gọi process_message để xử lý
-        await process_message(message)
+        # Gọi process_message với message body
+        await process_message(aio_pika.Message(
+            body=json.dumps(message_body).encode(),
+            content_type="application/json"
+        ))
 
         # Refresh image để lấy trạng thái mới nhất
         db.refresh(image)
