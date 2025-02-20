@@ -113,6 +113,9 @@ async def create_policy(insurance_details: dict, user_id: str) -> dict:
     async with aiohttp.ClientSession() as session:
         async with session.post(url, headers=headers, json=data) as response:
             result = await response.json()
+            result.update({
+                'status_code': response.status
+            })
 
             # if response.status != 200:
             #     logger.warning(f"API create_policy failed: {response.status}, Response: {result}")
@@ -143,7 +146,7 @@ async def process_message(message: aio_pika.IncomingMessage):
             try:
                 # Create policy
                 policy_result = await create_policy(body["insurance_details"], user_id)
-                if policy_result.status_code != 200:
+                if policy_result.get('status_code') != 200:
                     raise Exception(f"{policy_result.get('message')}")
 
                 image.status = ImageStatus.DONE
