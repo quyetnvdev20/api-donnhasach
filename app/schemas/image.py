@@ -4,6 +4,7 @@ from typing import Optional, List
 
 class ImageBase(BaseModel):
     image_url: HttpUrl
+    scan_image_url: HttpUrl
 
 class ImageCreate(ImageBase):
     pass
