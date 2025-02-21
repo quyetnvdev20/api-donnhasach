@@ -92,7 +92,7 @@ async def close_session(
     image_counts = db.query(Image).filter(Image.session_id == session.id).all()
 
     if len(image_counts) != quantity_picture:
-        raise HTTPException(status_code=422, detail="Number of images does not match the quantity of pictures. Please check again.")
+        raise HTTPException(status_code=430, detail="Number of images does not match the quantity of pictures. Please check again.")
 
     if session.policy_type == 'group_insured':
         # Publish event
