@@ -143,7 +143,7 @@ async def process_image_with_gemini(image_url: str) -> dict:
         "owner_name": "Chủ xe",
         "number_seats": "Số người được bảo hiểm (Số)",
         "liability_amount": "Mức trách nhiệm bảo hiểm (Số)",
-        "accident_premium": "Phí bảo hiểm tai nạn (Số)",
+        "accident_premium": "Phí bảo hiểm của bảo hiểm tai nạn người ngồi trên xe (định dạng Integer)",
         "address": "Địa chỉ",
         "plate_number": "Biển kiểm soát",
         "phone_number": "Điện thoại",
@@ -152,7 +152,7 @@ async def process_image_with_gemini(image_url: str) -> dict:
         "vehicle_type": "Loại xe",
         "insurance_start_date": "Thời gian bắt đầu (DD/MM/YYYY HH:mm:00)",
         "insurance_end_date": "Thời gian kết thúc (DD/MM/YYYY HH:mm:00)"
-        "premium_amount": "TỔNG PHÍ (Số)",
+        "premium_amount": "PHÍ BẢO HIỂM CÓ VAT (chữ viết tay, trả lại định dạng Integer)",
         "policy_issued_datetime": "Cấp hồi (DD/MM/YYYY HH:mm:00)"
     }
     Lưu ý:
