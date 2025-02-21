@@ -101,9 +101,9 @@ async def process_group_sessions():
                         logger.debug("RabbitMQ connection closed.")
 
                         # Cập nhật trạng thái session
-                        session.status = SessionStatus.COMPLETED.value
-                        db.commit()
-                        logger.info(f"Session {session.id} status updated to COMPLETED.")
+                        # session.status = SessionStatus.COMPLETED.value
+                        # db.commit()
+                        # logger.info(f"Session {session.id} status updated to COMPLETED.")
                         
                     except Exception as e:
                         logger.error(f"Error publishing event for session {session.id}: {str(e)}")
