@@ -15,6 +15,7 @@ import google.generativeai as genai
 from PIL import Image as PIL_Image
 from io import BytesIO
 from app.core.settings import ImageStatus, SessionStatus
+from ..models.session import Session as SessionModel
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -256,6 +257,14 @@ async def process_message(message: aio_pika.IncomingMessage):
                 # Process image
                 insurance_info = await process_image_with_gemini(image.image_url)
 
+                # Create insurance detail
+                insurance_detail = InsuranceDetail(
+                    image_id=image.id,
+                    **insurance_info
+                )
+                db.add(insurance_detail)
+                db.commit()
+
                 # Kiểm tra các trường bắt buộc
                 missing_fields = []
                 for field in LIST_FIELD_REQUIRED:
@@ -267,17 +276,17 @@ async def process_message(message: aio_pika.IncomingMessage):
                     logger.error(error_message)
                     raise ValueError(error_message)
 
-                # Create insurance detail
-                insurance_detail = InsuranceDetail(
-                    image_id=image.id,
-                    **insurance_info
-                )
-                db.add(insurance_detail)
-
                 # Update image status
                 image.status = ImageStatus.COMPLETED
                 image.json_data = insurance_info
                 db.commit()
+
+                session = db.query(SessionModel).filter(SessionModel.id == str(image.session_id)).first()
+                if not session:
+                    raise ValueError(f"Session {image.session_id} not found")
+
+                if session.policy_type == 'group_insured':
+                    return
 
                 # Publish event
                 connection = await connect_to_rabbitmq()
@@ -291,6 +300,7 @@ async def process_message(message: aio_pika.IncomingMessage):
                             "image_id": str(image.id),
                             "session_id": str(image.session_id),
                             "insurance_details": insurance_info,
+                            "session_type": 'individual_insured',
                             "timestamp": image.updated_at.isoformat()
                         }).encode(),
                         content_type="application/json"
@@ -309,6 +319,7 @@ async def process_message(message: aio_pika.IncomingMessage):
             except Exception as e:
                 logger.error(f"Error processing image: {str(e)}")
                 image.status = ImageStatus.FAILED
+                image.json_data = insurance_info
                 image.error_message = str(e)
                 db.commit()
 
