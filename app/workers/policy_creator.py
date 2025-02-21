@@ -59,9 +59,9 @@ async def create_policy(session, insurance_details: dict, image_url: str) -> dic
     date_end = date_end.strftime('%Y-%m-%d %H:%M:%S')
     policy_date = policy_issued_datetime.strftime('%Y-%m-%d')
 
-    premium_amount = decimal_to_float(insurance_details.get("premium_amount", 0))
-    accident_premium = decimal_to_float(insurance_details.get("accident_premium", 0))
-    number_seats = insurance_details.get("number_seats", 2)
+    premium_amount = float(insurance_details.get("premium_amount")) if insurance_details.get("premium_amount") else 0
+    accident_premium = float(insurance_details.get("accident_premium")) if insurance_details.get("accident_premium") else 0
+    number_seats = int(insurance_details.get("number_seats")) if insurance_details.get("number_seats") else 2
 
     data = {
         "license_plate": insurance_details.get("plate_number"),
@@ -76,8 +76,8 @@ async def create_policy(session, insurance_details: dict, image_url: str) -> dic
         "tnds_insur_coverage": {
             "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_ID")),
             "name": "1. TNDS bắt buộc",
-            "customer_amount": decimal_to_float(premium_amount - accident_premium),
-            "premium_amount": decimal_to_float(premium_amount - accident_premium),
+            "customer_amount": premium_amount - accident_premium,
+            "premium_amount": premium_amount - accident_premium,
             "tariff_line_id": int(os.getenv("TARIFF_LINE_TNDS_BIKE_ID")),
             "detail_coverage": [
                 {
@@ -94,9 +94,9 @@ async def create_policy(session, insurance_details: dict, image_url: str) -> dic
         },
         "driver_passenger_accident": {
             "id": int(os.getenv("PRODUCT_CATEGORY_DRIVER_PASSENGER_ACCIDENT_ID")),
-            "amount": decimal_to_float(accident_premium),
-            "customer_amount": decimal_to_float(accident_premium),
-            "premium_amount": decimal_to_float(accident_premium),
+            "amount": accident_premium,
+            "customer_amount": accident_premium,
+            "premium_amount": accident_premium,
             "rate": 0.001,
             "number_seats": number_seats,
             "tariff_line_id": int(os.getenv("TARIFF_LINE_DRIVER_PASSENGER_ACCIDENT_ID")),

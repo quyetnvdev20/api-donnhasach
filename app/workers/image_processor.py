@@ -251,6 +251,7 @@ async def process_image_with_gemini(image_url: str) -> dict:
                 start_date = datetime.fromisoformat(result['insurance_start_date'])
                 # Trừ đi 1 ngày và chuyển lại về ISO format
                 result['policy_issued_datetime'] = (start_date - relativedelta(days=1)).isoformat()
+                result.update({'is_suspecting_wrongly': True})
 
             # Xử lý các trường số
             float_fields = [
