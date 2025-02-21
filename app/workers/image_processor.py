@@ -15,7 +15,6 @@ import google.generativeai as genai
 from PIL import Image as PIL_Image
 from io import BytesIO
 from app.core.settings import ImageStatus, SessionStatus
-from ..models.session import Session as SessionModel
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -217,9 +216,6 @@ async def process_image_with_gemini(image_url: str) -> dict:
             if result.get('number_seats'):
                 result['number_seats'] = int(str(result['number_seats']))
 
-            if result.get('serial_number'):
-                result['serial_number'] = result['serial_number'].replace(' ', '')
-
             return result
 
         except Exception as e:
@@ -276,13 +272,6 @@ async def process_message(message: aio_pika.IncomingMessage):
                 image.json_data = insurance_info
                 db.commit()
 
-                session = db.query(SessionModel).filter(SessionModel.id == str(image.session_id)).first()
-                if not session:
-                    raise ValueError(f"Session {image.session_id} not found")
-
-                if session.policy_type == 'group_insured':
-                    return
-
                 # Publish event
                 connection = await connect_to_rabbitmq()
                 channel = await connection.channel()
@@ -295,7 +284,6 @@ async def process_message(message: aio_pika.IncomingMessage):
                             "image_id": str(image.id),
                             "session_id": str(image.session_id),
                             "insurance_details": insurance_info,
-                            "session_type": 'individual_insured',
                             "timestamp": image.updated_at.isoformat()
                         }).encode(),
                         content_type="application/json"

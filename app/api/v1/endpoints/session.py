@@ -59,11 +59,20 @@ def open_session(
     if session.status != SessionStatus.NEW:
         raise HTTPException(status_code=400, detail="Session can only be opened from NEW status")
     
-    session.status = SessionStatus.OPEN
-    session.note = session_update.note
-    db.commit()
-    db.refresh(session)
-    return session
+    try:
+        session.status = SessionStatus.OPEN
+        session.note = session_update.note
+        session.policy_type = session_update.policy_type
+        
+        db.commit()
+        db.refresh(session)
+        return session
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error opening session: {str(e)}"
+        )
 
 @router.put("/sessions/{session_id}/close", response_model=SessionClose)
 async def close_session(

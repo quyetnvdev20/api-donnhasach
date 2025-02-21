@@ -6,6 +6,7 @@ from uuid import UUID
 
 class SessionBase(BaseModel):
     note: Optional[str] = None
+    policy_type: Optional[str] = None
 
 class SessionCreate(SessionBase):
     pass
