@@ -135,7 +135,7 @@ def get_session(
     session_id: uuid.UUID,
     db: Session = Depends(get_db)
 ):
-    session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+    session = db.query(SessionModel).filter(SessionModel.id == session_id).order_by(SessionModel.created_at.desc()).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return session
