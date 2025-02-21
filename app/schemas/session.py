@@ -9,7 +9,7 @@ class SessionBase(BaseModel):
     policy_type: Optional[str] = None
 
 class SessionCreate(SessionBase):
-    pass
+    responsible_id: Optional[int] = None
 
 class ListSessionResponse(BaseModel):
     id: UUID

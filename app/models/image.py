@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, UUID, ForeignKey, Enum
+from sqlalchemy import Column, String, DateTime, UUID, ForeignKey, Enum, Boolean
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from .base import Base
@@ -18,6 +18,7 @@ class Image(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     status = Column(Enum(ImageStatus), default=ImageStatus.PENDING)
     json_data = Column(MutableDict.as_mutable(JSON))
+    is_suspecting_wrongly = Column(Boolean, nullable=True, server_default='false')
 
     session = relationship("Session", back_populates="images")
     insurance_detail = relationship("InsuranceDetail", back_populates="image", uselist=False, cascade="all, delete-orphan")

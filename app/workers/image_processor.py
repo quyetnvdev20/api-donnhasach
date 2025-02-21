@@ -16,6 +16,7 @@ from PIL import Image as PIL_Image
 from io import BytesIO
 from app.core.settings import ImageStatus, SessionStatus
 from ..models.session import Session as SessionModel
+from dateutil.relativedelta import relativedelta
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -205,6 +206,17 @@ async def process_image_with_gemini(image_url: str) -> dict:
                             '%d/%m/%Y 00:00:00'
                         ).isoformat()
 
+            """set default ngày cấp đơn, thời hạn hiệu lực nếu không đọc được từ ảnh
+                ngày cấp: now
+                ngày hiệu lực: now - 1 ngày
+                ngày hết hiệu lực: now + 1 năm
+            """
+            if not result.get('insurance_start_date'):
+                result['insurance_start_date'] = datetime.now().isoformat()
+                result['insurance_end_date'] = (datetime.now()  + relativedelta(years=1)).isoformat()
+                result['policy_issued_datetime'] = (datetime.now()  - relativedelta(days=1)).isoformat()
+                result['is_suspecting_wrongly'] = True
+
             # Xử lý các trường số
             float_fields = [
                 'premium_amount',
@@ -257,6 +269,8 @@ async def process_message(message: aio_pika.IncomingMessage):
                 # Process image
                 insurance_info = await process_image_with_gemini(image.image_url)
 
+                is_suspecting_wrongly = insurance_info.pop('is_suspecting_wrongly')
+
                 # Create insurance detail
                 insurance_detail = InsuranceDetail(
                     image_id=image.id,
@@ -279,6 +293,7 @@ async def process_message(message: aio_pika.IncomingMessage):
                 # Update image status
                 image.status = ImageStatus.COMPLETED
                 image.json_data = insurance_info
+                image.is_suspecting_wrongly = is_suspecting_wrongly
                 db.commit()
 
                 session = db.query(SessionModel).filter(SessionModel.id == str(image.session_id)).first()
