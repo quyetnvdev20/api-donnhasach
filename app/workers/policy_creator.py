@@ -127,107 +127,120 @@ async def create_policy(insurance_details: dict, user_id: str, image_url: str) -
 
 
 async def create_policy_group_insured(images, user_id):
-    " Gọi Core API để tạo đơn bảo hiểm"
-    # TODO: Implement actual Core API call
-    # Đây là mock data để test
+    if not images:
+        raise ValueError("No images provided")
 
+    # Lấy insurance_details từ image đầu tiên một cách an toàn
     images_master = images[0]
     insurance_details_first = images_master.insurance_detail
+    if not insurance_details_first:
+        raise ValueError("First image has no insurance details")
 
-    # Chuyển đổi thành đối tượng datetime
-    date_start_mater = datetime.strptime(insurance_details_first.get("insurance_start_date"), '%Y-%m-%dT%H:%M:%S')
-    date_end_master = datetime.strptime(insurance_details_first.get("insurance_end_date"), '%Y-%m-%dT%H:%M:%S')
+    try:
+        # Chuyển đổi thành đối tượng datetime
+        date_start_master = datetime.strptime(insurance_details_first.insurance_start_date, '%Y-%m-%dT%H:%M:%S')
+        date_end_master = datetime.strptime(insurance_details_first.insurance_end_date, '%Y-%m-%dT%H:%M:%S')
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Invalid date format in first image: {str(e)}")
 
     object_list = []
 
     for image in images:
         insurance_details = image.insurance_detail
+        if not insurance_details:
+            logger.warning(f"Skipping image {image.id} - no insurance details")
+            continue
 
-        # Chuyển đổi thành đối tượng datetime
-        date_start = datetime.strptime(insurance_details.get("insurance_start_date"), '%Y-%m-%dT%H:%M:%S')
+        try:
+            # Chuyển đổi thành đối tượng datetime
+            date_start = datetime.strptime(insurance_details.insurance_start_date, '%Y-%m-%dT%H:%M:%S')
+            date_end = datetime.strptime(insurance_details.insurance_end_date, '%Y-%m-%dT%H:%M:%S')
 
-        if date_start < date_start_mater:
-            date_start_mater = date_start
+            # Cập nhật date_start_master và date_end_master
+            date_start_master = min(date_start_master, date_start)
+            date_end_master = max(date_end_master, date_end)
 
-        date_end = datetime.strptime(insurance_details.get("insurance_end_date"), '%Y-%m-%dT%H:%M:%S')
-        if date_end > date_end_master:
-            date_end_master = date_end
+            # Định dạng lại thành chuỗi
+            date_start_str = date_start.strftime('%Y-%m-%d %H:%M:%S')
+            date_end_str = date_end.strftime('%Y-%m-%d %H:%M:%S')
 
-        # Định dạng lại thành chuỗi mong muốn
-        date_start = date_start.strftime('%Y-%m-%d %H:%M:%S')
-        date_end = date_end.strftime('%Y-%m-%d %H:%M:%S')
+            premium_amount = getattr(insurance_details, "premium_amount", 0)
+            accident_premium = getattr(insurance_details, "accident_premium", 0)
+            number_seats = getattr(insurance_details, "number_seats", 2)
 
-        premium_amount = insurance_details.get("premium_amount") if insurance_details.get("premium_amount") else 0
-        accident_premium = insurance_details.get("accident_premium") if insurance_details.get("accident_premium") else 0
-        number_seats = insurance_details.get("number_seats") if insurance_details.get("number_seats") else 2
-
-        data = {
-            "car_owner": {
-                "customer_phone": insurance_details.get("phone_number"),
-                "customer_type": "none",
-                "customer_vat": None,
-                "customer_name": insurance_details.get("owner_name"),
-                "customer_cccd": None,
-                "customer_address": insurance_details.get("address")
-            },
-            "license_plate": insurance_details.get("plate_number"),
-            "vin_number": insurance_details.get("chassis_number", ''),
-            "engine_number": insurance_details.get("engine_number", ''),
-            "date_start": date_start,
-            "date_end": date_end,
-            "policy_object_date": None,
-            "indicative_image_url": image.image_url,
-            "indicative": insurance_details.get("serial_number", ''),
-            "tnds_insur_coverage": {
-                "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_ID")),
-                "name": "1. TNDS bắt buộc",
-                "customer_amount": premium_amount - accident_premium,
-                "premium_amount": premium_amount - accident_premium,
-                "tariff_line_id": int(os.getenv("TARIFF_LINE_TNDS_BIKE_ID")),
-                "detail_coverage": [
-                    {
-                        "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_1_1_ID")),
-                        "amount": 150_000_000,
-                        "name": "1.1 Về sức khỏe, tính mạng"
-                    },
-                    {
-                        "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_1_2_ID")),
-                        "amount": 50_000_000,
-                        "name": "1.2 Về tài sản"
-                    }
-                ]
-            },
-            "driver_passenger_accident": {
-                "id": int(os.getenv("PRODUCT_CATEGORY_DRIVER_PASSENGER_ACCIDENT_ID")),
-                "amount": accident_premium,
-                "customer_amount": accident_premium,
-                "premium_amount": accident_premium,
-                "rate": 0.001,
-                "number_seats": number_seats,
-                "tariff_line_id": int(os.getenv("TARIFF_LINE_DRIVER_PASSENGER_ACCIDENT_ID")),
-                "name": "2. Tai nạn người ngồi trên xe"
+            data = {
+                "car_owner": {
+                    "customer_phone": insurance_details.phone_number,
+                    "customer_type": "none",
+                    "customer_vat": None,
+                    "customer_name": insurance_details.owner_name,
+                    "customer_cccd": None,
+                    "customer_address": insurance_details.address
+                },
+                "license_plate": insurance_details.plate_number,
+                "vin_number": getattr(insurance_details, "chassis_number", ''),
+                "engine_number": getattr(insurance_details, "engine_number", ''),
+                "date_start": date_start_str,
+                "date_end": date_end_str,
+                "policy_object_date": None,
+                "indicative_image_url": image.image_url,
+                "indicative": getattr(insurance_details, "serial_number", ''),
+                "tnds_insur_coverage": {
+                    "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_ID")),
+                    "name": "1. TNDS bắt buộc",
+                    "customer_amount": premium_amount - accident_premium,
+                    "premium_amount": premium_amount - accident_premium,
+                    "tariff_line_id": int(os.getenv("TARIFF_LINE_TNDS_BIKE_ID")),
+                    "detail_coverage": [
+                        {
+                            "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_1_1_ID")),
+                            "amount": 150_000_000,
+                            "name": "1.1 Về sức khỏe, tính mạng"
+                        },
+                        {
+                            "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_1_2_ID")),
+                            "amount": 50_000_000,
+                            "name": "1.2 Về tài sản"
+                        }
+                    ]
+                },
+                "driver_passenger_accident": {
+                    "id": int(os.getenv("PRODUCT_CATEGORY_DRIVER_PASSENGER_ACCIDENT_ID")),
+                    "amount": accident_premium,
+                    "customer_amount": accident_premium,
+                    "premium_amount": accident_premium,
+                    "rate": 0.001,
+                    "number_seats": number_seats,
+                    "tariff_line_id": int(os.getenv("TARIFF_LINE_DRIVER_PASSENGER_ACCIDENT_ID")),
+                    "name": "2. Tai nạn người ngồi trên xe"
+                }
             }
-        }
 
-        object_list.append(data)
+            object_list.append(data)
+        except Exception as e:
+            logger.error(f"Error processing image {image.id}: {str(e)}")
+            continue
 
-    # Định dạng lại thành chuỗi mong muốn
-    date_start_mater = date_start_mater.strftime('%Y-%m-%d %H:%M:%S')
-    date_end_master = date_end_master.strftime('%Y-%m-%d %H:%M:%S')
+    if not object_list:
+        raise ValueError("No valid insurance details found in any image")
+
+    # Định dạng lại thành chuỗi cho policy_vals
+    date_start_master_str = date_start_master.strftime('%Y-%m-%d %H:%M:%S')
+    date_end_master_str = date_end_master.strftime('%Y-%m-%d %H:%M:%S')
 
     policy_vals = {
         "channel_id": int(os.getenv("CHANNEL_ID")),
-        "date_start": date_start_mater,
-        "date_end": date_end_master,
+        "date_start": date_start_master_str,
+        "date_end": date_end_master_str,
         "policy_date": None,
         "note": "",
         "car_owner": {
-            "customer_phone": insurance_details_first.get("phone_number"),
+            "customer_phone": insurance_details_first.phone_number,
             "customer_type": "none",
             "customer_vat": None,
-            "customer_name": insurance_details_first.get("owner_name"),
+            "customer_name": insurance_details_first.owner_name,
             "customer_cccd": None,
-            "customer_address": insurance_details_first.get("address")
+            "customer_address": insurance_details_first.address
         },
         "client_source": "acg_xm",
         "is_policy_indicative": True,
@@ -255,13 +268,11 @@ async def create_policy_group_insured(images, user_id):
 
 async def process_message(message: aio_pika.IncomingMessage):
     async with message.process():
+        db: Session = SessionLocal()
         try:
             # Decode message
             body = json.loads(message.body.decode())
             logger.info(f"Processing message: {body}")
-
-            # Get image from database
-            db: Session = SessionLocal()
 
             if body.get('session_type') == 'group_insured':
                 session = db.query(SessionModel).filter(SessionModel.id == body["session_id"]).first()
@@ -283,8 +294,9 @@ async def process_message(message: aio_pika.IncomingMessage):
 
                 except Exception as e:
                     logger.error(f"Error creating policy: {str(e)}")
-                    image.status = ImageStatus.INVALID
-                    image.error_message = f"Error creating policy: {str(e)}"
+                    for image in images:
+                        image.status = ImageStatus.INVALID
+                        image.error_message = f"Error creating policy: {str(e)}"
                     db.commit()
             else:
                 image = db.query(Image).filter(Image.id == body["image_id"]).first()
@@ -312,9 +324,17 @@ async def process_message(message: aio_pika.IncomingMessage):
 
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}")
-            image.status = ImageStatus.INVALID
-            image.error_message = f"Error processing message: {str(e)}"
-            db.commit()
+            # Kiểm tra xem biến image đã được định nghĩa chưa
+            if 'image' in locals():
+                image.status = ImageStatus.INVALID
+                image.error_message = f"Error processing message: {str(e)}"
+                db.commit()
+            # Nếu là group_insured, cập nhật trạng thái cho tất cả ảnh
+            elif 'images' in locals():
+                for img in images:
+                    img.status = ImageStatus.INVALID
+                    img.error_message = f"Error processing message: {str(e)}"
+                db.commit()
         finally:
             db.close()
 
