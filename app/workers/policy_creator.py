@@ -38,6 +38,13 @@ async def get_token_user(user_id):
     response = requests.request("GET", url, headers=headers, data=payload)
     return response.json().get("access_token")
 
+def decimal_to_float(obj):
+    """Convert Decimal objects to float for JSON serialization"""
+    from decimal import Decimal
+    if isinstance(obj, Decimal):
+        return float(obj)
+    return obj
+
 async def create_policy(insurance_details: dict, user_id: str, image_url: str) -> dict:
     " Gọi Core API để tạo đơn bảo hiểm"
     # TODO: Implement actual Core API call
@@ -50,9 +57,9 @@ async def create_policy(insurance_details: dict, user_id: str, image_url: str) -
     date_start = date_start.strftime('%Y-%m-%d %H:%M:%S')
     date_end = date_end.strftime('%Y-%m-%d %H:%M:%S')
 
-    premium_amount = insurance_details.get("premium_amount") if insurance_details.get("premium_amount") else 0
-    accident_premium = insurance_details.get("accident_premium") if insurance_details.get("accident_premium") else 0
-    number_seats = insurance_details.get("number_seats") if insurance_details.get("number_seats") else 2
+    premium_amount = decimal_to_float(insurance_details.get("premium_amount", 0))
+    accident_premium = decimal_to_float(insurance_details.get("accident_premium", 0))
+    number_seats = insurance_details.get("number_seats", 2)
 
     data = {
         "license_plate": insurance_details.get("plate_number"),
@@ -66,8 +73,8 @@ async def create_policy(insurance_details: dict, user_id: str, image_url: str) -
         "tnds_insur_coverage": {
             "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_ID")),
             "name": "1. TNDS bắt buộc",
-            "customer_amount": premium_amount - accident_premium,
-            "premium_amount": premium_amount - accident_premium,
+            "customer_amount": decimal_to_float(premium_amount - accident_premium),
+            "premium_amount": decimal_to_float(premium_amount - accident_premium),
             "tariff_line_id": int(os.getenv("TARIFF_LINE_TNDS_BIKE_ID")),
             "detail_coverage": [
                 {
@@ -84,9 +91,9 @@ async def create_policy(insurance_details: dict, user_id: str, image_url: str) -
         },
         "driver_passenger_accident": {
             "id": int(os.getenv("PRODUCT_CATEGORY_DRIVER_PASSENGER_ACCIDENT_ID")),
-            "amount": accident_premium,
-            "customer_amount": accident_premium,
-            "premium_amount": accident_premium,
+            "amount": decimal_to_float(accident_premium),
+            "customer_amount": decimal_to_float(accident_premium),
+            "premium_amount": decimal_to_float(accident_premium),
             "rate": 0.001,
             "number_seats": number_seats,
             "tariff_line_id": int(os.getenv("TARIFF_LINE_DRIVER_PASSENGER_ACCIDENT_ID")),
@@ -130,13 +137,11 @@ async def create_policy_group_insured(images, user_id):
     if not images:
         raise ValueError("No images provided")
 
-    # Lấy insurance_details từ image đầu tiên
     images_master = images[0]
     insurance_details_first = images_master.insurance_detail
     if not insurance_details_first:
         raise ValueError("First image has no insurance details")
 
-    # Khởi tạo date_start_master và date_end_master từ image đầu tiên
     date_start_master = insurance_details_first.insurance_start_date
     date_end_master = insurance_details_first.insurance_end_date
 
@@ -152,18 +157,17 @@ async def create_policy_group_insured(images, user_id):
             date_start = insurance_details.insurance_start_date
             date_end = insurance_details.insurance_end_date
 
-            # Cập nhật date_start_master và date_end_master
             date_start_master = min(date_start_master, date_start)
             date_end_master = max(date_end_master, date_end)
 
-            # Định dạng datetime thành chuỗi theo định dạng yêu cầu
             date_start_str = date_start.strftime('%Y-%m-%d %H:%M:%S')
             date_end_str = date_end.strftime('%Y-%m-%d %H:%M:%S')
 
-            premium_amount = getattr(insurance_details, "premium_amount", 0)
-            accident_premium = getattr(insurance_details, "accident_premium", 0)
-            number_seats = getattr(insurance_details, "number_seats", 2)
+            # Chuyển đổi các giá trị Decimal thành float
+            premium_amount = decimal_to_float(getattr(insurance_details, "premium_amount", 0))
+            accident_premium = decimal_to_float(getattr(insurance_details, "accident_premium", 0))
 
+            number_seats = insurance_details.number_seats if insurance_details.number_seats else 2
             data = {
                 "car_owner": {
                     "customer_phone": insurance_details.phone_number,
@@ -184,8 +188,8 @@ async def create_policy_group_insured(images, user_id):
                 "tnds_insur_coverage": {
                     "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_ID")),
                     "name": "1. TNDS bắt buộc",
-                    "customer_amount": premium_amount - accident_premium,
-                    "premium_amount": premium_amount - accident_premium,
+                    "customer_amount": decimal_to_float(premium_amount - accident_premium),
+                    "premium_amount": decimal_to_float(premium_amount - accident_premium),
                     "tariff_line_id": int(os.getenv("TARIFF_LINE_TNDS_BIKE_ID")),
                     "detail_coverage": [
                         {
@@ -202,9 +206,9 @@ async def create_policy_group_insured(images, user_id):
                 },
                 "driver_passenger_accident": {
                     "id": int(os.getenv("PRODUCT_CATEGORY_DRIVER_PASSENGER_ACCIDENT_ID")),
-                    "amount": accident_premium,
-                    "customer_amount": accident_premium,
-                    "premium_amount": accident_premium,
+                    "amount": decimal_to_float(accident_premium),
+                    "customer_amount": decimal_to_float(accident_premium),
+                    "premium_amount": decimal_to_float(accident_premium),
                     "rate": 0.001,
                     "number_seats": number_seats,
                     "tariff_line_id": int(os.getenv("TARIFF_LINE_DRIVER_PASSENGER_ACCIDENT_ID")),
