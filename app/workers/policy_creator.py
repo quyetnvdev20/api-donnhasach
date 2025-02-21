@@ -45,7 +45,7 @@ def decimal_to_float(obj):
         return float(obj)
     return obj
 
-async def create_policy(insurance_details: dict, user_id: str, image_url: str) -> dict:
+async def create_policy(session, insurance_details: dict, image_url: str) -> dict:
     " Gọi Core API để tạo đơn bảo hiểm"
     # TODO: Implement actual Core API call
     # Đây là mock data để test
@@ -111,14 +111,15 @@ async def create_policy(insurance_details: dict, user_id: str, image_url: str) -
         "is_other_holders": False,
         "client_source": "acg_xm",
         "is_policy_indicative": True,
-        "indicative_image_url": image_url
+        "indicative_image_url": image_url,
+        "responsible_id": int(session.responsible_id)
     }
 
     logger.info(f'create_policy.data: {str(data)}')
 
     headers = {
         'accept': 'application/json',
-        'Authorization':  f'{await get_token_user(user_id)}',
+        'Authorization':  f'{await get_token_user(session.id_keycloak)}',
         'Content-Type': 'application/json'
     }
 
@@ -133,7 +134,7 @@ async def create_policy(insurance_details: dict, user_id: str, image_url: str) -
             return result
 
 
-async def create_policy_group_insured(images, user_id):
+async def create_policy_group_insured(session, images):
     if not images:
         raise ValueError("No images provided")
 
@@ -244,14 +245,15 @@ async def create_policy_group_insured(images, user_id):
         },
         "client_source": "acg_xm",
         "is_policy_indicative": True,
-        "object_list": object_list
+        "object_list": object_list,
+        "responsible_id": int(session.responsible_id)
     }
 
     logger.info(f'create_policy.data: {str(policy_vals)}')
 
     headers = {
         'accept': 'application/json',
-        'Authorization':  f'{await get_token_user(user_id)}',
+        'Authorization':  f'{await get_token_user(session.id_keycloak)}',
         'Content-Type': 'application/json'
     }
 
@@ -284,7 +286,7 @@ async def process_message(message: aio_pika.IncomingMessage):
 
                 try:
                     # Create policy
-                    policy_result = await create_policy_group_insured(images, user_id)
+                    policy_result = await create_policy_group_insured(session, images)
                     if policy_result.get('status_code') != 200:
                         raise Exception(f"{policy_result.get('message')}")
 
@@ -306,11 +308,10 @@ async def process_message(message: aio_pika.IncomingMessage):
                 session = db.query(SessionModel).filter(SessionModel.id == str(image.session_id)).first()
                 if not session:
                     raise ValueError(f"Session {image.session_id} not found")
-                user_id = session.id_keycloak
 
                 try:
                     # Create policy
-                    policy_result = await create_policy(body["insurance_details"], user_id, image.image_url)
+                    policy_result = await create_policy(session, body["insurance_details"], image.image_url)
                     if policy_result.get('status_code') != 200:
                         raise Exception(f"{policy_result.get('message')}")
 

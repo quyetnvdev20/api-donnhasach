@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, UUID, Text, Enum
+from sqlalchemy import Column, String, DateTime, UUID, Text, Enum, Integer
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from .base import Base
@@ -19,5 +19,6 @@ class Session(Base):
     created_by = Column(String(100), nullable=False)
     closed_at = Column(DateTime(timezone=True))
     closed_by = Column(String(100))
+    responsible_id = Column(Integer())
 
-    images = relationship("Image", back_populates="session", cascade="all, delete-orphan") 
+    images = relationship("Image", back_populates="session", cascade="all, delete-orphan")
