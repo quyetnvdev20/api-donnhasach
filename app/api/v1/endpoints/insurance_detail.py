@@ -57,7 +57,6 @@ def update_insurance_detail(
     try:
         # Cập nhật insurance_detail
         update_dict = update_data.dict(exclude_unset=True)
-        note = update_dict.pop('note', '')
         for field, value in update_dict.items():
             setattr(insurance_detail, field, value)
 
@@ -70,8 +69,6 @@ def update_insurance_detail(
         }
         current_json_data.update(update_json)
         image.json_data = current_json_data
-
-        session.note = note
 
         # Lưu các thay đổi vào database
         db.commit()
