@@ -288,35 +288,7 @@ async def process_message(message: aio_pika.IncomingMessage):
             body = json.loads(message.body.decode())
             logger.info(f"Processing message: {body}")
 
-            if body.get('session_type') == 'group_insured':
-                # Delay 20 seconds
-                await asyncio.sleep(20)
-
-                session = db.query(SessionModel).filter(SessionModel.id == body["session_id"]).first()
-                if not session:
-                    raise ValueError(f"Session {body['session_id']} not found")
-                user_id = session.id_keycloak
-
-                images_list = db.query(Image).filter(Image.session_id == session.id).all()
-                images = [img for img in images_list if img.status == ImageStatus.COMPLETED and img.insurance_detail]
-
-                try:
-                    # Create policy
-                    policy_result = await create_policy_group_insured(session, images)
-                    if policy_result.get('status_code') != 200:
-                        raise Exception(f"{policy_result.get('message')}")
-
-                    for image in images:
-                        image.status = ImageStatus.DONE
-                    db.commit()
-
-                except Exception as e:
-                    logger.error(f"Error creating policy: {str(e)}")
-                    for image in images:
-                        image.status = ImageStatus.INVALID
-                        image.error_message = f"Error creating policy: {str(e)}"
-                    db.commit()
-            else:
+            if body.get('session_type') == "individual_insured":
                 image = db.query(Image).filter(Image.id == body["image_id"]).first()
                 if not image:
                     raise ValueError(f"Image {body['image_id']} not found or not completed")
