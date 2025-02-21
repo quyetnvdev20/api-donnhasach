@@ -169,6 +169,7 @@ async def create_policy_group_insured(session, images):
 
             date_start_master = min(date_start_master, date_start)
             date_end_master = max(date_end_master, date_end)
+            policy_date_master = min(policy_date_master, policy_date)
 
             date_start_str = date_start.strftime('%Y-%m-%d %H:%M:%S')
             date_end_str = date_end.strftime('%Y-%m-%d %H:%M:%S')
