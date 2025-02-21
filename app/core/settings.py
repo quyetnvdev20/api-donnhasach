@@ -1,5 +1,5 @@
 from enum import Enum
-
+import os
 class SessionStatus(str, Enum):
     NEW = "new"
     OPEN = "open"

@@ -18,6 +18,8 @@ from io import BytesIO
 from app.core.settings import ImageStatus, SessionStatus
 from ..models.session import Session as SessionModel
 from dateutil.relativedelta import relativedelta
+from minio import Minio
+import uuid
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -191,12 +193,11 @@ async def process_image_with_gemini(image_url: str) -> dict:
         aligned_rgb = cv2.cvtColor(aligned_img, cv2.COLOR_BGR2RGB)
         image = PIL_Image.fromarray(aligned_rgb)
 
-        # Tải ảnh từ URL
-        # response = requests.get(image_url)
-        # response.raise_for_status()
-        # image = PIL_Image.open(BytesIO(response.content))
-
-        # Gọi Gemini API
+        # Upload aligned image to MinIO
+        scan_image_url = await upload_image_to_minio(image)
+        logger.info(f"Aligned image uploaded to: {scan_image_url}")
+        
+        # Use scan_image_url for further processing
         response = model.generate_content([prompt, image])
         
         # Log raw response để debug
@@ -272,6 +273,9 @@ async def process_image_with_gemini(image_url: str) -> dict:
             if result.get('serial_number'):
                 result['serial_number'] = result.get('serial_number').replace(' ', '')
 
+            # Add scan_image_url to result
+            result['scan_image_url'] = scan_image_url
+
             return result
 
         except Exception as e:
@@ -302,8 +306,13 @@ async def process_message(message: aio_pika.IncomingMessage):
             db.commit()
 
             try:
-                # Process image
+                # Process image with Gemini and get aligned image URL
                 insurance_info = await process_image_with_gemini(image.image_url)
+                
+                # Lưu scan_image_url vào database
+                if 'scan_image_url' in locals():
+                    image.scan_image_url = insurance_info['scan_image_url']
+                    db.commit()
 
                 # Get and remove is_suspecting_wrongly flag if it exists
                 is_suspecting_wrongly = insurance_info.pop('is_suspecting_wrongly', False)
@@ -410,6 +419,55 @@ async def main():
         await asyncio.Future()  # wait forever
     finally:
         await connection.close()
+
+async def upload_image_to_minio(image: PIL_Image.Image, bucket_name: str = "forum.carpla.online") -> str:
+    """
+    Upload ảnh lên MinIO và trả về URL của ảnh
+    
+    Args:
+        image: PIL Image object
+        bucket_name: Tên bucket trên MinIO
+        
+    Returns:
+        str: URL của ảnh đã upload
+    """
+    try:
+        # Khởi tạo MinIO client
+        minio_client = Minio(
+            endpoint=settings.MINIO_ENDPOINT_XM,
+            access_key=settings.MINIO_ACCESS_KEY_XM,
+            secret_key=settings.MINIO_SECRET_KEY_XM,  
+            region="us-east-1",
+            secure=True
+        )
+
+        # Chuyển đổi ảnh sang bytes
+        img_byte_arr = BytesIO()
+        image.save(img_byte_arr, format='PNG')
+        img_byte_arr.seek(0)
+        
+        # Tạo tên file ngẫu nhiên
+        file_name = f"{uuid.uuid4()}.png"
+        
+        # Upload file lên MinIO
+        minio_client.put_object(
+            bucket_name,
+            file_name,
+            img_byte_arr,
+            length=len(img_byte_arr.getvalue()),
+            content_type='image/png'
+        )
+        
+        # Tạo và trả về URL
+        url = f"{settings.MINIO_ENDPOINT_XM}/{settings.MINIO_BUCKET_NAME_XM}/{file_name}"
+        if not url.startswith('http'):
+            url = f"http://{url}"
+            
+        return url
+
+    except Exception as e:
+        logger.error(f"Error uploading image to MinIO: {str(e)}")
+        raise Exception(f"Failed to upload image to MinIO: {str(e)}")
 
 if __name__ == "__main__":
     asyncio.run(main())
