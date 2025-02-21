@@ -48,16 +48,16 @@ celeries:
         cpu: 500m
         memory: 1Gi 
 
-  - name: acg-xm-session-processor
-    replicas: 1
-    runCommand: python -m app.workers.session_processor
-    resources:
-      requests: 
-        cpu: 50m
-        memory: 512Mi
-      limits:
-        cpu: 500m
-        memory: 1Gi
+  # - name: acg-xm-session-processor
+  #   replicas: 1
+  #   runCommand: python -m app.workers.session_processor
+  #   resources:
+  #     requests: 
+  #       cpu: 50m
+  #       memory: 512Mi
+  #     limits:
+  #       cpu: 500m
+  #       memory: 1Gi
 
 # depCommand: ./run.sh
 
