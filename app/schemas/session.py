@@ -33,6 +33,10 @@ class SessionResponse(SessionBase):
     created_at: datetime
     updated_at: datetime
     created_by: str
+    responsible_id: Optional[int] = None
+    responsible_name: Optional[str] = None
+    partner_channel_id: Optional[int] = None
+    partner_channel_name: Optional[str] = None
     closed_at: Optional[datetime] = None
     closed_by: Optional[str] = None
     images: Optional[List[ImageResponse]] = None

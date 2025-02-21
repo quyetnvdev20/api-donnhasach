@@ -20,6 +20,8 @@ class Session(Base):
     closed_at = Column(DateTime(timezone=True))
     closed_by = Column(String(100))
     responsible_id = Column(Integer())
+    responsible_name = Column(Text)
     partner_channel_id = Column(Integer())
+    partner_channel_name = Column(Text)
 
     images = relationship("Image", back_populates="session", cascade="all, delete-orphan")
