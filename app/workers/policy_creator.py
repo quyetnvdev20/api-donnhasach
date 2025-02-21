@@ -141,8 +141,12 @@ async def create_policy_group_insured(session, images):
     if not images:
         raise ValueError("No images provided")
 
-    images_master = images[0]
-    insurance_details_first = images_master.insurance_detail
+    insurance_details_first = None
+    for img in images:
+        if img.insurance_detail:
+            insurance_details_first = img.insurance_detail
+            break
+
     if not insurance_details_first:
         raise ValueError("First image has no insurance details")
 
@@ -289,7 +293,8 @@ async def process_message(message: aio_pika.IncomingMessage):
                     raise ValueError(f"Session {body['session_id']} not found")
                 user_id = session.id_keycloak
 
-                images = db.query(Image).filter(Image.session_id == session.id and Image.state == 'COMPLETED').all()
+                images = db.query(Image).filter(Image.session_id == session.id).all()
+                images = [img for img in images if img.state == 'COMPLETED']
 
                 try:
                     # Create policy
