@@ -16,6 +16,7 @@ class ImageResponse(ImageBase):
     id: UUID4
     session_id: UUID4
     status: str
+    is_suspecting_wrongly: bool
     created_at: datetime
     updated_at: datetime
     json_data: Optional[dict] = None

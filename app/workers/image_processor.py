@@ -298,7 +298,8 @@ async def process_message(message: aio_pika.IncomingMessage):
                 # Process image
                 insurance_info = await process_image_with_gemini(image.image_url)
 
-                is_suspecting_wrongly = insurance_info.pop('is_suspecting_wrongly')
+                is_suspecting_wrongly = insurance_info.get('is_suspecting_wrongly')
+                del insurance_info['is_suspecting_wrongly']
 
                 # Create insurance detail
                 insurance_detail = InsuranceDetail(
