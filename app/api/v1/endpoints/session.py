@@ -15,6 +15,7 @@ from ....database import get_db
 from ....models.image import Image
 from ....models.session import Session as SessionModel
 from ....schemas.session import SessionCreate, SessionResponse, SessionListResponse, SessionClose
+from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
@@ -94,30 +95,33 @@ async def close_session(
     image_counts = db.query(Image).filter(Image.session_id == session.id).all()
 
     if len(image_counts) != quantity_picture:
-        return {
-            "status_code": 422,
-            "message": "Number of images does not match the quantity of pictures. Please check again."
-        }
-
-    if session.policy_type == 'group_insured':
-        # Publish event
-        connection = await connect_to_rabbitmq()
-        channel = await connection.channel()
-        exchange = await channel.declare_exchange("acg.xm.direct", aio_pika.ExchangeType.DIRECT)
-
-        await exchange.publish(
-            aio_pika.Message(
-                body=json.dumps({
-                    "event_type": "IMAGE_PROCESSED",
-                    "session_id": str(session.id),
-                    "session_type": 'group_insured',
-                }).encode(),
-                content_type="application/json"
-            ),
-            routing_key="image.processed"
+        return JSONResponse(
+            status_code=422,
+            content={
+                "status_code": 422,
+                "message": "Number of images does not match the quantity of pictures. Please check again."
+            }
         )
 
-        await connection.close()
+    # if session.policy_type == 'group_insured':
+    #     # Publish event
+    #     connection = await connect_to_rabbitmq()
+    #     channel = await connection.channel()
+    #     exchange = await channel.declare_exchange("acg.xm.direct", aio_pika.ExchangeType.DIRECT)
+    #
+    #     await exchange.publish(
+    #         aio_pika.Message(
+    #             body=json.dumps({
+    #                 "event_type": "IMAGE_PROCESSED",
+    #                 "session_id": str(session.id),
+    #                 "session_type": 'group_insured',
+    #             }).encode(),
+    #             content_type="application/json"
+    #         ),
+    #         routing_key="image.processed"
+    #     )
+    #
+    #     await connection.close()
     
     session.status = SessionStatus.CLOSED
     session.closed_at = datetime.utcnow()
