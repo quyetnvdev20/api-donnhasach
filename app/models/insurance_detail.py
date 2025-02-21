@@ -3,6 +3,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from .base import Base
 import uuid
+from sqlalchemy.dialects.postgresql import JSONB
 
 class InsuranceDetail(Base):
     __tablename__ = "insurance_details"
@@ -10,6 +11,9 @@ class InsuranceDetail(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     image_id = Column(UUID(as_uuid=True), ForeignKey("images.id"))
     premium_amount = Column(Numeric(precision=10, scale=2))
+    liability_amount = Column(Numeric(precision=10, scale=2))
+    accident_premium = Column(Numeric(precision=10, scale=2))
+    number_seats = Column(Numeric(precision=10, scale=2))
     owner_name = Column(String(200))
     address = Column(String)
     phone_number = Column(String(20))
@@ -17,8 +21,8 @@ class InsuranceDetail(Base):
     chassis_number = Column(String(50))
     engine_number = Column(String(50))
     vehicle_type = Column(String(100))
-    insurance_start_date = Column(Date)
-    insurance_end_date = Column(Date)
+    insurance_start_date = Column(DateTime(timezone=True))
+    insurance_end_date = Column(DateTime(timezone=True))
     policy_issued_datetime = Column(DateTime(timezone=True))
     premium_payment_due_date = Column(Date)
     serial_number = Column(String(50))

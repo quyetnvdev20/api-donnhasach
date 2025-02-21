@@ -46,8 +46,8 @@ htmlcov/
 *.sqlite3
 
 # Alembic
-/migrations/versions/*
-!/migrations/versions/.gitkeep
+#/migrations/versions/*
+#!/migrations/versions/.gitkeep
 
 # Docker
 .docker/
@@ -89,3 +89,4 @@ Pipfile.lock
 
 # poetry
 poetry.lock 
+docker-compose.yml

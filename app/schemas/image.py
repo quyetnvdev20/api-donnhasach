@@ -4,16 +4,24 @@ from typing import Optional, List
 
 class ImageBase(BaseModel):
     image_url: HttpUrl
+    scan_image_url: Optional[HttpUrl] = None
 
 class ImageCreate(ImageBase):
     pass
+
+# Add new schema
+class ImageUrlRequest(BaseModel):
+    image_url: str
 
 class ImageResponse(ImageBase):
     id: UUID4
     session_id: UUID4
     status: str
+    is_suspecting_wrongly: bool
     created_at: datetime
     updated_at: datetime
+    json_data: Optional[dict] = None
+    error_message: Optional[str] = None
 
     class Config:
         from_attributes = True

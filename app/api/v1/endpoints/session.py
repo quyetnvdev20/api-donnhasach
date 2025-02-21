@@ -1,13 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from ....database import get_db
-from ....models.session import Session as SessionModel
-from ....schemas.session import SessionCreate, SessionResponse, SessionUpdate
-from ....services.rabbitmq import publish_event
-from datetime import datetime
-from ...deps import get_current_user
 import uuid
-from sqlalchemy.sql import func
+from datetime import datetime
+
+import aio_pika
+import json
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import func, String
+from sqlalchemy.orm import Session
+
+from app.core.settings import SessionStatus, ImageStatus
+from .insurance_detail import connect_to_rabbitmq
+from ...deps import get_current_user
+from ....database import get_db
+from ....models.image import Image
+from ....models.session import Session as SessionModel
+from ....schemas.session import SessionCreate, SessionResponse, SessionListResponse, SessionClose
+from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
@@ -16,14 +24,28 @@ def create_session(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
+    # Lấy id_keycloak từ token JWT (field 'sub' là standard cho user id)
+    id_keycloak = current_user.get('sub')
+    if not id_keycloak:
+        raise HTTPException(status_code=400, detail="Invalid token: missing user id")
+
     session = SessionModel(
-        status="NEW",
-        created_by=current_user.get("preferred_username", "unknown")
+        status=SessionStatus.NEW,
+        created_by=current_user.get("preferred_username", "unknown"),
+        id_keycloak=id_keycloak  # Thêm id_keycloak vào session
     )
-    db.add(session)
-    db.commit()
-    db.refresh(session)
-    return session
+    
+    try:
+        db.add(session)
+        db.commit()
+        db.refresh(session)
+        return session
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error creating session: {str(e)}"
+        )
 
 @router.put("/sessions/{session_id}/open", response_model=SessionResponse)
 def open_session(
@@ -35,28 +57,73 @@ def open_session(
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    if session.status != "NEW":
+    if session.status != SessionStatus.NEW:
         raise HTTPException(status_code=400, detail="Session can only be opened from NEW status")
     
-    session.status = "OPEN"
-    session.note = session_update.note
-    db.commit()
-    db.refresh(session)
-    return session
+    try:
+        session.status = SessionStatus.OPEN
+        session.note = session_update.note
+        session.policy_type = session_update.policy_type
+        session.responsible_name = session_update.responsible_name
+        session.partner_channel_name = session_update.partner_channel_name
+        session.responsible_id = int(session_update.responsible_id) if session_update.responsible_id else None
+        session.partner_channel_id = int(session_update.partner_channel_id) if session_update.partner_channel_id else None
 
-@router.put("/sessions/{session_id}/close", response_model=SessionResponse)
-def close_session(
+        db.commit()
+        db.refresh(session)
+        return session
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error opening session: {str(e)}"
+        )
+
+@router.put("/sessions/{session_id}/close", response_model=SessionClose)
+async def close_session(
     session_id: uuid.UUID,
+    quantity_picture: int,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    if session.status != "OPEN":
+    if session.status != SessionStatus.OPEN:
         raise HTTPException(status_code=400, detail="Only OPEN session can be closed")
+
+    image_counts = db.query(Image).filter(Image.session_id == session.id).all()
+
+    if len(image_counts) != quantity_picture:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "status_code": 422,
+                "message": "Số lượng hình ảnh chưa được tải lên đầy đủ. Vui lòng kiểm tra lại."
+            }
+        )
+
+    # if session.policy_type == 'group_insured':
+    #     # Publish event
+    #     connection = await connect_to_rabbitmq()
+    #     channel = await connection.channel()
+    #     exchange = await channel.declare_exchange("acg.xm.direct", aio_pika.ExchangeType.DIRECT)
+    #
+    #     await exchange.publish(
+    #         aio_pika.Message(
+    #             body=json.dumps({
+    #                 "event_type": "IMAGE_PROCESSED",
+    #                 "session_id": str(session.id),
+    #                 "session_type": 'group_insured',
+    #             }).encode(),
+    #             content_type="application/json"
+    #         ),
+    #         routing_key="image.processed"
+    #     )
+    #
+    #     await connection.close()
     
-    session.status = "CLOSED"
+    session.status = SessionStatus.CLOSED
     session.closed_at = datetime.utcnow()
     session.closed_by = current_user.get("preferred_username", "unknown")
     db.commit()
@@ -68,16 +135,103 @@ def get_session(
     session_id: uuid.UUID,
     db: Session = Depends(get_db)
 ):
-    session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+    session = db.query(SessionModel).filter(SessionModel.id == session_id).order_by(SessionModel.created_at.desc()).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return session
 
-@router.get("/sessions", response_model=list[SessionResponse])
+@router.get("/sessions", response_model=SessionListResponse)
 def list_sessions(
     skip: int = 0,
     limit: int = 100,
+    status: SessionStatus = None,
+    name: str = None,
+    from_date: datetime = None,
+    to_date: datetime = None,
     db: Session = Depends(get_db)
 ):
-    sessions = db.query(SessionModel).offset(skip).limit(limit).all()
-    return sessions 
+    # Base query
+    query = db.query(SessionModel)
+    
+    # Apply filters
+    if status:
+        query = query.filter(SessionModel.status == status)
+    
+    if name:
+        query = query.filter(
+            (SessionModel.id.cast(String).ilike(f"%{name}%")) |
+            (SessionModel.note.ilike(f"%{name}%")) |
+            (SessionModel.created_by.ilike(f"%{name}%"))
+        )
+        
+    if from_date:
+        query = query.filter(SessionModel.created_at >= from_date)
+        
+    if to_date:
+        query = query.filter(SessionModel.created_at <= to_date)
+
+    # Order by
+    query = query.order_by(
+        # SessionModel.status.asc(),
+        SessionModel.created_at.desc()
+    )
+    
+    # Get total count before pagination
+    total_count = query.count()
+    
+    # Apply pagination
+    sessions = query.offset(skip).limit(limit).all()
+
+    # Count images by status for each session
+    for session in sessions:
+        status_counts = {
+            ImageStatus.PENDING: 0,
+            ImageStatus.PROCESSING: 0,
+            ImageStatus.COMPLETED: 0,
+            ImageStatus.FAILED: 0,
+            ImageStatus.INVALID: 0,
+            ImageStatus.DONE: 0
+        }
+
+        image_counts = (
+            db.query(Image.status, func.count(Image.id))
+            .filter(Image.session_id == session.id)
+            .group_by(Image.status)
+            .all()
+        )
+
+        for status, count in image_counts:
+            status_counts[status] = count
+
+        session.image_status_counts = status_counts
+
+    # Convert model instances to dict for serialization
+    session_list = []
+    for session in sessions:
+        session_dict = {
+            "id": session.id,
+            "status": session.status,
+            "created_at": session.created_at,
+            "updated_at": session.updated_at,
+            "created_by": session.created_by,
+            "closed_at": session.closed_at,
+            "closed_by": session.closed_by,
+            "id_keycloak": session.id_keycloak,
+            "responsible_id": session.responsible_id,
+            "partner_channel_id": session.partner_channel_id,
+            "responsible_name": session.responsible_name,
+            "partner_channel_name": session.partner_channel_name,
+            "note": session.note,
+            "image_status_counts": session.image_status_counts
+        }
+        session_list.append(session_dict)
+
+    return {
+        "total": total_count,
+        "skip": skip,
+        "limit": limit,
+        "data": session_list
+    }
+
+class Session(BaseModel):
+    status: SessionStatus = SessionStatus.NEW
