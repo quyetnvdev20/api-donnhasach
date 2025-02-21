@@ -52,6 +52,7 @@ async def create_policy(insurance_details: dict, user_id: str, image_url: str) -
 
     premium_amount = insurance_details.get("premium_amount") if insurance_details.get("premium_amount") else 0
     accident_premium = insurance_details.get("accident_premium") if insurance_details.get("accident_premium") else 0
+    number_seats = insurance_details.get("number_seats") if insurance_details.get("number_seats") else 2
 
     data = {
         "license_plate": insurance_details.get("plate_number"),
@@ -87,7 +88,7 @@ async def create_policy(insurance_details: dict, user_id: str, image_url: str) -
             "customer_amount": accident_premium,
             "premium_amount": accident_premium,
             "rate": 0.001,
-            "number_seats": insurance_details.get("number_seats", 2),
+            "number_seats": number_seats,
             "tariff_line_id": int(os.getenv("TARIFF_LINE_DRIVER_PASSENGER_ACCIDENT_ID")),
             "name": "2. Tai nạn người ngồi trên xe"
         },
@@ -158,6 +159,7 @@ async def create_policy_group_insured(images, user_id):
 
         premium_amount = insurance_details.get("premium_amount") if insurance_details.get("premium_amount") else 0
         accident_premium = insurance_details.get("accident_premium") if insurance_details.get("accident_premium") else 0
+        number_seats = insurance_details.get("number_seats") if insurance_details.get("number_seats") else 2
 
         data = {
             "car_owner": {
@@ -201,7 +203,7 @@ async def create_policy_group_insured(images, user_id):
                 "customer_amount": accident_premium,
                 "premium_amount": accident_premium,
                 "rate": 0.001,
-                "number_seats": insurance_details.get("number_seats", 2),
+                "number_seats": number_seats,
                 "tariff_line_id": int(os.getenv("TARIFF_LINE_DRIVER_PASSENGER_ACCIDENT_ID")),
                 "name": "2. Tai nạn người ngồi trên xe"
             }
