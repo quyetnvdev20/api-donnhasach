@@ -53,7 +53,7 @@ async def create_policy(session, insurance_details: dict, image_url: str) -> dic
     # Chuyển đổi thành đối tượng datetime
     date_start = datetime.strptime(insurance_details.get("insurance_start_date"), '%Y-%m-%dT%H:%M:%S')
     date_end = datetime.strptime(insurance_details.get("insurance_end_date"), '%Y-%m-%dT%H:%M:%S')
-    policy_issued_datetime = datetime.strptime(insurance_details.get("policy_issued_datetime"), '%Y-%m-%dT%H:%M:%S')
+    policy_issued_datetime = datetime.strptime(insurance_details.get("insurance_start_date"), '%Y-%m-%dT%H:%M:%S')
     # Định dạng lại thành chuỗi mong muốn
     date_start = date_start.strftime('%Y-%m-%d %H:%M:%S')
     date_end = date_end.strftime('%Y-%m-%d %H:%M:%S')
