@@ -217,6 +217,9 @@ async def process_image_with_gemini(image_url: str) -> dict:
             if result.get('number_seats'):
                 result['number_seats'] = int(str(result['number_seats']))
 
+            if result.get('serial_number'):
+                result['serial_number'] = result['serial_number'].replace(' ', '')
+
             return result
 
         except Exception as e:
