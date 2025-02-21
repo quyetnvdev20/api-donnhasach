@@ -241,9 +241,12 @@ async def process_image_with_gemini(image_url: str) -> dict:
                 ngày hết hiệu lực: now + 1 năm
             """
             if not result.get('insurance_start_date') or not result.get('policy_issued_datetime') or not result.get('insurance_end_date'):
-                result['insurance_start_date'] = datetime.now().isoformat()
-                result['policy_issued_datetime'] = (datetime.now() - relativedelta(days=1)).isoformat()
-                result['insurance_end_date'] = (datetime.now() + relativedelta(years=1)).isoformat()
+                now_str = datetime.strftime(datetime.now(), '%d/%m/%Y %H:%M:%S')
+                now = datetime.strptime(now_str, '%d/%m/%Y %H:%M:%S')
+
+                result['insurance_start_date'] = now.isoformat()
+                result['policy_issued_datetime'] = (now - relativedelta(days=1)).isoformat()
+                result['insurance_end_date'] = (now + relativedelta(years=1)).isoformat()
                 result.update({'is_suspecting_wrongly': True})
 
             # Xử lý các trường số
@@ -258,6 +261,10 @@ async def process_image_with_gemini(image_url: str) -> dict:
                     if '.' in value:
                         value = value.replace('.', '')
                     result[f] = float(value)
+
+            if not result.get('premium_amount'):
+                result['premium_amount'] = 66000
+                result.update({'is_suspecting_wrongly': True})
 
             if result.get('number_seats'):
                 result['number_seats'] = int(str(result['number_seats']))
