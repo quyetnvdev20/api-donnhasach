@@ -112,7 +112,7 @@ async def create_policy(session, insurance_details: dict, image_url: str) -> dic
         "client_source": "acg_xm",
         "is_policy_indicative": True,
         "indicative_image_url": image_url,
-        "responsible_id": int(session.responsible_id)
+        "responsible_id": int(session.responsible_id) if session.responsible_id else None
     }
 
     logger.info(f'create_policy.data: {str(data)}')
@@ -246,7 +246,7 @@ async def create_policy_group_insured(session, images):
         "client_source": "acg_xm",
         "is_policy_indicative": True,
         "object_list": object_list,
-        "responsible_id": int(session.responsible_id)
+        "responsible_id": int(session.responsible_id) if session.responsible_id else None
     }
 
     logger.info(f'create_policy.data: {str(policy_vals)}')

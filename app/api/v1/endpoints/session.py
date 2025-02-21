@@ -63,7 +63,7 @@ def open_session(
         session.status = SessionStatus.OPEN
         session.note = session_update.note
         session.policy_type = session_update.policy_type
-        session.responsible_id = int(session_update.responsible_id)
+        session.responsible_id = int(session_update.responsible_id) if session_update.responsible_id else None
 
         db.commit()
         db.refresh(session)
