@@ -337,30 +337,30 @@ async def process_message(message: aio_pika.IncomingMessage):
                 if not session:
                     raise ValueError(f"Session {image.session_id} not found")
 
-                if session.policy_type == 'group_insured':
-                    return
-
-                # Publish event
-                connection = await connect_to_rabbitmq()
-                channel = await connection.channel()
-                exchange = await channel.declare_exchange("acg.xm.direct", aio_pika.ExchangeType.DIRECT)
-
-                await exchange.publish(
-                    aio_pika.Message(
-                        body=json.dumps({
-                            "event_type": "IMAGE_PROCESSED",
-                            "image_id": str(image.id),
-                            "session_id": str(image.session_id),
-                            "insurance_details": insurance_info,
-                            "session_type": 'individual_insured',
-                            "timestamp": image.updated_at.isoformat()
-                        }).encode(),
-                        content_type="application/json"
-                    ),
-                    routing_key="image.processed"
-                )
-
-                await connection.close()
+                # if session.policy_type == 'group_insured':
+                #     return
+                #
+                # # Publish event
+                # connection = await connect_to_rabbitmq()
+                # channel = await connection.channel()
+                # exchange = await channel.declare_exchange("acg.xm.direct", aio_pika.ExchangeType.DIRECT)
+                #
+                # await exchange.publish(
+                #     aio_pika.Message(
+                #         body=json.dumps({
+                #             "event_type": "IMAGE_PROCESSED",
+                #             "image_id": str(image.id),
+                #             "session_id": str(image.session_id),
+                #             "insurance_details": insurance_info,
+                #             "session_type": 'individual_insured',
+                #             "timestamp": image.updated_at.isoformat()
+                #         }).encode(),
+                #         content_type="application/json"
+                #     ),
+                #     routing_key="image.processed"
+                # )
+                #
+                # await connection.close()
 
             except ValueError as e:
                 logger.error(f"Error processing image: {str(e)}")

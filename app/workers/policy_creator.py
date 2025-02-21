@@ -66,7 +66,7 @@ async def create_policy(session, insurance_details: dict, image_url: str) -> dic
     data = {
         "license_plate": insurance_details.get("plate_number"),
         "vehicle_type_id": None,
-        "channel_id": int(os.getenv("CHANNEL_ID")),
+        "channel_id": int(session.partner_channel_id) if session.partner_channel_id else int(os.getenv("CHANNEL_ID")),
         "date_start": date_start,
         "date_end": date_end,
         "policy_date": policy_date,
@@ -242,7 +242,7 @@ async def create_policy_group_insured(session, images):
     policy_date_master_str = policy_date_master.strftime('%Y-%m-%d')
 
     policy_vals = {
-        "channel_id": int(os.getenv("CHANNEL_ID")),
+        "channel_id": int(session.partner_channel_id) if session.partner_channel_id else int(os.getenv("CHANNEL_ID")),
         "date_start": date_start_master_str,
         "date_end": date_end_master_str,
         "policy_date": policy_date_master_str,

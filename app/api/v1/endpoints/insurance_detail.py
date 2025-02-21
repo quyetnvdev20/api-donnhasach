@@ -134,6 +134,7 @@ async def retry_process_image(
                     "image_id": str(image.id),
                     "session_id": str(image.session_id),
                     "insurance_details": image.json_data,
+                    "session_type": "individual_insured",
                     "timestamp": image.updated_at.isoformat()
                 }).encode(),
                 content_type="application/json"

@@ -10,6 +10,7 @@ class SessionBase(BaseModel):
 
 class SessionCreate(SessionBase):
     responsible_id: Optional[int] = None
+    partner_channel_id: Optional[int] = None
 
 class ListSessionResponse(BaseModel):
     id: UUID
