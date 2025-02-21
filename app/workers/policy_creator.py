@@ -296,8 +296,8 @@ async def process_message(message: aio_pika.IncomingMessage):
                     raise ValueError(f"Session {body['session_id']} not found")
                 user_id = session.id_keycloak
 
-                images = db.query(Image).filter(Image.session_id == session.id).all()
-                images = [img for img in images if img.status == 'COMPLETED']
+                images_list = db.query(Image).filter(Image.session_id == session.id).all()
+                images = [img for img in images_list if img.status == ImageStatus.COMPLETED and img.insurance_detail]
 
                 try:
                     # Create policy
