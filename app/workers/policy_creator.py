@@ -288,6 +288,9 @@ async def process_message(message: aio_pika.IncomingMessage):
             logger.info(f"Processing message: {body}")
 
             if body.get('session_type') == 'group_insured':
+                # Delay 20 seconds
+                await asyncio.sleep(20)
+
                 session = db.query(SessionModel).filter(SessionModel.id == body["session_id"]).first()
                 if not session:
                     raise ValueError(f"Session {body['session_id']} not found")
