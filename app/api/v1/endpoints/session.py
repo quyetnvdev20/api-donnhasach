@@ -94,7 +94,10 @@ async def close_session(
     image_counts = db.query(Image).filter(Image.session_id == session.id).all()
 
     if len(image_counts) != quantity_picture:
-        raise HTTPException(status_code=430, detail="Number of images does not match the quantity of pictures. Please check again.")
+        return {
+            "status_code": 422,
+            "message": "Number of images does not match the quantity of pictures. Please check again."
+        }
 
     if session.policy_type == 'group_insured':
         # Publish event
@@ -210,6 +213,10 @@ def list_sessions(
             "closed_at": session.closed_at,
             "closed_by": session.closed_by,
             "id_keycloak": session.id_keycloak,
+            "responsible_id": session.responsible_id,
+            "partner_channel_id": session.partner_channel_id,
+            "responsible_name": session.responsible_name,
+            "partner_channel_name": session.partner_channel_name,
             "note": session.note,
             "image_status_counts": session.image_status_counts
         }
