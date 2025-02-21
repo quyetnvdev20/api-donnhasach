@@ -76,8 +76,8 @@ async def create_policy(session, insurance_details: dict, image_url: str) -> dic
         "tnds_insur_coverage": {
             "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_ID")),
             "name": "1. TNDS bắt buộc",
-            "customer_amount": premium_amount - accident_premium,
-            "premium_amount": premium_amount - accident_premium,
+            "customer_amount": premium_amount,
+            "premium_amount": premium_amount,
             "tariff_line_id": int(os.getenv("TARIFF_LINE_TNDS_BIKE_ID")),
             "detail_coverage": [
                 {
