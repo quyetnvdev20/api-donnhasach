@@ -167,7 +167,7 @@ async def create_policy_group_insured(images, user_id):
             premium_amount = decimal_to_float(getattr(insurance_details, "premium_amount", 0))
             accident_premium = decimal_to_float(getattr(insurance_details, "accident_premium", 0))
 
-            number_seats = insurance_details.number_seats if insurance_details.number_seats else 2
+            number_seats = decimal_to_float(insurance_details.number_seats) if insurance_details.number_seats else 2
             data = {
                 "car_owner": {
                     "customer_phone": insurance_details.phone_number,
