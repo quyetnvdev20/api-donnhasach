@@ -232,7 +232,7 @@ async def process_image_with_gemini(image_url: str) -> dict:
                     except:
                         result[field] = datetime.strptime(
                             result[field],
-                            '%d/%m/%Y 00:00:00'
+                            '%d/%m/%Y'
                         ).isoformat()
 
             """set default ngày cấp đơn, thời hạn hiệu lực nếu không đọc được từ ảnh
@@ -242,10 +242,9 @@ async def process_image_with_gemini(image_url: str) -> dict:
             """
             if not result.get('insurance_start_date'):
                 result['insurance_start_date'] = datetime.now().isoformat()
-                result.update({'is_suspecting_wrongly': True})
-
-            if not result.get('policy_issued_datetime'):
-                result['policy_issued_datetime'] = (result['insurance_start_date']  - relativedelta(days=1)).isoformat()
+                result['policy_issued_datetime'] = (datetime.now() - relativedelta(days=1)).isoformat()
+                if not result.get('insurance_end_date'):
+                    result['policy_issued_datetime'] = (datetime.now() + relativedelta(years=1)).isoformat()
                 result.update({'is_suspecting_wrongly': True})
 
             # Xử lý các trường số
@@ -272,7 +271,7 @@ async def process_image_with_gemini(image_url: str) -> dict:
         except Exception as e:
             logger.error(f"Error parsing Gemini response: {str(e)}")
             logger.error(f"Response content: {response.text}")
-            raise
+            raise {}
 
     except Exception as e:
         logger.error(f"Error processing image with Gemini: {str(e)}")
