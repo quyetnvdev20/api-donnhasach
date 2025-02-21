@@ -130,18 +130,15 @@ async def create_policy_group_insured(images, user_id):
     if not images:
         raise ValueError("No images provided")
 
-    # Lấy insurance_details từ image đầu tiên một cách an toàn
+    # Lấy insurance_details từ image đầu tiên
     images_master = images[0]
     insurance_details_first = images_master.insurance_detail
     if not insurance_details_first:
         raise ValueError("First image has no insurance details")
 
-    try:
-        # Chuyển đổi thành đối tượng datetime
-        date_start_master = datetime.strptime(insurance_details_first.insurance_start_date, '%Y-%m-%dT%H:%M:%S')
-        date_end_master = datetime.strptime(insurance_details_first.insurance_end_date, '%Y-%m-%dT%H:%M:%S')
-    except (ValueError, TypeError) as e:
-        raise ValueError(f"Invalid date format in first image: {str(e)}")
+    # Khởi tạo date_start_master và date_end_master từ image đầu tiên
+    date_start_master = insurance_details_first.insurance_start_date
+    date_end_master = insurance_details_first.insurance_end_date
 
     object_list = []
 
@@ -152,15 +149,14 @@ async def create_policy_group_insured(images, user_id):
             continue
 
         try:
-            # Chuyển đổi thành đối tượng datetime
-            date_start = datetime.strptime(insurance_details.insurance_start_date, '%Y-%m-%dT%H:%M:%S')
-            date_end = datetime.strptime(insurance_details.insurance_end_date, '%Y-%m-%dT%H:%M:%S')
+            date_start = insurance_details.insurance_start_date
+            date_end = insurance_details.insurance_end_date
 
             # Cập nhật date_start_master và date_end_master
             date_start_master = min(date_start_master, date_start)
             date_end_master = max(date_end_master, date_end)
 
-            # Định dạng lại thành chuỗi
+            # Định dạng datetime thành chuỗi theo định dạng yêu cầu
             date_start_str = date_start.strftime('%Y-%m-%d %H:%M:%S')
             date_end_str = date_end.strftime('%Y-%m-%d %H:%M:%S')
 
@@ -224,7 +220,7 @@ async def create_policy_group_insured(images, user_id):
     if not object_list:
         raise ValueError("No valid insurance details found in any image")
 
-    # Định dạng lại thành chuỗi cho policy_vals
+    # Định dạng datetime thành chuỗi cho policy_vals
     date_start_master_str = date_start_master.strftime('%Y-%m-%d %H:%M:%S')
     date_end_master_str = date_end_master.strftime('%Y-%m-%d %H:%M:%S')
 
