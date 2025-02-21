@@ -313,8 +313,8 @@ async def process_message(message: aio_pika.IncomingMessage):
                 if 'scan_image_url' in locals():
                     image.scan_image_url = insurance_info['scan_image_url']
                     db.commit()
-                    insurance_info.pop('scan_image_url', False)
-
+                
+                insurance_info.pop('scan_image_url', False)
                 # Get and remove is_suspecting_wrongly flag if it exists
                 is_suspecting_wrongly = insurance_info.pop('is_suspecting_wrongly', False) 
                 
