@@ -53,9 +53,11 @@ async def create_policy(session, insurance_details: dict, image_url: str) -> dic
     # Chuyển đổi thành đối tượng datetime
     date_start = datetime.strptime(insurance_details.get("insurance_start_date"), '%Y-%m-%dT%H:%M:%S')
     date_end = datetime.strptime(insurance_details.get("insurance_end_date"), '%Y-%m-%dT%H:%M:%S')
+    policy_issued_datetime = datetime.strptime(insurance_details.get("policy_issued_datetime"), '%Y-%m-%dT%H:%M:%S')
     # Định dạng lại thành chuỗi mong muốn
     date_start = date_start.strftime('%Y-%m-%d %H:%M:%S')
     date_end = date_end.strftime('%Y-%m-%d %H:%M:%S')
+    policy_date = policy_issued_datetime.strftime('%Y-%m-%d')
 
     premium_amount = decimal_to_float(insurance_details.get("premium_amount", 0))
     accident_premium = decimal_to_float(insurance_details.get("accident_premium", 0))
@@ -67,6 +69,7 @@ async def create_policy(session, insurance_details: dict, image_url: str) -> dic
         "channel_id": int(os.getenv("CHANNEL_ID")),
         "date_start": date_start,
         "date_end": date_end,
+        "policy_date": policy_date,
         "vin_number": insurance_details.get("chassis_number", ''),
         "engine_number": insurance_details.get("engine_number", ''),
         "indicative": insurance_details.get("serial_number", ''),
@@ -145,6 +148,7 @@ async def create_policy_group_insured(session, images):
 
     date_start_master = insurance_details_first.insurance_start_date
     date_end_master = insurance_details_first.insurance_end_date
+    policy_date_master = insurance_details_first.policy_issued_datetime
 
     object_list = []
 
@@ -157,12 +161,14 @@ async def create_policy_group_insured(session, images):
         try:
             date_start = insurance_details.insurance_start_date
             date_end = insurance_details.insurance_end_date
+            policy_date = insurance_details.policy_issued_datetime
 
             date_start_master = min(date_start_master, date_start)
             date_end_master = max(date_end_master, date_end)
 
             date_start_str = date_start.strftime('%Y-%m-%d %H:%M:%S')
             date_end_str = date_end.strftime('%Y-%m-%d %H:%M:%S')
+            policy_date_str = policy_date.strftime('%Y-%m-%d')
 
             # Chuyển đổi các giá trị Decimal thành float
             premium_amount = decimal_to_float(getattr(insurance_details, "premium_amount", 0))
@@ -183,7 +189,7 @@ async def create_policy_group_insured(session, images):
                 "engine_number": getattr(insurance_details, "engine_number", ''),
                 "date_start": date_start_str,
                 "date_end": date_end_str,
-                "policy_object_date": None,
+                "policy_object_date": policy_date_str,
                 "indicative_image_url": image.image_url,
                 "indicative": getattr(insurance_details, "serial_number", ''),
                 "tnds_insur_coverage": {
@@ -228,12 +234,13 @@ async def create_policy_group_insured(session, images):
     # Định dạng datetime thành chuỗi cho policy_vals
     date_start_master_str = date_start_master.strftime('%Y-%m-%d %H:%M:%S')
     date_end_master_str = date_end_master.strftime('%Y-%m-%d %H:%M:%S')
+    policy_date_master_str = policy_date_master.strftime('%Y-%m-%d')
 
     policy_vals = {
         "channel_id": int(os.getenv("CHANNEL_ID")),
         "date_start": date_start_master_str,
         "date_end": date_end_master_str,
-        "policy_date": None,
+        "policy_date": policy_date_master_str,
         "note": "",
         "car_owner": {
             "customer_phone": insurance_details_first.phone_number,

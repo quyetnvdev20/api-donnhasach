@@ -242,9 +242,11 @@ async def process_image_with_gemini(image_url: str) -> dict:
             """
             if not result.get('insurance_start_date'):
                 result['insurance_start_date'] = datetime.now().isoformat()
-                result['insurance_end_date'] = (datetime.now()  + relativedelta(years=1)).isoformat()
-                result['policy_issued_datetime'] = (datetime.now()  - relativedelta(days=1)).isoformat()
-                result['is_suspecting_wrongly'] = True
+                result.update({'is_suspecting_wrongly': True})
+
+            if not result.get('policy_issued_datetime'):
+                result['policy_issued_datetime'] = (result['insurance_start_date']  - relativedelta(days=1)).isoformat()
+                result.update({'is_suspecting_wrongly': True})
 
             # Xử lý các trường số
             float_fields = [
@@ -298,8 +300,8 @@ async def process_message(message: aio_pika.IncomingMessage):
                 # Process image
                 insurance_info = await process_image_with_gemini(image.image_url)
 
-                is_suspecting_wrongly = insurance_info.get('is_suspecting_wrongly')
-                del insurance_info['is_suspecting_wrongly']
+                # Get and remove is_suspecting_wrongly flag if it exists
+                is_suspecting_wrongly = insurance_info.pop('is_suspecting_wrongly', False)
 
                 # Create insurance detail
                 insurance_detail = InsuranceDetail(
