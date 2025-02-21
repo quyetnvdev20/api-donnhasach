@@ -11,6 +11,8 @@ class SessionBase(BaseModel):
 class SessionCreate(SessionBase):
     responsible_id: Optional[int] = None
     partner_channel_id: Optional[int] = None
+    responsible_name: Optional[str] = None
+    partner_channel_name: Optional[str] = None
 
 class ListSessionResponse(BaseModel):
     id: UUID
