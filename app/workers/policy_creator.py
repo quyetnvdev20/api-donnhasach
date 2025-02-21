@@ -50,6 +50,9 @@ async def create_policy(insurance_details: dict, user_id: str, image_url: str) -
     date_start = date_start.strftime('%Y-%m-%d %H:%M:%S')
     date_end = date_end.strftime('%Y-%m-%d %H:%M:%S')
 
+    premium_amount = insurance_details.get("premium_amount") if insurance_details.get("premium_amount") else 0
+    accident_premium = insurance_details.get("accident_premium") if insurance_details.get("accident_premium") else 0
+
     data = {
         "license_plate": insurance_details.get("plate_number"),
         "vehicle_type_id": None,
@@ -62,8 +65,8 @@ async def create_policy(insurance_details: dict, user_id: str, image_url: str) -
         "tnds_insur_coverage": {
             "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_ID")),
             "name": "1. TNDS bắt buộc",
-            "customer_amount": insurance_details.get("premium_amount") - insurance_details.get("accident_premium"),
-            "premium_amount": insurance_details.get("premium_amount") - insurance_details.get("accident_premium"),
+            "customer_amount": premium_amount - accident_premium,
+            "premium_amount": premium_amount - accident_premium,
             "tariff_line_id": int(os.getenv("TARIFF_LINE_TNDS_BIKE_ID")),
             "detail_coverage": [
                 {
@@ -80,11 +83,11 @@ async def create_policy(insurance_details: dict, user_id: str, image_url: str) -
         },
         "driver_passenger_accident": {
             "id": int(os.getenv("PRODUCT_CATEGORY_DRIVER_PASSENGER_ACCIDENT_ID")),
-            "amount": insurance_details.get("accident_premium"),
-            "customer_amount": insurance_details.get("accident_premium"),
-            "premium_amount": insurance_details.get("accident_premium"),
+            "amount": accident_premium,
+            "customer_amount": accident_premium,
+            "premium_amount": accident_premium,
             "rate": 0.001,
-            "number_seats": insurance_details.get("number_seats"),
+            "number_seats": insurance_details.get("number_seats", 2),
             "tariff_line_id": int(os.getenv("TARIFF_LINE_DRIVER_PASSENGER_ACCIDENT_ID")),
             "name": "2. Tai nạn người ngồi trên xe"
         },
@@ -153,6 +156,9 @@ async def create_policy_group_insured(images, user_id):
         date_start = date_start.strftime('%Y-%m-%d %H:%M:%S')
         date_end = date_end.strftime('%Y-%m-%d %H:%M:%S')
 
+        premium_amount = insurance_details.get("premium_amount") if insurance_details.get("premium_amount") else 0
+        accident_premium = insurance_details.get("accident_premium") if insurance_details.get("accident_premium") else 0
+
         data = {
             "car_owner": {
                 "customer_phone": insurance_details.get("phone_number"),
@@ -173,8 +179,8 @@ async def create_policy_group_insured(images, user_id):
             "tnds_insur_coverage": {
                 "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_ID")),
                 "name": "1. TNDS bắt buộc",
-                "customer_amount": insurance_details.get("premium_amount") - insurance_details.get("accident_premium"),
-                "premium_amount": insurance_details.get("premium_amount") - insurance_details.get("accident_premium"),
+                "customer_amount": premium_amount - accident_premium,
+                "premium_amount": premium_amount - accident_premium,
                 "tariff_line_id": int(os.getenv("TARIFF_LINE_TNDS_BIKE_ID")),
                 "detail_coverage": [
                     {
@@ -191,11 +197,11 @@ async def create_policy_group_insured(images, user_id):
             },
             "driver_passenger_accident": {
                 "id": int(os.getenv("PRODUCT_CATEGORY_DRIVER_PASSENGER_ACCIDENT_ID")),
-                "amount": insurance_details.get("accident_premium"),
-                "customer_amount": insurance_details.get("accident_premium"),
-                "premium_amount": insurance_details.get("accident_premium"),
+                "amount": accident_premium,
+                "customer_amount": accident_premium,
+                "premium_amount": accident_premium,
                 "rate": 0.001,
-                "number_seats": insurance_details.get("number_seats"),
+                "number_seats": insurance_details.get("number_seats", 2),
                 "tariff_line_id": int(os.getenv("TARIFF_LINE_DRIVER_PASSENGER_ACCIDENT_ID")),
                 "name": "2. Tai nạn người ngồi trên xe"
             }
