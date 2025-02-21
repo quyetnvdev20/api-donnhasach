@@ -193,10 +193,16 @@ async def process_image_with_gemini(image_url: str) -> dict:
             ]
             for field in date_fields:
                 if field in result and result.get(field):
-                    result[field] = datetime.strptime(
-                        result[field],
-                        '%d/%m/%Y %H:%M:%S'
-                    ).isoformat()
+                    try:
+                        result[field] = datetime.strptime(
+                            result[field],
+                            '%d/%m/%Y %H:%M:%S'
+                        ).isoformat()
+                    except:
+                        result[field] = datetime.strptime(
+                            result[field],
+                            '%d/%m/%Y 00:00:00'
+                        ).isoformat()
 
             # Xử lý các trường số
             float_fields = [
