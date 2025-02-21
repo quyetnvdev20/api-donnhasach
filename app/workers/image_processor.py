@@ -244,8 +244,13 @@ async def process_image_with_gemini(image_url: str) -> dict:
                 result['insurance_start_date'] = datetime.now().isoformat()
                 result['policy_issued_datetime'] = (datetime.now() - relativedelta(days=1)).isoformat()
                 if not result.get('insurance_end_date'):
-                    result['policy_issued_datetime'] = (datetime.now() + relativedelta(years=1)).isoformat()
+                    result['insurance_end_date'] = (datetime.now() + relativedelta(years=1)).isoformat()
                 result.update({'is_suspecting_wrongly': True})
+            elif not result.get('policy_issued_datetime') and result.get('insurance_start_date'):
+                # Chuyển insurance_start_date từ ISO format về datetime
+                start_date = datetime.fromisoformat(result['insurance_start_date'])
+                # Trừ đi 1 ngày và chuyển lại về ISO format
+                result['policy_issued_datetime'] = (start_date - relativedelta(days=1)).isoformat()
 
             # Xử lý các trường số
             float_fields = [
