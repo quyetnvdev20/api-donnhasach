@@ -309,15 +309,24 @@ async def process_message(message: aio_pika.IncomingMessage):
                 # Process image with Gemini and get aligned image URL
                 insurance_info = await process_image_with_gemini(image.image_url)
                 
-                # Lưu scan_image_url vào database
-                if 'scan_image_url' in locals():
-                    image.scan_image_url = insurance_info['scan_image_url']
+                logger.info(f"Insurance info before processing scan_image_url: {insurance_info}")
+                
+                # Lưu scan_image_url vào database nếu có trong insurance_info
+                if insurance_info and 'scan_image_url' in insurance_info:
+                    logger.info(f"Found scan_image_url in insurance_info: {insurance_info['scan_image_url']}")
+                    image.scan_image_url = insurance_info.get('scan_image_url')
                     db.commit()
-                
-                insurance_info.pop('scan_image_url', False)
+                    logger.info(f"Updated image.scan_image_url to: {image.scan_image_url}")
+                    # Xóa scan_image_url khỏi insurance_info để không lưu trùng vào json_data
+                    insurance_info.pop('scan_image_url', None)
+                    logger.info(f"Removed scan_image_url from insurance_info")
+                else:
+                    logger.warning("scan_image_url not found in insurance_info")
+
+                logger.info(f"Insurance info after processing scan_image_url: {insurance_info}")
+
                 # Get and remove is_suspecting_wrongly flag if it exists
-                is_suspecting_wrongly = insurance_info.pop('is_suspecting_wrongly', False) 
-                
+                is_suspecting_wrongly = insurance_info.pop('is_suspecting_wrongly', False)
 
                 # Create insurance detail
                 insurance_detail = InsuranceDetail(
