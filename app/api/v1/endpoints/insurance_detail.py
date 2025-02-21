@@ -14,6 +14,7 @@ import aio_pika
 import json
 from tenacity import retry, stop_after_attempt, wait_exponential
 from ....config import settings
+from ....models.session import Session as SessionModel
 
 router = APIRouter()
 
@@ -41,6 +42,8 @@ def update_insurance_detail(
             detail="Image not found"
         )
 
+    session = db.query(SessionModel).filter(SessionModel.id == str(image.session_id)).first()
+
     insurance_detail = db.query(InsuranceDetail).filter(
         InsuranceDetail.image_id == image_id
     ).first()
@@ -54,6 +57,7 @@ def update_insurance_detail(
     try:
         # Cập nhật insurance_detail
         update_dict = update_data.dict(exclude_unset=True)
+        note = update_dict.pop('note', '')
         for field, value in update_dict.items():
             setattr(insurance_detail, field, value)
 
@@ -66,6 +70,8 @@ def update_insurance_detail(
         }
         current_json_data.update(update_json)
         image.json_data = current_json_data
+
+        session.note = note
 
         # Lưu các thay đổi vào database
         db.commit()

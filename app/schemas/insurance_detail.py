@@ -19,3 +19,4 @@ class InsuranceDetailUpdate(BaseModel):
     policy_issued_datetime: Optional[datetime] = None 
     premium_payment_due_date: Optional[datetime] = None
     serial_number: Optional[str] = None
+    note: Optional[str] = None
