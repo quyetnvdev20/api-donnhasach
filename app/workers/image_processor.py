@@ -21,9 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 LIST_FIELD_REQUIRED = [
-    'insurance_start_date',
-    'insurance_end_date',
-    'plate_number',
+    'serial_number',
     'premium_amount'
 ]
 
