@@ -24,6 +24,10 @@ class ListSessionResponse(BaseModel):
     closed_by: Optional[str] = None
     id_keycloak: Optional[str] = None
     note: Optional[str] = None
+    responsible_id: Optional[int] = None
+    partner_channel_id: Optional[int] = None
+    responsible_name: Optional[str] = None
+    partner_channel_name: Optional[str] = None
     image_status_counts: Optional[Dict[str, int]] = None
 
     class Config:
