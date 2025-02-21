@@ -4,7 +4,7 @@ from typing import Optional, List
 
 class ImageBase(BaseModel):
     image_url: HttpUrl
-    scan_image_url: HttpUrl
+    scan_image_url: Optional[HttpUrl] = None
 
 class ImageCreate(ImageBase):
     pass
