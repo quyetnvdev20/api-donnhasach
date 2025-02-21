@@ -431,7 +431,7 @@ async def main():
     finally:
         await connection.close()
 
-async def upload_image_to_minio(image: PIL_Image.Image, bucket_name: str = "forum.carpla.online") -> str:
+async def upload_image_to_minio(image: PIL_Image.Image, bucket_name: str = settings.MINIO_BUCKET_NAME_XM) -> str:
     """
     Upload ảnh lên MinIO và trả về URL của ảnh
     
