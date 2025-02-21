@@ -99,7 +99,7 @@ async def close_session(
             status_code=422,
             content={
                 "status_code": 422,
-                "message": "Number of images does not match the quantity of pictures. Please check again."
+                "message": "Số lượng hình ảnh chưa được tải lên đầy đủ. Vui lòng kiểm tra lại."
             }
         )
 
