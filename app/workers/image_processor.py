@@ -228,7 +228,7 @@ async def process_image_with_gemini(image_url: str) -> dict:
             date_formats = ['%d/%m/%Y %H:%M:%S', '%d/%m/%Y']
 
             for field in date_fields:
-                if field in result:
+                if result.get(field):
                     value = result[field]
                     for fmt in date_formats:
                         try:
