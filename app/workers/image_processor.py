@@ -223,18 +223,21 @@ async def process_image_with_gemini(image_url: str) -> dict:
                 'premium_payment_due_date',
                 'policy_issued_datetime'
             ]
+
+            # Định dạng ngày cần thử
+            date_formats = ['%d/%m/%Y %H:%M:%S', '%d/%m/%Y']
+
             for field in date_fields:
-                if field in result and result.get(field):
-                    try:
-                        result[field] = datetime.strptime(
-                            result[field],
-                            '%d/%m/%Y %H:%M:%S'
-                        ).isoformat()
-                    except:
-                        result[field] = datetime.strptime(
-                            result[field],
-                            '%d/%m/%Y'
-                        ).isoformat()
+                if field in result:
+                    value = result[field]
+                    for fmt in date_formats:
+                        try:
+                            result[field] = datetime.strptime(value, fmt).isoformat()
+                            break  # Nếu chuyển đổi thành công, dừng vòng lặp
+                        except ValueError:
+                            continue
+                    else:
+                        result[field] = None  # Gán None nếu không parse được
 
             """set default ngày cấp đơn, thời hạn hiệu lực nếu không đọc được từ ảnh
                 ngày cấp: now
