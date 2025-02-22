@@ -54,6 +54,12 @@ async def create_policy(session, insurance_details: dict, image_url: str) -> dic
     date_start = datetime.strptime(insurance_details.get("insurance_start_date"), '%Y-%m-%dT%H:%M:%S')
     date_end = datetime.strptime(insurance_details.get("insurance_end_date"), '%Y-%m-%dT%H:%M:%S')
     policy_issued_datetime = datetime.strptime(insurance_details.get("insurance_start_date"), '%Y-%m-%dT%H:%M:%S')
+    
+    # Kiểm tra và điều chỉnh policy_issued_datetime nếu lớn hơn ngày hiện tại
+    current_date = datetime.now()
+    if policy_issued_datetime.date() > current_date.date():
+        policy_issued_datetime = current_date
+
     # Định dạng lại thành chuỗi mong muốn
     date_start = date_start.strftime('%Y-%m-%d %H:%M:%S')
     date_end = date_end.strftime('%Y-%m-%d %H:%M:%S')
