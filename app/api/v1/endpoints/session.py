@@ -135,9 +135,27 @@ def get_session(
     session_id: uuid.UUID,
     db: Session = Depends(get_db)
 ):
-    session = db.query(SessionModel).filter(SessionModel.id == session_id).order_by(SessionModel.created_at.desc()).first()
+    # Lấy session
+    session = (
+        db.query(SessionModel)
+        .filter(SessionModel.id == session_id)
+        .first()
+    )
+    
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    
+    # Lấy images và sắp xếp theo created_at giảm dần (mới nhất lên đầu)
+    images = (
+        db.query(Image)
+        .filter(Image.session_id == session_id)
+        .order_by(Image.created_at.desc())
+        .all()
+    )
+    
+    # Gán images vào session
+    session.images = images
+    
     return session
 
 @router.get("/sessions", response_model=SessionListResponse)
