@@ -73,7 +73,7 @@ async def create_policy(session, insurance_details: dict, image_url: str) -> dic
     number_seats = 2
 
     data = {
-        "license_plate": insurance_details.get("plate_number"),
+        "license_plate": insurance_details.get("plate_number") or '.',
         "vehicle_type_id": None,
         "channel_id": int(session.partner_channel_id) if session.partner_channel_id else int(os.getenv("CHANNEL_ID")),
         "date_start": date_start,
@@ -113,12 +113,12 @@ async def create_policy(session, insurance_details: dict, image_url: str) -> dic
         },
         "note": "",
         "car_owner": {
-            "customer_phone": insurance_details.get("phone_number"),
+            "customer_phone": insurance_details.get("phone_number") or '',
             "customer_type": "none",
             "customer_vat": None,
-            "customer_name": insurance_details.get("owner_name"),
+            "customer_name": insurance_details.get("owner_name") if insurance_details.get("owner_name") else 'Khách vãng lai',
             "customer_cccd": None,
-            "customer_address": insurance_details.get("address")
+            "customer_address": insurance_details.get("address") or ''
         },
         "is_other_holders": False,
         "client_source": "acg_xm",
