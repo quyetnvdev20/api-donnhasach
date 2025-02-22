@@ -61,7 +61,10 @@ async def create_policy(session, insurance_details: dict, image_url: str) -> dic
 
     premium_amount = float(insurance_details.get("premium_amount")) if insurance_details.get("premium_amount") else 0
     accident_premium = float(insurance_details.get("accident_premium")) if insurance_details.get("accident_premium") else 0
-    number_seats = int(insurance_details.get("number_seats")) if insurance_details.get("number_seats") else 2
+
+    # fix mặc định số chỗ ngồi là 2
+    # number_seats = int(insurance_details.get("number_seats")) if insurance_details.get("number_seats") else 2
+    number_seats = 2
 
     data = {
         "license_plate": insurance_details.get("plate_number"),
