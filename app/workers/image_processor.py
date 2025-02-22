@@ -330,6 +330,7 @@ async def process_message(message: aio_pika.IncomingMessage):
 
                 # Get and remove is_suspecting_wrongly flag if it exists
                 is_suspecting_wrongly = insurance_info.pop('is_suspecting_wrongly', False)
+                liability_amount = insurance_info.pop('liability_amount', False)
 
                 # Create insurance detail
                 insurance_detail = InsuranceDetail(
