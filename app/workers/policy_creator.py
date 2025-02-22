@@ -54,6 +54,12 @@ async def create_policy(session, insurance_details: dict, image_url: str) -> dic
     date_start = datetime.strptime(insurance_details.get("insurance_start_date"), '%Y-%m-%dT%H:%M:%S')
     date_end = datetime.strptime(insurance_details.get("insurance_end_date"), '%Y-%m-%dT%H:%M:%S')
     policy_issued_datetime = datetime.strptime(insurance_details.get("insurance_start_date"), '%Y-%m-%dT%H:%M:%S')
+    
+    # Kiểm tra và điều chỉnh policy_issued_datetime nếu lớn hơn ngày hiện tại
+    current_date = datetime.now()
+    if policy_issued_datetime.date() > current_date.date():
+        policy_issued_datetime = current_date
+
     # Định dạng lại thành chuỗi mong muốn
     date_start = date_start.strftime('%Y-%m-%d %H:%M:%S')
     date_end = date_end.strftime('%Y-%m-%d %H:%M:%S')
@@ -61,7 +67,10 @@ async def create_policy(session, insurance_details: dict, image_url: str) -> dic
 
     premium_amount = float(insurance_details.get("premium_amount")) if insurance_details.get("premium_amount") else 0
     accident_premium = float(insurance_details.get("accident_premium")) if insurance_details.get("accident_premium") else 0
-    number_seats = int(insurance_details.get("number_seats")) if insurance_details.get("number_seats") else 2
+
+    # fix mặc định số chỗ ngồi là 2
+    # number_seats = int(insurance_details.get("number_seats")) if insurance_details.get("number_seats") else 2
+    number_seats = 2
 
     data = {
         "license_plate": insurance_details.get("plate_number"),
