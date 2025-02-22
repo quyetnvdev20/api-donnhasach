@@ -162,6 +162,7 @@ async def process_image_with_gemini(image_url: str) -> dict:
     - Số tiền không có dấu phẩy hoặc dấu chấm phân cách và chỉ lấy số không lấy chữ
     - - Các dấu tích v hoặc x là các điều kiện được chọn để lấy lên ví dụ: Loại xe, Số người được bảo hiểm, Mức trách nhiệm bảo hiểm
     """
+    scan_image_url = ''
 
     try:
         response = requests.get(image_url)
@@ -290,7 +291,8 @@ async def process_image_with_gemini(image_url: str) -> dict:
 
     except Exception as e:
         logger.error(f"Error processing image with Gemini: {str(e)}")
-        raise Exception(f"Failed to process insurance information from image: {str(e)}")
+        # raise Exception(f"Failed to process insurance information from image: {str(e)}")
+        return {'scan_image_url': scan_image_url}
 
 async def process_message(message: aio_pika.IncomingMessage):
     async with message.process():
