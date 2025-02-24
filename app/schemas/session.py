@@ -23,6 +23,7 @@ class ListSessionResponse(BaseModel):
     closed_at: Optional[datetime] = None
     closed_by: Optional[str] = None
     id_keycloak: Optional[str] = None
+    error_message: Optional[str] = None
     note: Optional[str] = None
     responsible_id: Optional[int] = None
     partner_channel_id: Optional[int] = None
@@ -45,6 +46,7 @@ class SessionResponse(SessionBase):
     partner_channel_name: Optional[str] = None
     closed_at: Optional[datetime] = None
     closed_by: Optional[str] = None
+    error_message: Optional[str] = None
     images: Optional[List[ImageResponse]] = None
 
     class Config:
