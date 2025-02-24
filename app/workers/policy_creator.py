@@ -193,7 +193,7 @@ async def create_policy_group_insured(session, images):
                     "customer_phone": insurance_details.phone_number or '',
                     "customer_type": "none",
                     "customer_vat": None,
-                    "customer_name": insurance_details.get("owner_name") if insurance_details.get("owner_name") else 'Khách vãng lai',
+                    "customer_name": insurance_details.owner_name if insurance_details.owner_name else 'Khách vãng lai',
                     "customer_cccd": None,
                     "customer_address": insurance_details.address or ''
                 },
@@ -264,7 +264,7 @@ async def create_policy_group_insured(session, images):
             "customer_phone": insurance_details_first.phone_number or '',
             "customer_type": "none",
             "customer_vat": None,
-            "customer_name": insurance_details_first.get("owner_name") if insurance_details_first.get("owner_name") else 'Khách vãng lai',
+            "customer_name": insurance_details_first.owner_name if insurance_details_first.owner_name else 'Khách vãng lai',
             "customer_cccd": None,
             "customer_address": insurance_details_first.address or ''
         },
