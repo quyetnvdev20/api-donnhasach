@@ -112,7 +112,7 @@ async def create_process_session(
         )
 
     # Kiểm tra session nếu chưa đóng thì không cho tạo policy
-    if session.status != SessionStatus.CLOSED or session.status != SessionStatus.INVALID:
+    if session.status not in (SessionStatus.CLOSED, SessionStatus.INVALID):
         raise HTTPException(
             status_code=400,
             detail="Session chưa được đóng."
