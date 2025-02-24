@@ -10,7 +10,7 @@ from ..config import settings
 import logging
 import requests
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from tenacity import retry, stop_after_attempt, wait_exponential
 from app.core.settings import ImageStatus, SessionStatus
 
@@ -245,8 +245,8 @@ async def create_policy_group_insured(session, images):
         raise ValueError("No valid insurance details found in any image")
 
     # Định dạng datetime thành chuỗi cho policy_vals
-    date_start_master_str = date_start_master.strftime('%Y-%m-%d %H:%M:%S')
-    date_end_master_str = date_end_master.strftime('%Y-%m-%d %H:%M:%S')
+    date_start_master_str = (date_start_master - timedelta(minutes=1)).strftime('%Y-%m-%d %H:%M:%S')
+    date_end_master_str = (date_end_master + timedelta(minutes=1)).strftime('%Y-%m-%d %H:%M:%S')
 
     # Kiểm tra và điều chỉnh policy_date_master nếu lớn hơn ngày hiện tại
     if policy_date_master.date() > current_date.date():
