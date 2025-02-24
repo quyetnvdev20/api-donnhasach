@@ -312,7 +312,7 @@ async def process_message(message: aio_pika.IncomingMessage):
                 user_id = session.id_keycloak
 
                 images_list = db.query(Image).filter(Image.session_id == session.id).all()
-                images = [img for img in images_list if img.status == ImageStatus.COMPLETED and img.insurance_detail]
+                images = [img for img in images_list if img.status in (ImageStatus.COMPLETED, ImageStatus.INVALID) and img.insurance_detail]
 
                 try:
                     # Create policy
