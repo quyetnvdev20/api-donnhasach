@@ -190,14 +190,14 @@ async def create_policy_group_insured(session, images):
             number_seats = float(insurance_details.number_seats) if insurance_details.number_seats else 2
             data = {
                 "car_owner": {
-                    "customer_phone": insurance_details.phone_number,
+                    "customer_phone": insurance_details.phone_number or '',
                     "customer_type": "none",
                     "customer_vat": None,
-                    "customer_name": insurance_details.owner_name,
+                    "customer_name": insurance_details.get("owner_name") if insurance_details.get("owner_name") else 'Khách vãng lai',
                     "customer_cccd": None,
-                    "customer_address": insurance_details.address
+                    "customer_address": insurance_details.address or ''
                 },
-                "license_plate": insurance_details.plate_number,
+                "license_plate": getattr(insurance_details, "plate_number", ''),
                 "vin_number": getattr(insurance_details, "chassis_number", ''),
                 "engine_number": getattr(insurance_details, "engine_number", ''),
                 "date_start": date_start_str,
@@ -261,13 +261,14 @@ async def create_policy_group_insured(session, images):
         "policy_date": policy_date_master_str,
         "note": "",
         "car_owner": {
-            "customer_phone": insurance_details_first.phone_number,
+            "customer_phone": insurance_details_first.phone_number or '',
             "customer_type": "none",
             "customer_vat": None,
-            "customer_name": insurance_details_first.owner_name,
+            "customer_name": insurance_details_first.get("owner_name") if insurance_details_first.get("owner_name") else 'Khách vãng lai',
             "customer_cccd": None,
-            "customer_address": insurance_details_first.address
+            "customer_address": insurance_details_first.address or ''
         },
+        "is_other_holders": False,
         "client_source": "acg_xm",
         "is_policy_indicative": True,
         "object_list": object_list,
