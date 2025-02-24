@@ -155,7 +155,7 @@ async def create_policy_group_insured(session, images):
     current_date = datetime.now()
     date_start_master = insurance_details_first.insurance_start_date
     date_end_master = insurance_details_first.insurance_end_date
-    policy_date_master = insurance_details_first.date_start_master
+    policy_date_master = insurance_details_first.insurance_start_date
 
     object_list = []
 
@@ -168,7 +168,7 @@ async def create_policy_group_insured(session, images):
         try:
             date_start = insurance_details.insurance_start_date
             date_end = insurance_details.insurance_end_date
-            policy_date = insurance_details.date_start_master
+            policy_date = insurance_details.insurance_start_date
 
             date_start_master = min(date_start_master, date_start)
             date_end_master = max(date_end_master, date_end)
