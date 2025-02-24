@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from .api.v1.endpoints import session, image, insurance_detail
+from .api.v1.endpoints import session, image, insurance_detail, policy_create
 app = FastAPI(
     title="ACG XM Service",
     description="Service xử lý ảnh giấy bảo hiểm xe máy",
@@ -31,6 +31,7 @@ app.include_router(
     prefix="/api/v1",
     tags=["insurance_details"]
 )
+app.include_router(policy_create.router, prefix="/api/v1", tags=["policy_create"])
 
 @app.get("/health")
 async def health_check():

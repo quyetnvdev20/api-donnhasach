@@ -25,3 +25,4 @@ class Session(Base):
     partner_channel_name = Column(Text)
 
     images = relationship("Image", back_populates="session", cascade="all, delete-orphan")
+    error_message = Column(String)

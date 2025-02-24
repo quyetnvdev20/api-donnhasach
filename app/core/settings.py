@@ -4,7 +4,10 @@ class SessionStatus(str, Enum):
     NEW = "new"
     OPEN = "open"
     CLOSED = "closed"
+    PENDING = "pending"
+    DONE = "done"
     FAILED = "failed"
+    INVALID = "invalid"
 
 class ImageStatus(str, Enum):
     PENDING = "pending"

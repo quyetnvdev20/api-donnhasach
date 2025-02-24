@@ -38,13 +38,6 @@ async def get_token_user(user_id):
     response = requests.request("GET", url, headers=headers, data=payload)
     return response.json().get("access_token")
 
-def decimal_to_float(obj):
-    """Convert Decimal objects to float for JSON serialization"""
-    from decimal import Decimal
-    if isinstance(obj, Decimal):
-        return float(obj)
-    return obj
-
 async def create_policy(session, insurance_details: dict, image_url: str) -> dict:
     " Gọi Core API để tạo đơn bảo hiểm"
     # TODO: Implement actual Core API call
@@ -159,9 +152,10 @@ async def create_policy_group_insured(session, images):
     if not insurance_details_first:
         raise ValueError("First image has no insurance details")
 
+    current_date = datetime.now()
     date_start_master = insurance_details_first.insurance_start_date
     date_end_master = insurance_details_first.insurance_end_date
-    policy_date_master = insurance_details_first.policy_issued_datetime
+    policy_date_master = insurance_details_first.date_start_master
 
     object_list = []
 
@@ -174,21 +168,26 @@ async def create_policy_group_insured(session, images):
         try:
             date_start = insurance_details.insurance_start_date
             date_end = insurance_details.insurance_end_date
-            policy_date = insurance_details.policy_issued_datetime
+            policy_date = insurance_details.date_start_master
 
             date_start_master = min(date_start_master, date_start)
             date_end_master = max(date_end_master, date_end)
-            policy_date_master = min(policy_date_master, policy_date)
 
             date_start_str = date_start.strftime('%Y-%m-%d %H:%M:%S')
             date_end_str = date_end.strftime('%Y-%m-%d %H:%M:%S')
+
+            # Kiểm tra và điều chỉnh policy_date nếu lớn hơn ngày hiện tại
+            if policy_date.date() > current_date.date():
+                policy_date = current_date
+            policy_date_master = min(policy_date_master, policy_date)
+
             policy_date_str = policy_date.strftime('%Y-%m-%d')
 
             # Chuyển đổi các giá trị Decimal thành float
-            premium_amount = decimal_to_float(getattr(insurance_details, "premium_amount", 0))
-            accident_premium = decimal_to_float(getattr(insurance_details, "accident_premium", 0))
+            premium_amount = float(insurance_details.premium_amount) or 0
+            accident_premium = float(insurance_details.accident_premium) or 0
 
-            number_seats = decimal_to_float(insurance_details.number_seats) if insurance_details.number_seats else 2
+            number_seats = float(insurance_details.number_seats) if insurance_details.number_seats else 2
             data = {
                 "car_owner": {
                     "customer_phone": insurance_details.phone_number,
@@ -204,13 +203,13 @@ async def create_policy_group_insured(session, images):
                 "date_start": date_start_str,
                 "date_end": date_end_str,
                 "policy_object_date": policy_date_str,
-                "indicative_image_url": image.image_url,
+                "indicative_image_url": image.scan_image_url if image.scan_image_url else image.image_url,
                 "indicative": getattr(insurance_details, "serial_number", ''),
                 "tnds_insur_coverage": {
                     "id": int(os.getenv("PRODUCT_CATEGORY_TNDS_BIKE_ID")),
                     "name": "1. TNDS bắt buộc",
-                    "customer_amount": decimal_to_float(premium_amount - accident_premium),
-                    "premium_amount": decimal_to_float(premium_amount - accident_premium),
+                    "customer_amount": premium_amount,
+                    "premium_amount": premium_amount,
                     "tariff_line_id": int(os.getenv("TARIFF_LINE_TNDS_BIKE_ID")),
                     "detail_coverage": [
                         {
@@ -227,9 +226,9 @@ async def create_policy_group_insured(session, images):
                 },
                 "driver_passenger_accident": {
                     "id": int(os.getenv("PRODUCT_CATEGORY_DRIVER_PASSENGER_ACCIDENT_ID")),
-                    "amount": decimal_to_float(accident_premium),
-                    "customer_amount": decimal_to_float(accident_premium),
-                    "premium_amount": decimal_to_float(accident_premium),
+                    "amount": accident_premium,
+                    "customer_amount": accident_premium,
+                    "premium_amount": accident_premium,
                     "rate": 0.001,
                     "number_seats": number_seats,
                     "tariff_line_id": int(os.getenv("TARIFF_LINE_DRIVER_PASSENGER_ACCIDENT_ID")),
@@ -248,6 +247,11 @@ async def create_policy_group_insured(session, images):
     # Định dạng datetime thành chuỗi cho policy_vals
     date_start_master_str = date_start_master.strftime('%Y-%m-%d %H:%M:%S')
     date_end_master_str = date_end_master.strftime('%Y-%m-%d %H:%M:%S')
+
+    # Kiểm tra và điều chỉnh policy_date_master nếu lớn hơn ngày hiện tại
+    if policy_date_master.date() > current_date.date():
+        policy_date_master = current_date
+
     policy_date_master_str = policy_date_master.strftime('%Y-%m-%d')
 
     policy_vals = {
@@ -317,7 +321,7 @@ async def process_message(message: aio_pika.IncomingMessage):
 
                     for image in images:
                         image.status = ImageStatus.DONE
-                    # session.status = SessionStatus.COMPLETED.value
+                    session.status = SessionStatus.DONE
                     db.commit()
 
                 except Exception as e:
@@ -325,6 +329,8 @@ async def process_message(message: aio_pika.IncomingMessage):
                     for image in images:
                         image.status = ImageStatus.INVALID
                         image.error_message = f"Error creating policy: {str(e)}"
+                    session.status = SessionStatus.INVALID
+                    session.error_message = f"Error creating policy: {str(e)}"
                     db.commit()
             else:
                 image = db.query(Image).filter(Image.id == body["image_id"]).first()
@@ -337,7 +343,8 @@ async def process_message(message: aio_pika.IncomingMessage):
 
                 try:
                     # Create policy
-                    policy_result = await create_policy(session, body["insurance_details"], image.image_url)
+                    image_url = image.scan_image_url if image.scan_image_url else image.image_url
+                    policy_result = await create_policy(session, body["insurance_details"], image_url)
                     if policy_result.get('status_code') != 200:
                         raise Exception(f"{policy_result.get('message')}")
 
