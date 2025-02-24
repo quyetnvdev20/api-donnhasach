@@ -184,8 +184,8 @@ async def create_policy_group_insured(session, images):
             policy_date_str = policy_date.strftime('%Y-%m-%d')
 
             # Chuyển đổi các giá trị Decimal thành float
-            premium_amount = float(insurance_details.premium_amount) or 0
-            accident_premium = float(insurance_details.accident_premium) or 0
+            premium_amount = float(insurance_details.premium_amount) if insurance_details.premium_amount else 0
+            accident_premium = float(insurance_details.accident_premium) if insurance_details.accident_premium else 0
 
             number_seats = float(insurance_details.number_seats) if insurance_details.number_seats else 2
             data = {
