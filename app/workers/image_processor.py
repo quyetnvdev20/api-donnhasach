@@ -162,6 +162,7 @@ async def process_image_with_gemini(image_url: str) -> dict:
     - Số tiền không có dấu phẩy hoặc dấu chấm phân cách và chỉ lấy số không lấy chữ
     - - Các dấu tích v hoặc x là các điều kiện được chọn để lấy lên ví dụ: Loại xe, Số người được bảo hiểm, Mức trách nhiệm bảo hiểm
     """
+    scan_image_url = ''
 
     try:
         response = requests.get(image_url)
@@ -202,7 +203,7 @@ async def process_image_with_gemini(image_url: str) -> dict:
         
         # Log raw response để debug
         logger.info(f'Raw Gemini response: {response.text}')
-        
+
         try:
             # Lấy kết quả JSON từ response
             # Thử tìm và parse phần JSON trong response
@@ -211,11 +212,14 @@ async def process_image_with_gemini(image_url: str) -> dict:
             if json_match:
                 json_str = json_match.group()
                 result = json.loads(json_str)
+                result.update({'scan_image_url': scan_image_url})
             else:
                 raise ValueError("No JSON object found in response")
-                
-            logger.info(f'process_image.gemini.gia tri tra ve tu gemini: {str(result)}')
-
+        except Exception as e:
+            return {'scan_image_url': scan_image_url}
+        logger.info(f'process_image.gemini.gia tri tra ve tu gemini: {str(result)}')
+        
+        try:
             # Xử lý các trường datetime
             date_fields = [
                 'insurance_start_date',
@@ -283,12 +287,12 @@ async def process_image_with_gemini(image_url: str) -> dict:
 
         except Exception as e:
             logger.error(f"Error parsing Gemini response: {str(e)}")
-            logger.error(f"Response content: {response.text}")
-            raise {}
+            raise result
 
     except Exception as e:
         logger.error(f"Error processing image with Gemini: {str(e)}")
-        raise Exception(f"Failed to process insurance information from image: {str(e)}")
+        # raise Exception(f"Failed to process insurance information from image: {str(e)}")
+        return {'scan_image_url': scan_image_url}
 
 async def process_message(message: aio_pika.IncomingMessage):
     async with message.process():
