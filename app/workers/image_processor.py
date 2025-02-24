@@ -169,38 +169,38 @@ async def process_image_with_gemini(image_url: str) -> dict:
         response = requests.get(image_url)
         response.raise_for_status()
 
-        image = PIL_Image.open(BytesIO(response.content))
+        # image = PIL_Image.open(BytesIO(response.content))
 
-        # image_array = np.asarray(bytearray(response.content), dtype=np.uint8)
-        # cv2_image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-        # # Convert images to grayscale
-        # input_gray = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2GRAY)
-        # ref_img = cv2.imread("/app/reference_full.jpg")
-        # ref_gray = cv2.cvtColor(ref_img, cv2.COLOR_BGR2GRAY)
-        # # Detect keypoints and compute descriptors using ORB
-        # orb = cv2.ORB_create(5000)  # Maximum 5000 keypoints
-        # kp1, des1 = orb.detectAndCompute(input_gray, None)
-        # kp2, des2 = orb.detectAndCompute(ref_gray, None)
-        # # Match descriptors using Brute-Force Matcher with Hamming distance
-        # bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-        # matches = bf.match(des1, des2)
-        # matches = sorted(matches, key=lambda x: x.distance)  # Sort matches by distance
-        # good_matches = matches[:50]
-        # # Extract coordinates of matched keypoints
-        # src_pts = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
-        # dst_pts = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
-        # # Compute homography matrix using RANSAC
-        # matrix, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-        # # Get dimensions of the reference image
-        # h, w = ref_img.shape[:2]
-        # # Apply perspective transformation to align the input image
-        # aligned_img = cv2.warpPerspective(cv2_image, matrix, (w, h))
-        # aligned_rgb = cv2.cvtColor(aligned_img, cv2.COLOR_BGR2RGB)
-        # image = PIL_Image.fromarray(aligned_rgb)
-        #
-        # # Upload aligned image to MinIO
-        # scan_image_url = await upload_image_to_minio(image)
-        # logger.info(f"Aligned image uploaded to: {scan_image_url}")
+        image_array = np.asarray(bytearray(response.content), dtype=np.uint8)
+        cv2_image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+        # Convert images to grayscale
+        input_gray = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2GRAY)
+        ref_img = cv2.imread("/app/reference_full.jpg")
+        ref_gray = cv2.cvtColor(ref_img, cv2.COLOR_BGR2GRAY)
+        # Detect keypoints and compute descriptors using ORB
+        orb = cv2.ORB_create(5000)  # Maximum 5000 keypoints
+        kp1, des1 = orb.detectAndCompute(input_gray, None)
+        kp2, des2 = orb.detectAndCompute(ref_gray, None)
+        # Match descriptors using Brute-Force Matcher with Hamming distance
+        bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+        matches = bf.match(des1, des2)
+        matches = sorted(matches, key=lambda x: x.distance)  # Sort matches by distance
+        good_matches = matches[:50]
+        # Extract coordinates of matched keypoints
+        src_pts = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+        dst_pts = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+        # Compute homography matrix using RANSAC
+        matrix, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+        # Get dimensions of the reference image
+        h, w = ref_img.shape[:2]
+        # Apply perspective transformation to align the input image
+        aligned_img = cv2.warpPerspective(cv2_image, matrix, (w, h))
+        aligned_rgb = cv2.cvtColor(aligned_img, cv2.COLOR_BGR2RGB)
+        image = PIL_Image.fromarray(aligned_rgb)
+
+        # Upload aligned image to MinIO
+        scan_image_url = await upload_image_to_minio(image)
+        logger.info(f"Aligned image uploaded to: {scan_image_url}")
         
         # Use scan_image_url for further processing
         response = model.generate_content([prompt, image])
