@@ -152,7 +152,7 @@ async def process_image_with_gemini(image_url: str) -> dict:
         "vehicle_type": "Loại xe",
         "insurance_start_date": "Thời gian bắt đầu (DD/MM/YYYY HH:mm:00)",
         "insurance_end_date": "Thời gian kết thúc (DD/MM/YYYY HH:mm:00)"
-        "premium_amount": "PHÍ BẢO HIỂM CÓ VAT (chữ viết tay, trả lại định dạng Integer)",
+        "premium_amount": "PHÍ BẢO HIỂM CÓ VAT (chữ viết tay)",
         "policy_issued_datetime": "Cấp hồi (DD/MM/YYYY HH:mm:00)"
     }
     Lưu ý:
@@ -160,13 +160,17 @@ async def process_image_with_gemini(image_url: str) -> dict:
     - Đảm bảo định dạng ngày tháng theo mẫu
     - Ngày giờ của thời gian kết thúc trùng với ngày giờ của thời gian bắt đầu, chỉ khác nhau mỗi năm, năm của thời gian kết thúc ở ngay dưới năm của thời gian bắt đầu
     - Số tiền không có dấu phẩy hoặc dấu chấm phân cách và chỉ lấy số không lấy chữ
-    - - Các dấu tích v hoặc x là các điều kiện được chọn để lấy lên ví dụ: Loại xe, Số người được bảo hiểm, Mức trách nhiệm bảo hiểm
+    - Các dấu tích v hoặc x là các điều kiện được chọn để lấy lên ví dụ: Loại xe, Số người được bảo hiểm, Mức trách nhiệm bảo hiểm
+    - Phí bảo hiểm phải nộp (premium_amount) không phải là chỗ 319.000 đồng/năm
     """
     scan_image_url = ''
 
     try:
         response = requests.get(image_url)
         response.raise_for_status()
+
+        # image = PIL_Image.open(BytesIO(response.content))
+
         image_array = np.asarray(bytearray(response.content), dtype=np.uint8)
         cv2_image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
         # Convert images to grayscale

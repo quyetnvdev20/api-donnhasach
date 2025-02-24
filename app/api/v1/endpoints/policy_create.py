@@ -97,7 +97,7 @@ async def retry_process_image(
         )
 
 
-@router.post("/sessions/{session_id}/create", response_model=SessionResponse)
+@router.post("/sessions/{session_id}/create_policy", response_model=SessionResponse)
 async def create_process_session(
         session_id: uuid.UUID,
         db: Session = Depends(get_db),
