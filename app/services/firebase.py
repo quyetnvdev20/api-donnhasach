@@ -172,6 +172,7 @@ class FirebaseNotificationService:
             data: Additional data payload to send
             debug: Enable detailed debug logging
         """
+        logger.info(f'==============={data}')
         # Lấy OAuth token
         access_token = FirebaseNotificationService._get_access_token()
         if not access_token:
