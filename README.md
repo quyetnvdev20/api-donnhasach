@@ -1,3 +1,90 @@
+# Claim AI Service
+
+Service xử lý ảnh giấy bảo hiểm xe máy sử dụng AI Vision API.
+
+## Tính năng
+
+- Upload và xử lý ảnh giấy bảo hiểm
+- Trích xuất thông tin từ ảnh sử dụng AI Vision API (OpenAI, Google Gemini)
+- Phân tích biển số xe và thông tin liên quan
+- Message queue với RabbitMQ
+- Database với PostgreSQL
+
+## Cài đặt môi trường phát triển
+
+### Yêu cầu
+
+- Docker và Docker Compose
+- Python 3.9+
+- Git
+
+### Các bước cài đặt
+
+1. Copy file môi trường:
+
+```
+cp .env.example .env
+```
+
+2. Cập nhật các biến môi trường trong file .env:
+
+```
+nano .env
+```
+
+3. Chạy Docker Compose:
+
+```
+docker-compose up --build
+```
+
+## API Documentation
+
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+## API Endpoints
+
+### Health Check
+
+- `GET /health` - Kiểm tra trạng thái hoạt động của service
+
+### Plate Analysis
+
+- `GET /api/v1/plate-analysis/{plate_number}` - Lấy thông tin chi tiết về biển số xe
+- `POST /api/v1/image-analysis` - Gửi URL ảnh để phân tích
+
+### Worker Test
+
+- `POST /api/v1/test-worker` - Kiểm tra kết nối với RabbitMQ
+
+## Cấu trúc dự án
+
+```
+claim-ai-service/
+├── .deploy/              # Cấu hình Kubernetes
+├── app/                  # Mã nguồn chính
+│   ├── api/              # API endpoints
+│   ├── core/             # Cấu hình cốt lõi
+│   ├── models/           # Mô hình dữ liệu
+│   ├── schemas/          # Pydantic schemas
+│   ├── services/         # Các dịch vụ (RabbitMQ, etc.)
+│   └── workers/          # Worker xử lý ảnh
+├── migrations/           # Database migrations
+├── .env.example          # Mẫu file môi trường
+├── Dockerfile            # Cấu hình Docker
+└── requirements.txt      # Các thư viện phụ thuộc
+```
+
+## Worker
+
+Service sử dụng Celery worker để xử lý ảnh bất đồng bộ. Worker sẽ lắng nghe các sự kiện từ RabbitMQ và thực hiện phân tích ảnh bằng AI Vision API.
+
+## Môi trường triển khai
+
+- Dev: https://dev-api-insurance.baohiemtasco.vn/claim-ai
+- Prod: https://api-insurance.baohiemtasco.vn/claim-ai
+
 # acg-xm
 
 
