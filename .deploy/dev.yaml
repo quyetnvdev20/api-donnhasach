@@ -14,7 +14,7 @@ tls:
 
 envFrom:
   configMaps:
-    - name: xm-common-cm
+    - name: claim-ai-cm
     - name: keycloak-cm
 
 resources:

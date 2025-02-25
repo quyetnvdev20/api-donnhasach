@@ -14,11 +14,6 @@ class Settings(BaseSettings):
     KEYCLOAK_REALM: str
     KEYCLOAK_CLIENT_ID: str
     KEYCLOAK_CLIENT_SECRET: str
-    MINIO_ENDPOINT_XM: str
-    MINIO_ACCESS_KEY_XM: str
-    MINIO_SECRET_KEY_XM: str
-    MINIO_BUCKET_NAME_XM: str
-    MINIO_USE_SSL_XM: str
 
     # Process
     INSURANCE_PROCESSING_API_URL: str
