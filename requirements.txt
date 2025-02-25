@@ -19,3 +19,4 @@ opencv-python==4.10.0.82
 numpy==1.26.0
 python-dateutil==2.8.2
 minio==7.2.15
+firebase-admin>=6.0.0

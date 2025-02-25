@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     MINIO_SECRET_KEY_XM: str
     MINIO_BUCKET_NAME_XM: str
     MINIO_USE_SSL_XM: str
+    
+    # Firebase configuration
+    FIREBASE_API_KEY: str = ""
+    FIREBASE_PROJECT_ID: str = ""
+    FIREBASE_FCM_URL: str = "https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
+    
     class Config:
         env_file = ".env"
 
