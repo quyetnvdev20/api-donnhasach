@@ -20,3 +20,6 @@ class Image(Base):
     error_message = Column(String)
     json_data = Column(MutableDict.as_mutable(JSON))
     keycloak_user_id = Column(String)
+
+    device_token = Column(String)
+    folder_id = Column(String)
