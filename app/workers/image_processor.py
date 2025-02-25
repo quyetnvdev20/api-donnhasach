@@ -70,8 +70,8 @@ async def process_message(message: aio_pika.IncomingMessage):
                 title="Image Analysis Complete",
                 body="Your image has been successfully analyzed.",
                 data={
-                    "analysis_id": int(image.analysis_id) if image.analysis_id else None,
-                    "assessment_id": int(image.assessment_id) if image.assessment_id else None,
+                    "analysis_id": image.analysis_id,
+                    "assessment_id": image.assessment_id,
                     "status": image.status,
                     "results": [
                         {
@@ -106,8 +106,8 @@ async def process_message(message: aio_pika.IncomingMessage):
                     title="Image Analysis Failed",
                     body="There was an error analyzing your image.",
                     data={
-                        "analysis_id": int(image.analysis_id) if image.analysis_id else None,
-                        "assessment_id": int(image.assessment_id) if image.assessment_id else None,
+                        "analysis_id": image.analysis_id,
+                        "assessment_id": image.assessment_id,
                         "status": image.status,
                         "results": [
                             {
