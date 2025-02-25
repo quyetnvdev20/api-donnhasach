@@ -4,13 +4,13 @@ from app.config import ClaimImageStatus
 from datetime import datetime
 
 class ImageAnalysisRequest(BaseModel):
-    folder_id: str
-    image_id: str
+    analysis_id: str
     image_url: str
     device_token: str
 
 class ImageAnalysisResponse(BaseModel):
-    image_id: str
+    analysis_id: str
+    assessment_id: str
     status: ClaimImageStatus
     created_at: datetime
     updated_at: datetime

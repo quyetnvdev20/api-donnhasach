@@ -19,7 +19,11 @@ class Settings(BaseSettings):
     MINIO_SECRET_KEY_XM: str
     MINIO_BUCKET_NAME_XM: str
     MINIO_USE_SSL_XM: str
-    
+
+    # Process
+    INSURANCE_PROCESSING_API_URL: str
+    CLAIM_IMAGE_PROCESS_API_KEY: str
+
     # Firebase configuration
     FIREBASE_API_KEY: str = ""
     FIREBASE_PROJECT_ID: str = ""

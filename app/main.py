@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 from .services.rabbitmq import publish_event
 from .db_init import init_db
-from .api.v1.endpoints import image_analysis, notifications
+from .api.v1.endpoints import analysis, notifications
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,7 +24,7 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(image_analysis.router, prefix="/claim", tags=["plate-analysis"])
+app.include_router(analysis.router, prefix="/claim", tags=["analysis"])
 app.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 
 @app.get("/health")

@@ -40,23 +40,35 @@ async def process_message(message: aio_pika.IncomingMessage):
 
             # Get image from database
             db: Session = SessionLocal()
-            image = db.query(Image).filter(Image.image_id == body.get("image_id")).first()
+            image = db.query(Image).filter(Image.analysis_id == body.get("analysis_id"),
+                                           Image.assessment_id == body.get("assessment_id")).first()
 
             if not image:
-                logger.error(f"Image not found: {body.get('image_id')}")
-                return
+                logger.error(f"Image analysis not found: {body.get('analysis_id')}")
+                raise Exception(f"Image analysis not found: {body.get('analysis_id')}")
 
             # Update status to processing
             image.status = ClaimImageStatus.PROCESSING.value
             db.commit()
-
+            db.refresh(image)
+            
             # Process image here...
-            # ... (your existing image processing code)
-
+            logger.info(f"Start processing image analysis {image.analysis_id}")
+            response = requests.post(
+                f"{settings.INSURANCE_PROCESSING_API_URL}/claim-image/claim-image-process", 
+                json={"image_url": image.image_url},
+                headers={
+                    "x-api-key": f"{settings.CLAIM_IMAGE_PROCESS_API_KEY}",
+                    "Content-Type": "application/json",
+                }
+            )
+            if response.status_code != 200:
+                raise Exception(f"Failed to process image analysis {image.analysis_id}")
             # After processing is complete, update status and send notification
             image.status = ClaimImageStatus.SUCCESS.value
+            image.json_data = response.json().get("data")
             db.commit()
-
+            db.refresh(image)
             # Send notification if device token is available
             if image.device_token:
                 notification_result = await FirebaseNotificationService.send_notification_to_device(

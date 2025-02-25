@@ -10,8 +10,8 @@ from sqlalchemy.ext.mutable import MutableDict
 class Image(Base):
     __tablename__ = "images"
 
-    image_id = Column(String, primary_key=True)
-    session_id = Column(String)
+    analysis_id = Column(String, primary_key=True)
+    assessment_id = Column(String)
     image_url = Column(String)
     scan_image_url = Column(String)
     status = Column(Enum(ClaimImageStatus), default=ClaimImageStatus.PENDING)
@@ -22,4 +22,3 @@ class Image(Base):
     keycloak_user_id = Column(String)
 
     device_token = Column(String)
-    folder_id = Column(String)
