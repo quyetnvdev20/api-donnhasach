@@ -14,7 +14,7 @@ from app.config import ClaimImageStatus
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-@router.post("/claims/assessment/{  assessment_id}/analysis/upload", 
+@router.post("/assessment/{assessment_id}/analysis/upload",
              response_model=ImageAnalysisResponse)
 async def submit_image_for_analysis(
     assessment_id: str,
