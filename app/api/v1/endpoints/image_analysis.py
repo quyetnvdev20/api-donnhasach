@@ -16,7 +16,6 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 @router.post("/image-analysis", response_model=ImageAnalysisResponse)
-@handle_step_exception(db_model=Image, id_attr="id", state_attr="status", error_message_attr="error_message")
 async def submit_image_for_analysis(
     request: ImageAnalysisRequest = Body(...),
     db: Session = Depends(get_db),
@@ -37,26 +36,35 @@ async def submit_image_for_analysis(
     if existing_image:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image already exists")
     
-    new_image = Image(
-        image_id=request.image_id,
-        session_id=request.session_id,
-        image_url=request.image_url,
-        keycloak_user_id=current_user.get("sub"),
-        status=ClaimImageStatus.PENDING.value
-    )
-    db.add(new_image)
-    db.commit()
-    
+    try:
+        new_image = Image(
+            image_id=request.image_id,
+            session_id=request.session_id,
+            image_url=request.image_url,
+            keycloak_user_id=current_user.get("sub"),
+            status=ClaimImageStatus.PENDING.value
+        )
+        db.add(new_image)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to submit image for analysis")
     # Publish event for Image Analysis Processing Task
-    await publish_event(
-        exchange_name="image.analysis.direct",
-        event_type="image.analysis.processing",
-        payload={
-            "image_id": request.image_id,
-            "session_id": request.session_id,
-            "image_url": request.image_url,
-            "keycloak_user_id": current_user.get("sub")
-        }
-    )
+
+    try:
+        await publish_event(
+            exchange_name="image.analysis.direct",
+            event_type="image.analysis.processing",
+            payload={
+                "image_id": request.image_id,
+                "session_id": request.session_id,
+                "image_url": request.image_url,
+                "keycloak_user_id": current_user.get("sub")
+            }
+        )
+    except Exception as e:
+        # save error message to database
+        new_image.error_message = str(e)
+        db.commit()
     
     return new_image

@@ -6,7 +6,7 @@ from datetime import datetime
 class ImageAnalysisRequest(BaseModel):
     session_id: str
     image_id: str
-    image_url: HttpUrl
+    image_url: str
 
 class ImageAnalysisResponse(BaseModel):
     image_id: str
@@ -15,4 +15,4 @@ class ImageAnalysisResponse(BaseModel):
     updated_at: datetime
     error_message: Optional[str] = None
     json_data: Optional[dict] = None
-    scan_image_url: Optional[HttpUrl] = None
+    scan_image_url: Optional[str] = None

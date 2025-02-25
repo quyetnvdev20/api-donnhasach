@@ -66,7 +66,7 @@ def run_session_processor():
 
 def check_environment():
     """Kiểm tra các biến môi trường cần thiết"""
-    required_vars = ["DATABASE_URL", "RABBITMQ_URL", "OPENAI_API_KEY", "GOOGLE_API_KEY"]
+    required_vars = ["DATABASE_URL", "RABBITMQ_URL"]
     missing_vars = [var for var in required_vars if not os.getenv(var)]
     
     if missing_vars:
@@ -97,7 +97,7 @@ def check_dependencies():
 def main():
     """Hàm chính để chạy ứng dụng"""
     parser = argparse.ArgumentParser(description="Chạy các thành phần của ứng dụng")
-    parser.add_argument("--component", choices=["api", "image-processor", "policy-creator", "session-processor", "all"], 
+    parser.add_argument("--component", choices=["api"],
                         default="all", help="Thành phần cần chạy")
     parser.add_argument("--skip-migrations", action="store_true", help="Bỏ qua việc chạy migrations")
     parser.add_argument("--skip-checks", action="store_true", help="Bỏ qua việc kiểm tra môi trường và thư viện")
@@ -128,11 +128,11 @@ def main():
         logger.info("Ví dụ:")
         logger.info("Terminal 1: python run.py --component api")
         logger.info("Terminal 2: python run.py --component image-processor --skip-migrations")
-        
+
         choice = input("Bạn có muốn tiếp tục chạy tất cả các thành phần? (y/n): ")
         if choice.lower() != 'y':
             sys.exit(0)
-            
+
         # Nếu người dùng muốn tiếp tục, chạy API (các worker nên được chạy riêng)
         run_api()
 
