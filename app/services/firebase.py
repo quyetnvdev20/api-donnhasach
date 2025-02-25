@@ -163,7 +163,14 @@ class FirebaseNotificationService:
         debug: bool = False
     ) -> Dict[str, Any]:
         """
-        Send a notification to a topic using FCM v1 API
+        Send a data-only (silent) message to a topic using FCM v1 API
+        
+        Args:
+            topic: The FCM topic to send to
+            title: Will be included in data payload
+            body: Will be included in data payload
+            data: Additional data payload to send
+            debug: Enable detailed debug logging
         """
         # Lấy OAuth token
         access_token = FirebaseNotificationService._get_access_token()
@@ -179,23 +186,43 @@ class FirebaseNotificationService:
             'Authorization': f'Bearer {access_token}'
         }
 
-        # Chuẩn bị message
+        # Kết hợp tất cả dữ liệu vào data payload
+        message_data = {
+            "title": title,
+            "body": body,
+            **(data or {})
+        }
+
+        # Chuẩn bị message (data-only)
         message = {
             "message": {
                 "topic": topic,
-                "notification": {
-                    "title": title,
-                    "body": body
+                "data": message_data,
+                # Cấu hình cho Android
+                "android": {
+                    "priority": "high",
+                    "ttl": "86400s",  # 24 hours
+                    "direct_boot_ok": True
+                },
+                # Cấu hình cho iOS
+                "apns": {
+                    "headers": {
+                        "apns-priority": "5",
+                        "apns-push-type": "background"
+                    },
+                    "payload": {
+                        "aps": {
+                            "content-available": 1,
+                            "sound": "",  # Empty sound for silent notification
+                            "badge": 0
+                        }
+                    }
                 }
             }
         }
 
-        # Thêm data nếu có
-        if data:
-            message["message"]["data"] = data
-
         if debug:
-            logger.debug(f"Gửi thông báo đến topic {topic}")
+            logger.debug(f"Gửi data message đến topic {topic}")
             logger.debug(f"URL: {fcm_url}")
             logger.debug(f"Payload: {json.dumps(message, indent=2)}")
 
@@ -214,17 +241,17 @@ class FirebaseNotificationService:
                 logger.error(f"Không thể phân tích phản hồi JSON: {response.text}")
 
             if response.status_code in (200, 201):
-                logger.info(f"Thông báo đã gửi thành công đến topic {topic}")
+                logger.info(f"Data message đã gửi thành công đến topic {topic}")
                 return {"success": True, "response": response_data}
             else:
-                logger.error(f"Lỗi khi gửi thông báo đến topic: {response_data}")
+                logger.error(f"Lỗi khi gửi data message đến topic: {response_data}")
                 return {"success": False, "error": response_data}
 
         except requests.exceptions.Timeout:
-            error_msg = "Hết thời gian chờ khi gửi thông báo"
+            error_msg = "Hết thời gian chờ khi gửi data message"
             logger.error(error_msg)
             return {"success": False, "error": error_msg}
         except Exception as e:
-            logger.error(f"Lỗi khi gửi thông báo đến topic: {str(e)}")
+            logger.error(f"Lỗi khi gửi data message đến topic: {str(e)}")
             logger.exception("Chi tiết lỗi:")
             return {"success": False, "error": str(e)} 

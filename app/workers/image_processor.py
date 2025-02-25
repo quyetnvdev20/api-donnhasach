@@ -64,33 +64,33 @@ async def process_message(message: aio_pika.IncomingMessage):
                 image.status = ClaimImageStatus.FAILED.value
                 image.error_message = str(e)
                 db.commit()
-            
-            # Send notification if device token is available
-            if image.device_token:
-                notification_result = await FirebaseNotificationService.send_notification_to_device(
-                    device_token=image.device_token,
-                    title="Image Analysis Complete",
-                    body="Your image has been successfully analyzed.",
-                    data={
-                        "analysis_id": image.analysis_id,
-                        "assessment_id": image.assessment_id,
-                        "results": [
-                                {
-                                    "item_id": 1001,
-                                    "item_name": "Ba đờ sốc trước",
-                                    "damage_id": 2002,
-                                    "damage_name": "Móp"
-                                },
-                                {
-                                    "item_id": 1003,
-                                    "item_name": "Đèn pha trái",
-                                    "damage_id": 2001,
-                                    "damage_name": "Xước"
-                                }
-                            ]
-                    }
-                )
-                logger.info(f"Notification result: {notification_result}")
+
+            notification_result = await FirebaseNotificationService.send_notification_to_topic(
+                topic=settings.FIREBASE_TOPIC,
+                title="Image Analysis Complete",
+                body="Your image has been successfully analyzed.",
+                data={
+                    "analysis_id": image.analysis_id,
+                    "assessment_id": image.assessment_id,
+                    "status": image.status,
+                    "results": [
+                        {
+                            "item_id": 1001,
+                            "item_name": "Ba đờ sốc trước",
+                            "damage_id": 2002,
+                            "damage_name": "Móp"
+                        },
+                        {
+                            "item_id": 1003,
+                            "item_name": "Đèn pha trái",
+                            "damage_id": 2001,
+                            "damage_name": "Xước"
+                        }
+                    ]
+                }
+            )
+
+            logger.info(f"Notification result: {notification_result}")
 
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}")
@@ -101,31 +101,30 @@ async def process_message(message: aio_pika.IncomingMessage):
                 image.error_message = str(e)
                 db.commit()
 
-                # Send failure notification if device token is available
-                if image.device_token:
-                    await FirebaseNotificationService.send_notification_to_device(
-                        device_token=image.device_token,
-                        title="Image Analysis Failed",
-                        body="There was an error analyzing your image.",
-                        data={
-                            "analysis_id": image.analysis_id,
-                            "assessment_id": image.assessment_id,
-                            "results": [
-                                {
-                                    "item_id": 1001,
-                                    "item_name": "Ba đờ sốc trước",
-                                    "damage_id": 2002,
-                                    "damage_name": "Móp"
-                                },
-                                {
-                                    "item_id": 1003,
-                                    "item_name": "Đèn pha trái",
-                                    "damage_id": 2001,
-                                    "damage_name": "Xước"
-                                }
-                            ]
-                        }
-                    )
+                notification_result = await FirebaseNotificationService.send_notification_to_topic(
+                    topic=settings.FIREBASE_TOPIC,
+                    title="Image Analysis Failed",
+                    body="There was an error analyzing your image.",
+                    data={
+                        "analysis_id": image.analysis_id,
+                        "assessment_id": image.assessment_id,
+                        "status": image.status,
+                        "results": [
+                            {
+                                "item_id": 1001,
+                                "item_name": "Ba đờ sốc trước",
+                                "damage_id": 2002,
+                                "damage_name": "Móp"
+                            },
+                            {
+                                "item_id": 1003,
+                                "item_name": "Đèn pha trái",
+                                "damage_id": 2001,
+                                "damage_name": "Xước"
+                            }
+                        ]
+                    }
+                )
         finally:
             db.close()
 

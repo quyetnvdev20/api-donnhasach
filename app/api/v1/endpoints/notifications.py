@@ -43,21 +43,13 @@ async def send_notification(
     
     try:
         # Send notification based on whether device_token or topic is provided
-        if request.device_token:
-            result = await FirebaseNotificationService.send_notification_to_device(
-                device_token=request.device_token,
-                title=request.title,
-                body=request.body,
-                data=request.data
-            )
-        else:
-            result = await FirebaseNotificationService.send_notification_to_topic(
-                topic=request.topic,
-                title=request.title,
-                body=request.body,
-                data=request.data
-            )
-        
+        result = await FirebaseNotificationService.send_notification_to_topic(
+            topic=request.topic,
+            title=request.title,
+            body=request.body,
+            data=request.data
+        )
+
         if result["success"]:
             return {
                 "success": True,

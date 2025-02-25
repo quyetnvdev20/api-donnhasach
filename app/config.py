@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     FIREBASE_API_KEY: str = ""
     FIREBASE_PROJECT_ID: str = ""
     FIREBASE_FCM_URL: str = "https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
+    FIREBASE_TOPIC: str = ""
     
     class Config:
         env_file = ".env"
