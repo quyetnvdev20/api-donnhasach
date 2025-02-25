@@ -455,9 +455,18 @@ async def upload_image_to_minio(image: PIL_Image.Image, bucket_name: str = setti
         str: URL của ảnh đã upload
     """
     try:
+
+        minio_host = settings.MINIO_ENDPOINT_XM
+        # Loại bỏ protocol nếu có
+        if "://" in minio_host:
+            minio_host = minio_host.split("://")[1]
+        # Loại bỏ path nếu có
+        if "/" in minio_host:
+            minio_host = minio_host.split("/")[0]
+
         # Khởi tạo MinIO client
         minio_client = Minio(
-            endpoint=settings.MINIO_ENDPOINT_XM,
+            endpoint=minio_host,
             access_key=settings.MINIO_ACCESS_KEY_XM,
             secret_key=settings.MINIO_SECRET_KEY_XM,  
             region="us-east-1",
@@ -471,12 +480,16 @@ async def upload_image_to_minio(image: PIL_Image.Image, bucket_name: str = setti
         
         # Tạo tên file ngẫu nhiên
         file_name = f"{uuid.uuid4()}.png"
+
+        # Tạo object path
+        folder_path = settings.MINIO_FOLDER_PATH_XM
+        object_name = f"{folder_path.strip('/')}/{file_name}" if folder_path else file_name
         
         # Upload file lên MinIO
         minio_client.put_object(
-            bucket_name,
-            file_name,
-            img_byte_arr,
+            bucket_name=bucket_name,
+            object_name=object_name,
+            data=img_byte_arr,
             length=len(img_byte_arr.getvalue()),
             content_type='image/png'
         )
