@@ -9,7 +9,7 @@ from ....services.rabbitmq import publish_event
 import uuid
 import logging
 from datetime import datetime
-from app.config import ImageStatus
+from app.config import ClaimImageStatus
 from app.utils.decorators import handle_step_exception
 
 router = APIRouter()
@@ -42,7 +42,7 @@ async def submit_image_for_analysis(
         session_id=request.session_id,
         image_url=request.image_url,
         keycloak_user_id=current_user.get("sub"),
-        status=ImageStatus.PENDING.value
+        status=ClaimImageStatus.PENDING.value
     )
     db.add(new_image)
     db.commit()

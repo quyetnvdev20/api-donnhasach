@@ -1,6 +1,6 @@
 from pydantic import BaseModel, HttpUrl
 from typing import Optional
-from app.config import ImageStatus
+from app.config import ClaimImageStatus
 from datetime import datetime
 
 class ImageAnalysisRequest(BaseModel):
@@ -10,7 +10,7 @@ class ImageAnalysisRequest(BaseModel):
 
 class ImageAnalysisResponse(BaseModel):
     image_id: str
-    status: ImageStatus
+    status: ClaimImageStatus
     created_at: datetime
     updated_at: datetime
     error_message: Optional[str] = None
