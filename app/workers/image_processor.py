@@ -495,7 +495,7 @@ async def upload_image_to_minio(image: PIL_Image.Image, bucket_name: str = setti
         )
         
         # Tạo và trả về URL
-        url = f"{settings.MINIO_ENDPOINT_XM}/{settings.MINIO_BUCKET_NAME_XM}/{file_name}"
+        url = f"{settings.MINIO_ENDPOINT_XM}/{settings.MINIO_BUCKET_NAME_XM}/{object_name}"
         if not url.startswith('http'):
             url = f"http://{url}"
             
