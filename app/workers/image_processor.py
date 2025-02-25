@@ -41,22 +41,22 @@ async def process_message(message: aio_pika.IncomingMessage):
             # Get image from database
             db: Session = SessionLocal()
             image = db.query(Image).filter(Image.image_id == body.get("image_id")).first()
-            
+
             if not image:
                 logger.error(f"Image not found: {body.get('image_id')}")
                 return
-                
+
             # Update status to processing
             image.status = ClaimImageStatus.PROCESSING.value
             db.commit()
-            
+
             # Process image here...
             # ... (your existing image processing code)
-            
+
             # After processing is complete, update status and send notification
             image.status = ClaimImageStatus.SUCCESS.value
             db.commit()
-            
+
             # Send notification if device token is available
             if image.device_token:
                 notification_result = await FirebaseNotificationService.send_notification_to_device(
@@ -73,13 +73,13 @@ async def process_message(message: aio_pika.IncomingMessage):
 
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}")
-            
+
             # Update status to failed
             if 'image' in locals() and image:
                 image.status = ClaimImageStatus.FAILED.value
                 image.error_message = str(e)
                 db.commit()
-                
+
                 # Send failure notification if device token is available
                 if image.device_token:
                     await FirebaseNotificationService.send_notification_to_device(
