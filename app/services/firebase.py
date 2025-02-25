@@ -1,125 +1,185 @@
 import requests
 import json
 import logging
+import socket
+import time
 from ..config import settings
 from typing import List, Dict, Any, Optional
+import google.auth.transport.requests
+from google.oauth2 import service_account
 
 logger = logging.getLogger(__name__)
 
 class FirebaseNotificationService:
     """Service for sending notifications via Firebase Cloud Messaging (FCM)"""
     
+    # Lưu trữ token và thời gian hết hạn để tái sử dụng
+    _access_token = None
+    _token_expiry = 0
+    
+    @staticmethod
+    def _get_access_token():
+        """Lấy token OAuth 2.0 từ tài khoản dịch vụ Firebase"""
+        current_time = time.time()
+        
+        # Kiểm tra xem token hiện tại còn hiệu lực không
+        if (FirebaseNotificationService._access_token is None or 
+            current_time >= FirebaseNotificationService._token_expiry):
+            
+            try:
+                credentials = service_account.Credentials.from_service_account_file(
+                    'app/utils/firebase-service-account.json',
+                    scopes=['https://www.googleapis.com/auth/firebase.messaging']
+                )
+                
+                request = google.auth.transport.requests.Request()
+                credentials.refresh(request)
+                
+                FirebaseNotificationService._access_token = credentials.token
+                # Token OAuth thường có hiệu lực trong 1 giờ
+                FirebaseNotificationService._token_expiry = current_time + 3500  # 3500s = 58 phút
+                
+                logger.info("Đã tạo mới token xác thực OAuth 2.0 cho Firebase")
+            except Exception as e:
+                logger.error(f"Lỗi khi lấy token OAuth 2.0: {str(e)}")
+                logger.exception("Chi tiết lỗi:")
+                return None
+            
+        return FirebaseNotificationService._access_token
+
     @staticmethod
     async def send_notification_to_device(
         device_token: str,
         title: str,
         body: str,
-        data: Optional[Dict[str, str]] = None,
-        platform: Optional[str] = None  # 'ios' or 'android'
+        data: Optional[Dict[str, Any]] = None,
+        platform: Optional[str] = None,  # 'ios' or 'android'
+        debug: bool = False
     ) -> Dict[str, Any]:
         """
-        Send a notification to a specific device using FCM
-        
-        Args:
-            device_token: The FCM registration token of the target device
-            title: Notification title
-            body: Notification body text
-            data: Optional data payload to send with the notification
-            platform: Optional platform identifier ('ios' or 'android')
-            
-        Returns:
-            Response from Firebase API
+        Send a notification to a specific device using FCM v1 API
         """
         if not device_token:
-            logger.warning("No device token provided, skipping notification")
-            return {"success": False, "error": "No device token provided"}
-            
+            logger.warning("Không có token thiết bị, bỏ qua thông báo")
+            return {"success": False, "error": "Không có token thiết bị"}
+
+        # Lấy OAuth token
+        access_token = FirebaseNotificationService._get_access_token()
+        if not access_token:
+            logger.error("Không thể lấy token OAuth 2.0")
+            return {"success": False, "error": "Lỗi xác thực"}
+
         # Format the FCM URL with the project ID
         fcm_url = settings.FIREBASE_FCM_URL.format(project_id=settings.FIREBASE_PROJECT_ID)
         
-        # Set up the authorization header
         headers = {
             'Content-Type': 'application/json',
-            'Authorization': f'Bearer {settings.FIREBASE_API_KEY}'
+            'Authorization': f'Bearer {access_token}'
         }
-        
-        # Prepare the message payload
+
+        # Chuẩn bị thông báo
+        notification = {
+            "title": title,
+            "body": body
+        }
+
+        # Chuẩn bị message
         message = {
             "message": {
                 "token": device_token,
-                "notification": {
-                    "title": title,
-                    "body": body
-                }
+                "notification": notification
             }
         }
-        
-        # Add platform-specific configurations
+
+        # Cấu hình cho từng nền tảng
         if platform == "ios":
             message["message"]["apns"] = {
                 "payload": {
                     "aps": {
                         "sound": "default",
                         "badge": 1,
-                        # iOS specific configurations
+                        "content-available": 1,
+                        "mutable-content": 1
                     }
                 }
             }
         elif platform == "android":
             message["message"]["android"] = {
                 "priority": "high",
-                # Android specific configurations
+                "notification": {
+                    "sound": "default",
+                    "notification_priority": "PRIORITY_HIGH",
+                    "default_sound": True,
+                    "default_vibrate_timings": True,
+                    "default_light_settings": True
+                }
             }
-        
-        # Add data payload if provided
+
+        # Thêm data nếu có
         if data:
             message["message"]["data"] = data
-        
+
+        if debug:
+            logger.debug(f"Gửi thông báo đến thiết bị {device_token}")
+            logger.debug(f"URL: {fcm_url}")
+            logger.debug(f"Payload: {json.dumps(message, indent=2)}")
+
         try:
-            # Send the request to Firebase
-            response = requests.post(fcm_url, headers=headers, data=json.dumps(message))
-            response_data = response.json()
+            response = requests.post(
+                fcm_url, 
+                headers=headers, 
+                json=message,
+                timeout=10.0
+            )
             
-            if response.status_code == 200:
-                logger.info(f"Notification sent successfully to device {device_token}")
+            try:
+                response_data = response.json()
+            except ValueError:
+                response_data = {"error": "Phản hồi không hợp lệ từ Firebase"}
+                logger.error(f"Không thể phân tích phản hồi JSON: {response.text}")
+
+            if response.status_code in (200, 201):
+                logger.info(f"Thông báo đã gửi thành công đến thiết bị {device_token}")
                 return {"success": True, "response": response_data}
             else:
-                logger.error(f"Failed to send notification: {response_data}")
+                logger.error(f"Lỗi khi gửi thông báo: {response_data}")
                 return {"success": False, "error": response_data}
-                
+
+        except requests.exceptions.Timeout:
+            error_msg = "Hết thời gian chờ khi gửi thông báo"
+            logger.error(error_msg)
+            return {"success": False, "error": error_msg}
         except Exception as e:
-            logger.error(f"Error sending notification: {str(e)}")
+            logger.error(f"Lỗi khi gửi thông báo: {str(e)}")
+            logger.exception("Chi tiết lỗi:")
             return {"success": False, "error": str(e)}
-    
+
     @staticmethod
     async def send_notification_to_topic(
         topic: str,
         title: str,
         body: str,
-        data: Optional[Dict[str, str]] = None
+        data: Optional[Dict[str, Any]] = None,
+        debug: bool = False
     ) -> Dict[str, Any]:
         """
-        Send a notification to a topic using FCM
-        
-        Args:
-            topic: The FCM topic to send to
-            title: Notification title
-            body: Notification body text
-            data: Optional data payload to send with the notification
-            
-        Returns:
-            Response from Firebase API
+        Send a notification to a topic using FCM v1 API
         """
+        # Lấy OAuth token
+        access_token = FirebaseNotificationService._get_access_token()
+        if not access_token:
+            logger.error("Không thể lấy token OAuth 2.0")
+            return {"success": False, "error": "Lỗi xác thực"}
+
         # Format the FCM URL with the project ID
         fcm_url = settings.FIREBASE_FCM_URL.format(project_id=settings.FIREBASE_PROJECT_ID)
         
-        # Set up the authorization header
         headers = {
             'Content-Type': 'application/json',
-            'Authorization': f'Bearer {settings.FIREBASE_API_KEY}'
+            'Authorization': f'Bearer {access_token}'
         }
-        
-        # Prepare the message payload
+
+        # Chuẩn bị message
         message = {
             "message": {
                 "topic": topic,
@@ -129,23 +189,42 @@ class FirebaseNotificationService:
                 }
             }
         }
-        
-        # Add data payload if provided
+
+        # Thêm data nếu có
         if data:
             message["message"]["data"] = data
-        
+
+        if debug:
+            logger.debug(f"Gửi thông báo đến topic {topic}")
+            logger.debug(f"URL: {fcm_url}")
+            logger.debug(f"Payload: {json.dumps(message, indent=2)}")
+
         try:
-            # Send the request to Firebase
-            response = requests.post(fcm_url, headers=headers, data=json.dumps(message))
-            response_data = response.json()
+            response = requests.post(
+                fcm_url, 
+                headers=headers, 
+                json=message,
+                timeout=10.0
+            )
             
-            if response.status_code == 200:
-                logger.info(f"Notification sent successfully to topic {topic}")
+            try:
+                response_data = response.json()
+            except ValueError:
+                response_data = {"error": "Phản hồi không hợp lệ từ Firebase"}
+                logger.error(f"Không thể phân tích phản hồi JSON: {response.text}")
+
+            if response.status_code in (200, 201):
+                logger.info(f"Thông báo đã gửi thành công đến topic {topic}")
                 return {"success": True, "response": response_data}
             else:
-                logger.error(f"Failed to send notification to topic: {response_data}")
+                logger.error(f"Lỗi khi gửi thông báo đến topic: {response_data}")
                 return {"success": False, "error": response_data}
-                
+
+        except requests.exceptions.Timeout:
+            error_msg = "Hết thời gian chờ khi gửi thông báo"
+            logger.error(error_msg)
+            return {"success": False, "error": error_msg}
         except Exception as e:
-            logger.error(f"Error sending notification to topic: {str(e)}")
+            logger.error(f"Lỗi khi gửi thông báo đến topic: {str(e)}")
+            logger.exception("Chi tiết lỗi:")
             return {"success": False, "error": str(e)} 
