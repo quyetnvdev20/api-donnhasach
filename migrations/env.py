@@ -5,8 +5,6 @@ from alembic import context
 from app.models import Base
 from app.config import settings
 from app.models.image import Image
-from app.models.session import Session
-from app.models.insurance_detail import InsuranceDetail
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -51,7 +49,13 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, 
+            target_metadata=target_metadata,
+            # Add this to ignore missing revisions
+            version_table="alembic_version",
+            version_table_schema=None,
+            # Set this to True to create a new migration if one doesn't exist
+            compare_type=True
         )
 
         with context.begin_transaction():

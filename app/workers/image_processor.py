@@ -5,7 +5,6 @@ import cv2, numpy as np
 from sqlalchemy.orm import Session
 from ..database import SessionLocal
 from ..models.image import Image
-from ..models.insurance_detail import InsuranceDetail
 from ..config import settings
 import logging
 import requests
@@ -16,7 +15,6 @@ import google.generativeai as genai
 from PIL import Image as PIL_Image
 from io import BytesIO
 from app.core.settings import ImageStatus, SessionStatus
-from ..models.session import Session as SessionModel
 from dateutil.relativedelta import relativedelta
 from minio import Minio
 import uuid
@@ -152,7 +150,7 @@ async def process_image_with_gemini(image_url: str) -> dict:
         "vehicle_type": "Loại xe",
         "insurance_start_date": "Thời gian bắt đầu (DD/MM/YYYY HH:mm:00)",
         "insurance_end_date": "Thời gian kết thúc (DD/MM/YYYY HH:mm:00)"
-        "premium_amount": "PHÍ BẢO HIỂM CÓ VAT (chữ viết tay)",
+        "premium_amount": "PHÍ BẢO HIỂM CÓ VAT (chữ viết tay, trả lại định dạng Integer)",
         "policy_issued_datetime": "Cấp hồi (DD/MM/YYYY HH:mm:00)"
     }
     Lưu ý:
@@ -160,17 +158,12 @@ async def process_image_with_gemini(image_url: str) -> dict:
     - Đảm bảo định dạng ngày tháng theo mẫu
     - Ngày giờ của thời gian kết thúc trùng với ngày giờ của thời gian bắt đầu, chỉ khác nhau mỗi năm, năm của thời gian kết thúc ở ngay dưới năm của thời gian bắt đầu
     - Số tiền không có dấu phẩy hoặc dấu chấm phân cách và chỉ lấy số không lấy chữ
-    - Các dấu tích v hoặc x là các điều kiện được chọn để lấy lên ví dụ: Loại xe, Số người được bảo hiểm, Mức trách nhiệm bảo hiểm
-    - Phí bảo hiểm phải nộp (premium_amount) không phải là chỗ 319.000 đồng/năm
+    - - Các dấu tích v hoặc x là các điều kiện được chọn để lấy lên ví dụ: Loại xe, Số người được bảo hiểm, Mức trách nhiệm bảo hiểm
     """
-    scan_image_url = ''
 
     try:
         response = requests.get(image_url)
         response.raise_for_status()
-
-        # image = PIL_Image.open(BytesIO(response.content))
-
         image_array = np.asarray(bytearray(response.content), dtype=np.uint8)
         cv2_image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
         # Convert images to grayscale
@@ -207,7 +200,7 @@ async def process_image_with_gemini(image_url: str) -> dict:
         
         # Log raw response để debug
         logger.info(f'Raw Gemini response: {response.text}')
-
+        
         try:
             # Lấy kết quả JSON từ response
             # Thử tìm và parse phần JSON trong response
@@ -216,14 +209,11 @@ async def process_image_with_gemini(image_url: str) -> dict:
             if json_match:
                 json_str = json_match.group()
                 result = json.loads(json_str)
-                result.update({'scan_image_url': scan_image_url})
             else:
                 raise ValueError("No JSON object found in response")
-        except Exception as e:
-            return {'scan_image_url': scan_image_url}
-        logger.info(f'process_image.gemini.gia tri tra ve tu gemini: {str(result)}')
-        
-        try:
+                
+            logger.info(f'process_image.gemini.gia tri tra ve tu gemini: {str(result)}')
+
             # Xử lý các trường datetime
             date_fields = [
                 'insurance_start_date',
@@ -231,21 +221,18 @@ async def process_image_with_gemini(image_url: str) -> dict:
                 'premium_payment_due_date',
                 'policy_issued_datetime'
             ]
-
-            # Định dạng ngày cần thử
-            date_formats = ['%d/%m/%Y %H:%M:%S', '%d/%m/%Y']
-
             for field in date_fields:
-                if result.get(field):
-                    value = result[field]
-                    for fmt in date_formats:
-                        try:
-                            result[field] = datetime.strptime(value, fmt).isoformat()
-                            break  # Nếu chuyển đổi thành công, dừng vòng lặp
-                        except ValueError:
-                            continue
-                    else:
-                        result[field] = None  # Gán None nếu không parse được
+                if field in result and result.get(field):
+                    try:
+                        result[field] = datetime.strptime(
+                            result[field],
+                            '%d/%m/%Y %H:%M:%S'
+                        ).isoformat()
+                    except:
+                        result[field] = datetime.strptime(
+                            result[field],
+                            '%d/%m/%Y'
+                        ).isoformat()
 
             """set default ngày cấp đơn, thời hạn hiệu lực nếu không đọc được từ ảnh
                 ngày cấp: now
@@ -291,12 +278,12 @@ async def process_image_with_gemini(image_url: str) -> dict:
 
         except Exception as e:
             logger.error(f"Error parsing Gemini response: {str(e)}")
-            raise result
+            logger.error(f"Response content: {response.text}")
+            raise {}
 
     except Exception as e:
         logger.error(f"Error processing image with Gemini: {str(e)}")
-        # raise Exception(f"Failed to process insurance information from image: {str(e)}")
-        return {'scan_image_url': scan_image_url}
+        raise Exception(f"Failed to process insurance information from image: {str(e)}")
 
 async def process_message(message: aio_pika.IncomingMessage):
     async with message.process():
@@ -338,7 +325,6 @@ async def process_message(message: aio_pika.IncomingMessage):
 
                 # Get and remove is_suspecting_wrongly flag if it exists
                 is_suspecting_wrongly = insurance_info.pop('is_suspecting_wrongly', False)
-                liability_amount = insurance_info.pop('liability_amount', False)
 
                 # Create insurance detail
                 insurance_detail = InsuranceDetail(
@@ -455,18 +441,9 @@ async def upload_image_to_minio(image: PIL_Image.Image, bucket_name: str = setti
         str: URL của ảnh đã upload
     """
     try:
-
-        minio_host = settings.MINIO_ENDPOINT_XM
-        # Loại bỏ protocol nếu có
-        if "://" in minio_host:
-            minio_host = minio_host.split("://")[1]
-        # Loại bỏ path nếu có
-        if "/" in minio_host:
-            minio_host = minio_host.split("/")[0]
-
         # Khởi tạo MinIO client
         minio_client = Minio(
-            endpoint=minio_host,
+            endpoint=settings.MINIO_ENDPOINT_XM,
             access_key=settings.MINIO_ACCESS_KEY_XM,
             secret_key=settings.MINIO_SECRET_KEY_XM,  
             region="us-east-1",
@@ -480,22 +457,18 @@ async def upload_image_to_minio(image: PIL_Image.Image, bucket_name: str = setti
         
         # Tạo tên file ngẫu nhiên
         file_name = f"{uuid.uuid4()}.png"
-
-        # Tạo object path
-        folder_path = settings.MINIO_FOLDER_PATH_XM
-        object_name = f"{folder_path.strip('/')}/{file_name}" if folder_path else file_name
         
         # Upload file lên MinIO
         minio_client.put_object(
-            bucket_name=bucket_name,
-            object_name=object_name,
-            data=img_byte_arr,
+            bucket_name,
+            file_name,
+            img_byte_arr,
             length=len(img_byte_arr.getvalue()),
             content_type='image/png'
         )
         
         # Tạo và trả về URL
-        url = f"{settings.MINIO_ENDPOINT_XM}/{settings.MINIO_BUCKET_NAME_XM}/{object_name}"
+        url = f"{settings.MINIO_ENDPOINT_XM}/{settings.MINIO_BUCKET_NAME_XM}/{file_name}"
         if not url.startswith('http'):
             url = f"http://{url}"
             

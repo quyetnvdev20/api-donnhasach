@@ -2,7 +2,7 @@ targetPort: 8000 # port of pod container
 ingress:
   enable: true
   host: api-insurance.baohiemtasco.vn
-  path: /acg-xm(/|$)(.*)
+  path: /claim-ai(/|$)(.*)
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$2
 
@@ -26,8 +26,8 @@ resources:
     memory: "1Gi"
 
 celeries:
-  - name: acg-xm-image-processor
-    replicas: 3
+  - name: claim-xm-image-processor
+    replicas: 1
     runCommand: python -m app.workers.image_processor
     resources:
       requests:
@@ -37,27 +37,4 @@ celeries:
         cpu: 500m
         memory: 1Gi
 
-  - name: acg-xm-policy-creator
-    replicas: 1
-    runCommand: python -m app.workers.policy_creator
-    resources:
-      requests:
-        cpu: 50m
-        memory: 512Mi
-      limits:
-        cpu: 500m
-        memory: 1Gi 
-
-  # - name: acg-xm-session-processor
-  #   replicas: 1
-  #   runCommand: python -m app.workers.session_processor
-  #   resources:
-  #     requests: 
-  #       cpu: 50m
-  #       memory: 512Mi
-  #     limits:
-  #       cpu: 500m
-  #       memory: 1Gi
-
-# depCommand: ./run.sh
 
