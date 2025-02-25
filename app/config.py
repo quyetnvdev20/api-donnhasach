@@ -1,4 +1,11 @@
 from pydantic_settings import BaseSettings
+from enum import Enum
+
+class ClaimImageStatus(str, Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    SUCCESS = "success"
+    FAILED = "failed"
 
 class Settings(BaseSettings):
     DATABASE_URL: str
@@ -7,8 +14,6 @@ class Settings(BaseSettings):
     KEYCLOAK_REALM: str
     KEYCLOAK_CLIENT_ID: str
     KEYCLOAK_CLIENT_SECRET: str
-    OPENAI_API_KEY: str
-    GOOGLE_API_KEY: str
     MINIO_ENDPOINT_XM: str
     MINIO_ACCESS_KEY_XM: str
     MINIO_SECRET_KEY_XM: str

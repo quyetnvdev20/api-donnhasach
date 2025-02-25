@@ -20,7 +20,8 @@ def run_alembic_migrations():
     """Chạy migration với Alembic"""
     logger.info("Đang chạy migrations...")
     try:
-        subprocess.run(["alembic", "upgrade", "head"], check=True)
+        # Sử dụng module thay vì lệnh trực tiếp
+        subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], check=True)
         logger.info("Migrations hoàn tất")
     except subprocess.CalledProcessError as e:
         logger.error(f"Lỗi khi chạy migrations: {str(e)}")
@@ -30,7 +31,8 @@ def run_api():
     """Chạy API server với Uvicorn"""
     logger.info("Đang khởi động API server...")
     try:
-        subprocess.run(["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"], check=True)
+        # Sử dụng module thay vì lệnh trực tiếp
+        subprocess.run([sys.executable, "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"], check=True)
     except subprocess.CalledProcessError as e:
         logger.error(f"Lỗi khi chạy API server: {str(e)}")
         sys.exit(1)
@@ -39,7 +41,7 @@ def run_image_processor():
     """Chạy worker xử lý ảnh"""
     logger.info("Đang khởi động Image Processor worker...")
     try:
-        subprocess.run(["python", "-m", "app.workers.image_processor"], check=True)
+        subprocess.run([sys.executable, "-m", "app.workers.image_processor"], check=True)
     except subprocess.CalledProcessError as e:
         logger.error(f"Lỗi khi chạy Image Processor: {str(e)}")
         sys.exit(1)
@@ -48,7 +50,7 @@ def run_policy_creator():
     """Chạy worker tạo policy"""
     logger.info("Đang khởi động Policy Creator worker...")
     try:
-        subprocess.run(["python", "-m", "app.workers.policy_creator"], check=True)
+        subprocess.run([sys.executable, "-m", "app.workers.policy_creator"], check=True)
     except subprocess.CalledProcessError as e:
         logger.error(f"Lỗi khi chạy Policy Creator: {str(e)}")
         sys.exit(1)
@@ -57,7 +59,7 @@ def run_session_processor():
     """Chạy worker xử lý session"""
     logger.info("Đang khởi động Session Processor worker...")
     try:
-        subprocess.run(["python", "-m", "app.workers.session_processor"], check=True)
+        subprocess.run([sys.executable, "-m", "app.workers.session_processor"], check=True)
     except subprocess.CalledProcessError as e:
         logger.error(f"Lỗi khi chạy Session Processor: {str(e)}")
         sys.exit(1)
@@ -74,17 +76,38 @@ def check_environment():
     
     logger.info("Đã kiểm tra các biến môi trường")
 
+def check_dependencies():
+    """Kiểm tra các thư viện cần thiết đã được cài đặt chưa"""
+    required_packages = ["uvicorn", "alembic", "fastapi"]
+    missing_packages = []
+    
+    for package in required_packages:
+        try:
+            __import__(package)
+        except ImportError:
+            missing_packages.append(package)
+    
+    if missing_packages:
+        logger.error(f"Thiếu các thư viện: {', '.join(missing_packages)}")
+        logger.error("Vui lòng cài đặt các thư viện cần thiết: pip install -r requirements.txt")
+        sys.exit(1)
+    
+    logger.info("Đã kiểm tra các thư viện cần thiết")
+
 def main():
     """Hàm chính để chạy ứng dụng"""
     parser = argparse.ArgumentParser(description="Chạy các thành phần của ứng dụng")
     parser.add_argument("--component", choices=["api", "image-processor", "policy-creator", "session-processor", "all"], 
                         default="all", help="Thành phần cần chạy")
     parser.add_argument("--skip-migrations", action="store_true", help="Bỏ qua việc chạy migrations")
+    parser.add_argument("--skip-checks", action="store_true", help="Bỏ qua việc kiểm tra môi trường và thư viện")
     
     args = parser.parse_args()
     
-    # Kiểm tra môi trường
-    check_environment()
+    # Kiểm tra môi trường và thư viện
+    if not args.skip_checks:
+        check_dependencies()
+        check_environment()
     
     # Chạy migrations nếu cần
     if not args.skip_migrations:
@@ -105,8 +128,6 @@ def main():
         logger.info("Ví dụ:")
         logger.info("Terminal 1: python run.py --component api")
         logger.info("Terminal 2: python run.py --component image-processor --skip-migrations")
-        logger.info("Terminal 3: python run.py --component policy-creator --skip-migrations")
-        logger.info("Terminal 4: python run.py --component session-processor --skip-migrations")
         
         choice = input("Bạn có muốn tiếp tục chạy tất cả các thành phần? (y/n): ")
         if choice.lower() != 'y':
