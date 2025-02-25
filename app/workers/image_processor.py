@@ -43,21 +43,28 @@ async def process_message(message: aio_pika.IncomingMessage):
             
             # Process image here...
             logger.info(f"Start processing image analysis {image.analysis_id}")
-            response = requests.post(
-                f"{settings.INSURANCE_PROCESSING_API_URL}/claim-image/claim-image-process", 
-                json={"image_url": image.image_url},
-                headers={
-                    "x-api-key": f"{settings.CLAIM_IMAGE_PROCESS_API_KEY}",
-                    "Content-Type": "application/json",
-                }
-            )
-            if response.status_code != 200:
-                raise Exception(f"Failed to process image analysis {image.analysis_id}")
-            # After processing is complete, update status and send notification
-            image.status = ClaimImageStatus.SUCCESS.value
-            image.json_data = response.json().get("data")
-            db.commit()
-            db.refresh(image)
+            try:
+                response = requests.post(
+                    f"{settings.INSURANCE_PROCESSING_API_URL}/claim-image/claim-image-process",
+                    json={"image_url": image.image_url},
+                    headers={
+                        "x-api-key": f"{settings.CLAIM_IMAGE_PROCESS_API_KEY}",
+                        "Content-Type": "application/json",
+                    }
+                )
+                if response.status_code != 200:
+                    raise Exception(f"Failed to process image analysis {image.analysis_id}")
+                # After processing is complete, update status and send notification
+                image.status = ClaimImageStatus.SUCCESS.value
+                image.json_data = response.json().get("data")
+                db.commit()
+                db.refresh(image)
+            except Exception as e:
+                logger.error(f"Error processing image analysis {image.analysis_id}: {str(e)}")
+                image.status = ClaimImageStatus.FAILED.value
+                image.error_message = str(e)
+                db.commit()
+            
             # Send notification if device token is available
             if image.device_token:
                 notification_result = await FirebaseNotificationService.send_notification_to_device(

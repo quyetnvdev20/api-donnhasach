@@ -42,6 +42,7 @@ async def submit_image_for_analysis(
             analysis_id=request.analysis_id,
             assessment_id=assessment_id,
             image_url=request.image_url,
+            device_token=request.device_token,
             keycloak_user_id=current_user.get("sub"),
             status=ClaimImageStatus.PENDING.value
         )
