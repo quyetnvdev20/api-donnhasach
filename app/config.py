@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     MINIO_ACCESS_KEY_XM: str
     MINIO_SECRET_KEY_XM: str
     MINIO_BUCKET_NAME_XM: str
+    MINIO_FOLDER_PATH_XM: str
     MINIO_USE_SSL_XM: str
     class Config:
         env_file = ".env"
