@@ -74,7 +74,20 @@ async def process_message(message: aio_pika.IncomingMessage):
                     data={
                         "analysis_id": image.analysis_id,
                         "assessment_id": image.assessment_id,
-                        "status": image.status
+                        "results": [
+                                {
+                                    "item_id": 1001,
+                                    "item_name": "Ba đờ sốc trước",
+                                    "damage_id": 2002,
+                                    "damage_name": "Móp"
+                                },
+                                {
+                                    "item_id": 1003,
+                                    "item_name": "Đèn pha trái",
+                                    "damage_id": 2001,
+                                    "damage_name": "Xước"
+                                }
+                            ]
                     }
                 )
                 logger.info(f"Notification result: {notification_result}")
@@ -97,7 +110,20 @@ async def process_message(message: aio_pika.IncomingMessage):
                         data={
                             "analysis_id": image.analysis_id,
                             "assessment_id": image.assessment_id,
-                            "status": image.status
+                            "results": [
+                                {
+                                    "item_id": 1001,
+                                    "item_name": "Ba đờ sốc trước",
+                                    "damage_id": 2002,
+                                    "damage_name": "Móp"
+                                },
+                                {
+                                    "item_id": 1003,
+                                    "item_name": "Đèn pha trái",
+                                    "damage_id": 2001,
+                                    "damage_name": "Xước"
+                                }
+                            ]
                         }
                     )
         finally:
