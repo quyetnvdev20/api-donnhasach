@@ -41,7 +41,7 @@ async def submit_image_for_analysis(
     
     try:
         new_image = Image(
-            analysis_id=request.analysis_id,
+            analysis_id=request.analysis_id or request.image_id,
             assessment_id=assessment_id,
             image_url=request.image_url,
             id=request.image_id,
