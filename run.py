@@ -97,7 +97,7 @@ def check_dependencies():
 def main():
     """Hàm chính để chạy ứng dụng"""
     parser = argparse.ArgumentParser(description="Chạy các thành phần của ứng dụng")
-    parser.add_argument("--component", choices=["api"],
+    parser.add_argument("--component", choices=["api", "image-processor"],
                         default="all", help="Thành phần cần chạy")
     parser.add_argument("--skip-migrations", action="store_true", help="Bỏ qua việc chạy migrations")
     parser.add_argument("--skip-checks", action="store_true", help="Bỏ qua việc kiểm tra môi trường và thư viện")

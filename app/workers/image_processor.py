@@ -1,25 +1,14 @@
 import asyncio
 import aio_pika
 import json
-import cv2, numpy as np
 from sqlalchemy.orm import Session
 from ..database import SessionLocal
 from ..models.image import Image
-from ..models.insurance_detail import InsuranceDetail
 from ..config import settings, ClaimImageStatus
 import logging
 import requests
-from openai import AsyncOpenAI
-from datetime import datetime
 from tenacity import retry, stop_after_attempt, wait_exponential
-import google.generativeai as genai
-from PIL import Image as PIL_Image
-from io import BytesIO
-from app.core.settings import ImageStatus, SessionStatus
-from ..models.session import Session as SessionModel
-from dateutil.relativedelta import relativedelta
-from minio import Minio
-import uuid
+
 from ..services.firebase import FirebaseNotificationService
 
 logging.basicConfig(level=logging.INFO)
