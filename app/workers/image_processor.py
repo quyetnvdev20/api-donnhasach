@@ -25,7 +25,7 @@ async def process_message(message: aio_pika.IncomingMessage):
     async with message.process():
         # try:
             # Decode message
-        body = json.loads(message.payload.decode())
+        body = json.loads(message.body.decode())
         logger.info(f"Processing message: {body}")
 
         # Get image from database
