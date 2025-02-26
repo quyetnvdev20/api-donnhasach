@@ -4,7 +4,7 @@ from sqlalchemy.orm import relationship
 from .base import Base
 import uuid
 from app.config import ClaimImageStatus
-from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy.dialects.postgresql import JSON, ARRAY
 from sqlalchemy.ext.mutable import MutableDict
 
 class Image(Base):
@@ -22,3 +22,4 @@ class Image(Base):
     keycloak_user_id = Column(String)
 
     device_token = Column(String)
+    results = Column(String)

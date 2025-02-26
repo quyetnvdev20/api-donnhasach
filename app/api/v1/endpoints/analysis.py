@@ -10,6 +10,7 @@ import uuid
 import logging
 from datetime import datetime
 from app.config import ClaimImageStatus
+from app.workers.image_processor import mapping_assessment_item
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -70,3 +71,8 @@ async def submit_image_for_analysis(
         db.commit()
     
     return new_image
+
+# @router.get("/assessment/test")
+# async def test():
+#     return await mapping_assessment_item([{'Gương chiếu hậu trái': 'Vỡ, gãy'}, 
+#                                           {'Badosox trước cản trước': 'Trầy xước'}])

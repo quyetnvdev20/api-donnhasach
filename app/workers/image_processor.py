@@ -10,6 +10,7 @@ import requests
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..services.firebase import FirebaseNotificationService
+from ..utils.erp_db import PostgresDB
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -54,9 +55,9 @@ async def process_message(message: aio_pika.IncomingMessage):
                 )
                 if response.status_code != 200:
                     raise Exception(f"Failed to process image analysis {image.analysis_id}")
-                # After processing is complete, update status and send notification
+
                 image.status = ClaimImageStatus.SUCCESS.value
-                image.json_data = response.json().get("data")
+                image.json_data = response.json().get("data", {})
                 db.commit()
                 db.refresh(image)
             except Exception as e:
@@ -65,6 +66,12 @@ async def process_message(message: aio_pika.IncomingMessage):
                 image.error_message = str(e)
                 db.commit()
 
+            mapped_results = []
+            if image.json_data:
+                mapped_results = await mapping_assessment_item(image.json_data)
+                image.results = json.dumps(mapped_results)
+                db.commit()
+            
             notification_result = await FirebaseNotificationService.send_notification_to_topic(
                 topic=settings.FIREBASE_TOPIC,
                 title="Image Analysis Complete",
@@ -73,20 +80,7 @@ async def process_message(message: aio_pika.IncomingMessage):
                     "analysis_id": image.analysis_id,
                     "assessment_id": image.assessment_id,
                     "status": image.status,
-                    "results": [
-                        {
-                            "item_id": 1001,
-                            "item_name": "Ba đờ sốc trước",
-                            "damage_id": 2002,
-                            "damage_name": "Móp"
-                        },
-                        {
-                            "item_id": 1003,
-                            "item_name": "Đèn pha trái",
-                            "damage_id": 2001,
-                            "damage_name": "Xước"
-                        }
-                    ]
+                    "results": mapped_results
                 }
             )
 
@@ -94,9 +88,7 @@ async def process_message(message: aio_pika.IncomingMessage):
 
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}")
-
-            # Update status to failed
-            if 'image' in locals() and image:
+            if image:
                 image.status = ClaimImageStatus.FAILED.value
                 image.error_message = str(e)
                 db.commit()
@@ -109,24 +101,72 @@ async def process_message(message: aio_pika.IncomingMessage):
                         "analysis_id": image.analysis_id,
                         "assessment_id": image.assessment_id,
                         "status": image.status,
-                        "results": [
-                            {
-                                "item_id": 1001,
-                                "item_name": "Ba đờ sốc trước",
-                                "damage_id": 2002,
-                                "damage_name": "Móp"
-                            },
-                            {
-                                "item_id": 1003,
-                                "item_name": "Đèn pha trái",
-                                "damage_id": 2001,
-                                "damage_name": "Xước"
-                            }
-                        ]
+                        "results": []
                     }
                 )
         finally:
             db.close()
+
+
+async def mapping_assessment_item(json_data_list: list):
+    """
+    Map assessment items from json_data to database IDs
+
+    Args:
+        json_data_list (list): List of dictionaries containing category and state mappings
+    """
+    transformed_items = []
+
+    # Transform the input data
+    for data_dict in json_data_list:
+        for category, state in data_dict.items():
+            transformed_items.append({
+                "damage_name": category,
+                "item_name": state
+            })
+
+    if not transformed_items:
+        return []
+
+    # Build the WHERE clause with proper parameter placeholders
+    placeholders = []
+    values = []
+    for i, item in enumerate(transformed_items):
+        placeholders.append(f"(iclc.name = ${2 * i + 1} AND isc.name = ${2 * i + 2})")
+        values.extend([item["damage_name"], item["item_name"]])
+
+    query = f"""
+        SELECT 
+            iclc.id AS category_id,
+            isc.id AS state_id,
+            iclc.name AS category_name,
+            isc.name AS state_name
+        FROM insurance_claim_list_category iclc
+        JOIN insurance_state_category isc ON 1=1
+        WHERE {' OR '.join(placeholders)};
+    """
+
+    results = await PostgresDB.execute_query(query, values)
+    print(results)
+
+    if not results:
+        return []
+
+    # Map results using dict comprehension
+    result_map = {
+        (row["category_name"], row["state_name"]): {
+            "damage_id": row["category_id"],
+            "item_id": row["state_id"]
+        } for row in results
+    }
+
+    # Update transformed items with IDs
+    for item in transformed_items:
+        key = (item["damage_name"], item["item_name"])
+        if key in result_map:
+            item.update(result_map[key])
+
+    return transformed_items
 
 @retry(
     stop=stop_after_attempt(5),
