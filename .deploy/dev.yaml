@@ -27,7 +27,7 @@ resources:
 
 celeries:
   - name: claim-xm-image-processor
-    replicas: 1
+    replicas: 3
     runCommand: python -m app.workers.image_processor
     resources:
       requests:
