@@ -47,18 +47,17 @@ async def process_message(message: aio_pika.IncomingMessage):
             logger.info(f"Start processing image analysis {image.analysis_id}")
             try:
                 # aiohttp / httpx
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        f"{settings.INSURANCE_PROCESSING_API_URL}/claim-image/claim-image-process",
-                        json={"image_url": image.image_url},
-                        headers={
+                response = requests.post(
+                    f"{settings.INSURANCE_PROCESSING_API_URL}/claim-image/claim-image-process",
+                    json={"image_url": image.image_url},
+                    headers={
                         "x-api-key": f"{settings.CLAIM_IMAGE_PROCESS_API_KEY}",
                         "Content-Type": "application/json",
                     },
-                        timeout=settings.CLAIM_IMAGE_PROCESS_TIMEOUT
-                    ) as response:
-                        if response.status_code != 200:
-                            raise Exception(f"Failed to process image analysis {image.analysis_id}")
+                    timeout=settings.CLAIM_IMAGE_PROCESS_TIMEOUT
+                )
+                if response.status_code != 200:
+                    raise Exception(f"Failed to process image analysis {image.analysis_id}")
 
                 image.status = ClaimImageStatus.SUCCESS.value
                 image.list_json_data = response.json().get("data", [])
