@@ -51,13 +51,14 @@ async def process_message(message: aio_pika.IncomingMessage):
                     headers={
                         "x-api-key": f"{settings.CLAIM_IMAGE_PROCESS_API_KEY}",
                         "Content-Type": "application/json",
-                    }
+                    },
+                    timeout=5
                 )
                 if response.status_code != 200:
                     raise Exception(f"Failed to process image analysis {image.analysis_id}")
 
                 image.status = ClaimImageStatus.SUCCESS.value
-                image.json_data = response.json().get("data", {})
+                image.list_json_data = response.json().get("data", [])
                 db.commit()
                 db.refresh(image)
             except Exception as e:
@@ -67,10 +68,8 @@ async def process_message(message: aio_pika.IncomingMessage):
                 db.commit()
 
             mapped_results = []
-            if image.json_data:
-                # convert json_data to list of dict
-                json_data_list = [image.json_data]
-                mapped_results = await mapping_assessment_item(json_data_list)
+            if image.list_json_data:
+                mapped_results = await mapping_assessment_item(image.list_json_data)
                 image.results = json.dumps(mapped_results)
                 db.commit()
 
