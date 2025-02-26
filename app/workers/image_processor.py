@@ -75,16 +75,18 @@ async def process_message(message: aio_pika.IncomingMessage):
             image.results = json.dumps(mapped_results)
             db.commit()
 
+        data_vals = {
+                "analysis_id": str(image.analysis_id),
+                "assessment_id": str(image.assessment_id),
+                # "status": image.status,
+                "results": json.dumps(mapped_results)
+            }
+
         notification_result = await FirebaseNotificationService.send_notification_to_topic(
             topic=settings.FIREBASE_TOPIC,
             title="Image Analysis Complete",
             body="Your image has been successfully analyzed.",
-            data={
-                "analysis_id": image.analysis_id,
-                "assessment_id": image.assessment_id,
-                # "status": image.status,
-                "results": mapped_results
-            }
+            data=data_vals
         )
 
         logger.info(f"Notification result: {notification_result}")
