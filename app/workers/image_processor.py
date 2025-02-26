@@ -106,8 +106,8 @@ async def process_message(message: aio_pika.IncomingMessage):
                 db.commit()
 
                 notification_result = await FirebaseNotificationService.send_notification_to_topic(
-                    topic=f'tic_claim_{str(image.keycloak_user_id)}',
-                    # topic=settings.FIREBASE_TOPIC,
+                    # topic=f'tic_claim_{str(image.keycloak_user_id)}',
+                    topic=settings.FIREBASE_TOPIC,
                     title="Image Analysis Failed",
                     body="There was an error analyzing your image.",
                     data={
