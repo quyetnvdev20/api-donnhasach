@@ -12,6 +12,7 @@ class Image(Base):
 
     analysis_id = Column(String, primary_key=True)
     assessment_id = Column(String)
+    id = Column(String)
     image_url = Column(String)
     scan_image_url = Column(String) 
     status = Column(Enum(ClaimImageStatus), default=ClaimImageStatus.PENDING)

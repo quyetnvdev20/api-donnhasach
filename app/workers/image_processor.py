@@ -76,6 +76,8 @@ async def process_message(message: aio_pika.IncomingMessage):
             data_vals = {
                     "analysis_id": str(image.analysis_id),
                     "assessment_id": str(image.assessment_id),
+                    "image_id": str(image.id),
+                    "image_url": str(image.image_url),
                     # "status": image.status,
                     "results": json.dumps(mapped_results)
                 }
@@ -103,6 +105,8 @@ async def process_message(message: aio_pika.IncomingMessage):
                     data={
                         "analysis_id": image.analysis_id,
                         "assessment_id": image.assessment_id,
+                        "image_id": str(image.id),
+                        "image_url": str(image.image_url),
                         # "status": image.status,
                         "results": json.dumps([])
                     }

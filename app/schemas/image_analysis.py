@@ -6,6 +6,7 @@ from datetime import datetime
 class ImageAnalysisRequest(BaseModel):
     analysis_id: str
     image_url: str
+    image_id: str
     device_token: str
 
 class ImageAnalysisResponse(BaseModel):
