@@ -81,6 +81,9 @@ async def process_message(message: aio_pika.IncomingMessage):
                     # "status": image.status,
                     "results": json.dumps(mapped_results)
                 }
+            
+            logger.info("Staring parsing data for notification")
+            logger.info(f"Data vals: {data_vals}")
 
             notification_result = await FirebaseNotificationService.send_notification_to_topic(
                 topic=settings.FIREBASE_TOPIC,
