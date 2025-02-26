@@ -69,7 +69,8 @@ async def process_message(message: aio_pika.IncomingMessage):
         mapped_results = []
         if image.json_data:
             # convert json_data to list of dict
-            json_data_list = [json.loads(item) for item in image.json_data]
+            # json_data_list = [json.loads(item) for item in image.json_data]
+            json_data_list = [json.loads(image.json_data)]
             mapped_results = await mapping_assessment_item(json_data_list)
             image.results = json.dumps(mapped_results)
             db.commit()
