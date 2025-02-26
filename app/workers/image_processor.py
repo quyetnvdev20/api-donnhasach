@@ -23,91 +23,91 @@ LIST_FIELD_REQUIRED = [
 
 async def process_message(message: aio_pika.IncomingMessage):
     async with message.process():
-        try:
+        # try:
             # Decode message
-            body = json.loads(message.body.decode())
-            logger.info(f"Processing message: {body}")
+        body = json.loads(message.payload.decode())
+        logger.info(f"Processing message: {body}")
 
-            # Get image from database
-            db: Session = SessionLocal()
-            image = db.query(Image).filter(Image.analysis_id == body.get("analysis_id"),
-                                           Image.assessment_id == body.get("assessment_id")).first()
+        # Get image from database
+        db: Session = SessionLocal()
+        image = db.query(Image).filter(Image.analysis_id == body.get("analysis_id"),
+                                       Image.assessment_id == body.get("assessment_id")).first()
 
-            if not image:
-                logger.error(f"Image analysis not found: {body.get('analysis_id')}")
-                raise Exception(f"Image analysis not found: {body.get('analysis_id')}")
+        if not image:
+            logger.error(f"Image analysis not found: {body.get('analysis_id')}")
+            raise Exception(f"Image analysis not found: {body.get('analysis_id')}")
 
-            # Update status to processing
-            image.status = ClaimImageStatus.PROCESSING.value
-            db.commit()
-            db.refresh(image)
-            
-            # Process image here...
-            logger.info(f"Start processing image analysis {image.analysis_id}")
-            try:
-                response = requests.post(
-                    f"{settings.INSURANCE_PROCESSING_API_URL}/claim-image/claim-image-process",
-                    json={"image_url": image.image_url},
-                    headers={
-                        "x-api-key": f"{settings.CLAIM_IMAGE_PROCESS_API_KEY}",
-                        "Content-Type": "application/json",
-                    }
-                )
-                if response.status_code != 200:
-                    raise Exception(f"Failed to process image analysis {image.analysis_id}")
+        # Update status to processing
+        image.status = ClaimImageStatus.PROCESSING.value
+        db.commit()
+        db.refresh(image)
 
-                image.status = ClaimImageStatus.SUCCESS.value
-                image.json_data = response.json().get("data", {})
-                db.commit()
-                db.refresh(image)
-            except Exception as e:
-                logger.error(f"Error processing image analysis {image.analysis_id}: {str(e)}")
-                image.status = ClaimImageStatus.FAILED.value
-                image.error_message = str(e)
-                db.commit()
-
-            mapped_results = []
-            if image.json_data:
-                # convert json_data to list of dict
-                json_data_list = [json.loads(item) for item in image.json_data]
-                mapped_results = await mapping_assessment_item(json_data_list)
-                image.results = json.dumps(mapped_results)
-                db.commit()
-            
-            notification_result = await FirebaseNotificationService.send_notification_to_topic(
-                topic=settings.FIREBASE_TOPIC,
-                title="Image Analysis Complete",
-                body="Your image has been successfully analyzed.",
-                data={
-                    "analysis_id": image.analysis_id,
-                    "assessment_id": image.assessment_id,
-                    # "status": image.status,
-                    "results": mapped_results
+        # Process image here...
+        logger.info(f"Start processing image analysis {image.analysis_id}")
+        try:
+            response = requests.post(
+                f"{settings.INSURANCE_PROCESSING_API_URL}/claim-image/claim-image-process",
+                json={"image_url": image.image_url},
+                headers={
+                    "x-api-key": f"{settings.CLAIM_IMAGE_PROCESS_API_KEY}",
+                    "Content-Type": "application/json",
                 }
             )
+            if response.status_code != 200:
+                raise Exception(f"Failed to process image analysis {image.analysis_id}")
 
-            logger.info(f"Notification result: {notification_result}")
-
+            image.status = ClaimImageStatus.SUCCESS.value
+            image.json_data = response.json().get("data", {})
+            db.commit()
+            db.refresh(image)
         except Exception as e:
-            logger.error(f"Error processing message: {str(e)}")
-            if image:
-                image.status = ClaimImageStatus.FAILED.value
-                image.error_message = str(e)
-                db.commit()
+            logger.error(f"Error processing image analysis {image.analysis_id}: {str(e)}")
+            image.status = ClaimImageStatus.FAILED.value
+            image.error_message = str(e)
+            db.commit()
 
-                notification_result = await FirebaseNotificationService.send_notification_to_topic(
-                    topic=settings.FIREBASE_TOPIC,
-                    title="Image Analysis Failed",
-                    body="There was an error analyzing your image.",
-                    data={
-                        "analysis_id": image.analysis_id,
-                        "assessment_id": image.assessment_id,
-                        # "status": image.status,
-                        "results": []
-                    }
-                )
-        finally:
-            db.close()
+        mapped_results = []
+        if image.json_data:
+            # convert json_data to list of dict
+            json_data_list = [json.loads(item) for item in image.json_data]
+            mapped_results = await mapping_assessment_item(json_data_list)
+            image.results = json.dumps(mapped_results)
+            db.commit()
+
+        notification_result = await FirebaseNotificationService.send_notification_to_topic(
+            topic=settings.FIREBASE_TOPIC,
+            title="Image Analysis Complete",
+            body="Your image has been successfully analyzed.",
+            data={
+                "analysis_id": image.analysis_id,
+                "assessment_id": image.assessment_id,
+                # "status": image.status,
+                "results": mapped_results
+            }
+        )
+
+        logger.info(f"Notification result: {notification_result}")
+
+        # except Exception as e:
+        #     logger.error(f"Error processing message: {str(e)}")
+        #     if image:
+        #         image.status = ClaimImageStatus.FAILED.value
+        #         image.error_message = str(e)
+        #         db.commit()
+        #
+        #         notification_result = await FirebaseNotificationService.send_notification_to_topic(
+        #             topic=settings.FIREBASE_TOPIC,
+        #             title="Image Analysis Failed",
+        #             body="There was an error analyzing your image.",
+        #             data={
+        #                 "analysis_id": image.analysis_id,
+        #                 "assessment_id": image.assessment_id,
+        #                 # "status": image.status,
+        #                 "results": []
+        #             }
+        #         )
+        # finally:
+        db.close()
 
 
 async def mapping_assessment_item(json_data_list: list):
