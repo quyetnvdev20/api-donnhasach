@@ -52,7 +52,7 @@ async def process_message(message: aio_pika.IncomingMessage):
                         "x-api-key": f"{settings.CLAIM_IMAGE_PROCESS_API_KEY}",
                         "Content-Type": "application/json",
                     },
-                    timeout=5
+                    timeout=settings.CLAIM_IMAGE_PROCESS_TIMEOUT
                 )
                 if response.status_code != 200:
                     raise Exception(f"Failed to process image analysis {image.analysis_id}")
