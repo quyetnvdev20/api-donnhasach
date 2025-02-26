@@ -131,8 +131,8 @@ async def mapping_assessment_item(json_data_list: list):
     for data_dict in json_data_list:
         for category, state in data_dict.items():
             transformed_items.append({
-                "damage_name": category,
-                "item_name": state
+                "damage_name": state,
+                "item_name": category
             })
 
     if not transformed_items:
@@ -143,7 +143,7 @@ async def mapping_assessment_item(json_data_list: list):
     values = []
     for i, item in enumerate(transformed_items):
         placeholders.append(f"(iclc.name = ${2 * i + 1} AND isc.name = ${2 * i + 2})")
-        values.extend([item["damage_name"], item["item_name"]])
+        values.extend([item["item_name"], item["damage_name"]])
 
     query = f"""
         SELECT 
@@ -165,14 +165,14 @@ async def mapping_assessment_item(json_data_list: list):
     # Map results using dict comprehension
     result_map = {
         (row["category_name"], row["state_name"]): {
-            "damage_id": row["category_id"],
-            "item_id": row["state_id"]
+            "damage_id": row["state_id"],
+            "item_id": row["category_id"]
         } for row in results
     }
 
     # Update transformed items with IDs
     for item in transformed_items:
-        key = (item["damage_name"], item["item_name"])
+        key = (item["item_name"], item["damage_name"])
         if key in result_map:
             item.update(result_map[key])
 

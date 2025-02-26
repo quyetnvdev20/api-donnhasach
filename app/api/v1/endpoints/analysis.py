@@ -74,7 +74,9 @@ async def submit_image_for_analysis(
     
     return new_image
 
-# @router.get("/assessment/test")
-# async def test():
-#     return await mapping_assessment_item([{'Gương chiếu hậu trái': 'Vỡ, gãy'}, 
-#                                           {'Badosox trước cản trước': 'Trầy xước'}])
+@router.get("/assessment/test")
+async def test(
+    db: Session = Depends(get_db)
+):
+    image = db.query(Image).filter(Image.id == "17405629615708").first()
+    return await mapping_assessment_item(image.list_json_data)
