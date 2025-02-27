@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     INSURANCE_PROCESSING_API_URL: str
     CLAIM_IMAGE_PROCESS_API_KEY: str
     CLAIM_IMAGE_PROCESS_TIMEOUT: int = 10
+    CONCURRENT_WORKERS: int = 10
 
     # Firebase configuration
     FIREBASE_API_KEY: str = ""

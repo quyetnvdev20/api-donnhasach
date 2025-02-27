@@ -70,7 +70,7 @@ async def submit_image_for_analysis(
 async def test(
     db: Session = Depends(get_db)
 ):
-    images = db.query(Image).filter(Image.id == "3333").all()
+    images = db.query(Image).filter(Image.analysis_id == "17406439285770").all()
     for image in images:
         
         await publish_event(
