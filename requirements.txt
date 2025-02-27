@@ -19,3 +19,4 @@ aiohttp==3.10.5
 python-dateutil==2.8.2
 minio==7.2.15
 firebase-admin>=6.0.0
+httpx==0.24.1
