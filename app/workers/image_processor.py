@@ -47,6 +47,66 @@ class ImageProcessor:
         asyncio.set_event_loop(self.loop)
         self.semaphore = asyncio.Semaphore(CONCURRENT_WORKERS)
 
+    async def mapping_assessment_item(self, json_data_list: list):
+        """
+        Map assessment items from json_data to database IDs
+
+        Args:
+            json_data_list (list): List of dictionaries containing category and state mappings
+        """
+        transformed_items = []
+
+        # Transform the input data
+        for data_dict in json_data_list:
+            for category, state in data_dict.items():
+                transformed_items.append({
+                    "damage_name": state,
+                    "item_name": category
+                })
+
+        if not transformed_items:
+            return []
+
+        # Build the WHERE clause with proper parameter placeholders
+        placeholders = []
+        values = []
+        for i, item in enumerate(transformed_items):
+            placeholders.append(f"(iclc.name = ${2 * i + 1} AND isc.name = ${2 * i + 2})")
+            values.extend([item["item_name"], item["damage_name"]])
+
+        query = f"""
+            SELECT 
+                iclc.id AS category_id,
+                isc.id AS state_id,
+                iclc.name AS category_name,
+                isc.name AS state_name
+            FROM insurance_claim_list_category iclc
+            JOIN insurance_state_category isc ON 1=1
+            WHERE {' OR '.join(placeholders)};
+        """
+
+        results = await PostgresDB.execute_query(query, values)
+        print(results)
+
+        if not results:
+            return []
+
+        # Map results using dict comprehension
+        result_map = {
+            (row["category_name"], row["state_name"]): {
+                "damage_id": row["state_id"],
+                "item_id": row["category_id"]
+            } for row in results
+        }
+
+        # Update transformed items with IDs
+        for item in transformed_items:
+            key = (item["item_name"], item["damage_name"])
+            if key in result_map:
+                item.update(result_map[key])
+
+        return transformed_items
+
     async def process_message(self, message: aio_pika.IncomingMessage):
         async with self.semaphore:
             async with message.process():
@@ -97,7 +157,8 @@ class ImageProcessor:
 
                     mapped_results = []
                     if image.list_json_data:
-                        mapped_results = await mapping_assessment_item(image.list_json_data)
+                        # Call mapping_assessment_item as instance method
+                        mapped_results = await self.mapping_assessment_item(image.list_json_data)
                         image.results = json.dumps(mapped_results)
                         db.commit()
 
@@ -209,63 +270,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-async def mapping_assessment_item(json_data_list: list):
-    """
-    Map assessment items from json_data to database IDs
-
-    Args:
-        json_data_list (list): List of dictionaries containing category and state mappings
-    """
-    transformed_items = []
-
-    # Transform the input data
-    for data_dict in json_data_list:
-        for category, state in data_dict.items():
-            transformed_items.append({
-                "damage_name": state,
-                "item_name": category
-            })
-
-    if not transformed_items:
-        return []
-
-    # Build the WHERE clause with proper parameter placeholders
-    placeholders = []
-    values = []
-    for i, item in enumerate(transformed_items):
-        placeholders.append(f"(iclc.name = ${2 * i + 1} AND isc.name = ${2 * i + 2})")
-        values.extend([item["item_name"], item["damage_name"]])
-
-    query = f"""
-        SELECT 
-            iclc.id AS category_id,
-            isc.id AS state_id,
-            iclc.name AS category_name,
-            isc.name AS state_name
-        FROM insurance_claim_list_category iclc
-        JOIN insurance_state_category isc ON 1=1
-        WHERE {' OR '.join(placeholders)};
-    """
-
-    results = await PostgresDB.execute_query(query, values)
-    print(results)
-
-    if not results:
-        return []
-
-    # Map results using dict comprehension
-    result_map = {
-        (row["category_name"], row["state_name"]): {
-            "damage_id": row["state_id"],
-            "item_id": row["category_id"]
-        } for row in results
-    }
-
-    # Update transformed items with IDs
-    for item in transformed_items:
-        key = (item["item_name"], item["damage_name"])
-        if key in result_map:
-            item.update(result_map[key])
-
-    return transformed_items
