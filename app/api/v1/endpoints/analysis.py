@@ -32,19 +32,19 @@ async def submit_image_for_analysis(
     
     # Check exist image_id and session_id
     existing_image = db.query(Image).filter(
-        Image.analysis_id == request.analysis_id or request.image_id,
-        Image.id == request.image_id,
-        Image.assessment_id == assessment_id,
+        Image.analysis_id == str(request.analysis_id or request.image_id),
+        Image.id == str(request.image_id),
+        Image.assessment_id == str(assessment_id),
     ).first()
     if existing_image:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image already exists")
     
     try:
         new_image = Image(
-            analysis_id=request.analysis_id or request.image_id,
-            assessment_id=assessment_id,
+            analysis_id=str(request.analysis_id or request.image_id),
+            assessment_id=str(assessment_id),
             image_url=request.image_url,
-            id=request.image_id,
+            id=str(request.image_id),
             device_token=request.device_token,
             keycloak_user_id=current_user.get("sub"),
             status=ClaimImageStatus.PENDING.value
@@ -61,8 +61,8 @@ async def submit_image_for_analysis(
             exchange_name="image.analysis.direct",
             event_type="image.analysis.processing",
             payload={
-                "analysis_id": request.analysis_id or request.image_id,
-                "assessment_id": assessment_id,
+                "analysis_id": str(request.analysis_id or request.image_id),
+                "assessment_id": str(assessment_id),
                 "image_url": request.image_url,
                 "keycloak_user_id": current_user.get("sub")
             }
