@@ -10,7 +10,6 @@ import uuid
 import logging
 from datetime import datetime
 from app.config import ClaimImageStatus
-from app.workers.image_processor import mapping_assessment_item
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
