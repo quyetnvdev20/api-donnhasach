@@ -37,40 +37,31 @@ async def submit_image_for_analysis(
         Image.assessment_id == str(assessment_id),
     ).first()
     if existing_image:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image already exists")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Image already exists")
     
-    try:
-        new_image = Image(
-            analysis_id=str(request.analysis_id or request.image_id),
-            assessment_id=str(assessment_id),
-            image_url=request.image_url,
-            id=str(request.image_id),
-            device_token=request.device_token,
-            keycloak_user_id=current_user.get("sub"),
-            status=ClaimImageStatus.PENDING.value
-        )
-        db.add(new_image)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to submit image for analysis")
+    new_image = Image(
+        analysis_id=str(request.analysis_id or request.image_id),
+        assessment_id=str(assessment_id),
+        image_url=request.image_url,
+        id=str(request.image_id),
+        device_token=request.device_token,
+        keycloak_user_id=current_user.get("sub"),
+        status=ClaimImageStatus.PENDING.value
+    )
+    db.add(new_image)
+    db.commit()
+    
     # Publish event for Image Analysis Processing Task
-
-    try:
-        await publish_event(
-            exchange_name="image.analysis.direct",
-            event_type="image.analysis.processing",
-            payload={
-                "analysis_id": str(request.analysis_id or request.image_id),
-                "assessment_id": str(assessment_id),
-                "image_url": request.image_url,
-                "keycloak_user_id": current_user.get("sub")
-            }
-        )
-    except Exception as e:
-        # save error message to database
-        new_image.error_message = str(e)
-        db.commit()
+    await publish_event(
+        exchange_name="image.analysis.direct",
+        event_type="image.analysis.processing",
+        payload={
+            "analysis_id": str(request.analysis_id or request.image_id),
+            "assessment_id": str(assessment_id),
+            "image_url": request.image_url,
+            "keycloak_user_id": current_user.get("sub")
+        }
+    )
     
     return new_image
 
