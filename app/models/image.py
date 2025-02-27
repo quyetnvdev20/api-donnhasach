@@ -21,6 +21,7 @@ class Image(Base):
     error_message = Column(String)
     json_data = Column(MutableDict.as_mutable(JSON))
     list_json_data = Column(MutableList.as_mutable(ARRAY(JSON)))
+    auto_analysis = Column(Boolean, default=False)
     keycloak_user_id = Column(String)
 
     device_token = Column(String)

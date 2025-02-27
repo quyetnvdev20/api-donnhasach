@@ -46,6 +46,7 @@ async def submit_image_for_analysis(
         id=str(request.image_id),
         device_token=request.device_token,
         keycloak_user_id=current_user.get("sub"),
+        auto_analysis=request.auto_analysis,
         status=ClaimImageStatus.PENDING.value
     )
     db.add(new_image)

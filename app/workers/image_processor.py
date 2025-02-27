@@ -76,10 +76,11 @@ async def process_message(message: aio_pika.IncomingMessage):
                 db.commit()
 
             data_vals = {
-                    "analysis_id": str(image.analysis_id),
-                    "assessment_id": str(image.assessment_id),
-                    "image_id": str(image.id),
-                    "image_url": str(image.image_url),
+                    "analysis_id": image.analysis_id,
+                    "assessment_id": image.assessment_id,
+                    "image_id": image.id,
+                    "image_url": image.image_url,
+                    "auto_analysis": image.auto_analysis,
                     # "status": image.status,
                     "results": json.dumps(mapped_results)
                 }

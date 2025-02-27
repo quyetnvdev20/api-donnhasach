@@ -8,6 +8,7 @@ class ImageAnalysisRequest(BaseModel):
     image_url: str
     image_id: str
     device_token: str
+    auto_analysis: bool = False
 
 class ImageAnalysisResponse(BaseModel):
     analysis_id: str
