@@ -54,7 +54,7 @@ async def submit_image_for_analysis(
     # Publish event for Image Analysis Processing Task
     await publish_event(
         exchange_name="image.analysis.direct",
-        event_type="image.analysis.processing",
+        routing_key="image.uploaded",
         payload={
             "analysis_id": str(request.analysis_id or request.image_id),
             "assessment_id": str(assessment_id),
