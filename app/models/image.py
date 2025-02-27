@@ -10,9 +10,9 @@ from sqlalchemy.ext.mutable import MutableDict, MutableList
 class Image(Base):
     __tablename__ = "images"
 
-    analysis_id = Column(String, primary_key=True)
+    analysis_id = Column(String)
     assessment_id = Column(String)
-    id = Column(String)
+    id = Column(String, primary_key=True)
     image_url = Column(String)
     scan_image_url = Column(String) 
     status = Column(Enum(ClaimImageStatus), default=ClaimImageStatus.PENDING)

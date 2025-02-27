@@ -70,5 +70,18 @@ async def submit_image_for_analysis(
 async def test(
     db: Session = Depends(get_db)
 ):
-    image = db.query(Image).filter(Image.id == "17405629615708").first()
-    return await mapping_assessment_item(image.list_json_data)
+    images = db.query(Image).filter(Image.id == "3333").all()
+    for image in images:
+        
+        await publish_event(
+        exchange_name="image.analysis.direct",
+        routing_key="image.uploaded",
+        payload={
+            "analysis_id": image.analysis_id,
+            "assessment_id": image.assessment_id,
+            "image_url": image.image_url,
+            "keycloak_user_id": image.keycloak_user_id,
+            "auto_analysis": image.auto_analysis
+        }
+    )
+    return {"message": "success"}
