@@ -115,6 +115,7 @@ async def process_message(message: aio_pika.IncomingMessage):
                         "assessment_id": image.assessment_id,
                         "image_id": str(image.id),
                         "image_url": str(image.image_url),
+                        "auto_analysis": image.auto_analysis,
                         # "status": image.status,
                         "results": json.dumps([])
                     }
