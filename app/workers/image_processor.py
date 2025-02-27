@@ -7,31 +7,15 @@ from ..database import SessionLocal
 from ..models.image import Image
 from ..config import settings, ClaimImageStatus
 import logging
-from logging.handlers import RotatingFileHandler
-from logging import Formatter
 import requests
 from tenacity import retry, stop_after_attempt, wait_exponential
+
 from ..services.firebase import FirebaseNotificationService
 from ..utils.erp_db import PostgresDB
 
-# Thiết lập logger
-logger = logging.getLogger('worker')
-file_handler = RotatingFileHandler('worker.log', backupCount=1)
-handler = logging.StreamHandler()
-file_handler.setFormatter(Formatter(
-    '%(asctime)s %(levelname)s : %(message)s '
-    '[in %(module)s: %(pathname)s:%(lineno)d]'
-))
-handler.setFormatter(Formatter(
-    '%(asctime)s %(levelname)s: %(message)s '
-    '[in %(module)s: %(pathname)s:%(lineno)d]'
-))
-logger.addHandler(file_handler)
-logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Remove default logging config to avoid duplicate logs
-logging.getLogger().handlers = []
 
 LIST_FIELD_REQUIRED = [
     'serial_number',
@@ -96,7 +80,7 @@ async def process_message(message: aio_pika.IncomingMessage):
                     "assessment_id": image.assessment_id,
                     "image_id": image.id,
                     "image_url": image.image_url,
-                    "auto_analysis": image.auto_analysis,
+                    "auto_analysis": str(image.auto_analysis),
                     # "status": image.status,
                     "results": json.dumps(mapped_results)
                 }
@@ -105,8 +89,8 @@ async def process_message(message: aio_pika.IncomingMessage):
             logger.info(f"Data vals: {data_vals}")
 
             notification_result = await FirebaseNotificationService.send_notification_to_topic(
-                # topic=f'tic_claim_{str(image.keycloak_user_id)}',
-                topic=settings.FIREBASE_TOPIC,
+                topic=f'tic_claim_{str(image.keycloak_user_id)}',
+                # topic=settings.FIREBASE_TOPIC,
                 title="Image Analysis Complete",
                 body="Your image has been successfully analyzed.",
                 data=data_vals
@@ -122,8 +106,8 @@ async def process_message(message: aio_pika.IncomingMessage):
                 db.commit()
 
                 notification_result = await FirebaseNotificationService.send_notification_to_topic(
-                    # topic=f'tic_claim_{str(image.keycloak_user_id)}',
-                    topic=settings.FIREBASE_TOPIC,
+                    topic=f'tic_claim_{str(image.keycloak_user_id)}',
+                    # topic=settings.FIREBASE_TOPIC,
                     title="Image Analysis Failed",
                     body="There was an error analyzing your image.",
                     data={
@@ -131,7 +115,7 @@ async def process_message(message: aio_pika.IncomingMessage):
                         "assessment_id": image.assessment_id,
                         "image_id": str(image.id),
                         "image_url": str(image.image_url),
-                        "auto_analysis": image.auto_analysis,
+                        "auto_analysis": str(image.auto_analysis),
                         # "status": image.status,
                         "results": json.dumps([])
                     }
@@ -211,7 +195,6 @@ async def connect_to_rabbitmq():
     return await aio_pika.connect_robust(settings.RABBITMQ_URL)
 
 async def main():
-    logger.info("Starting image processor worker")
     # Connect to RabbitMQ with retry
     connection = await connect_to_rabbitmq()
     channel = await connection.channel()
@@ -233,9 +216,4 @@ async def main():
         await connection.close()
 
 if __name__ == "__main__":
-    try:
-        logger.info("Initializing image processor worker")
-        asyncio.run(main())
-    except Exception as e:
-        logger.error(f"Fatal error in image processor: {str(e)}", exc_info=True)
-        raise
+    asyncio.run(main())
