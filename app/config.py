@@ -8,7 +8,10 @@ class ClaimImageStatus(str, Enum):
     FAILED = "failed"
 
 class Settings(BaseSettings):
+    ROOT_DIR: str = '/'.join(__file__.split('/')[:-2])
+
     DATABASE_URL: str
+    OPENAI_API_KEY: str
     RABBITMQ_URL: str
     KEYCLOAK_HOST: str
     KEYCLOAK_REALM: str

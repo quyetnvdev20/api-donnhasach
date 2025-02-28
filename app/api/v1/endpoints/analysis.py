@@ -1,4 +1,8 @@
+import base64
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, status, Body
+from openai import AsyncOpenAI
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from ....database import get_db
@@ -14,6 +18,13 @@ import uuid
 import logging
 from datetime import datetime
 from app.config import ClaimImageStatus, settings
+
+
+with open(f'{settings.ROOT_DIR}/app/data/list_name_dict.json', 'r', encoding='utf-8') as f:
+    LIST_NAME_DICT = json.load(f)
+with open(f'{settings.ROOT_DIR}/app/data/list_damage_dict.json', 'r', encoding='utf-8') as f:
+    LIST_DAMAGE_DICT = json.load(f)
+
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -137,95 +148,80 @@ async def process_image_analysis(
 
     try:
         # Process image using httpx
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{settings.INSURANCE_PROCESSING_API_URL}/claim-image/claim-image-process",
-                json={"image_url": new_image.image_url},
-                headers={
-                    "x-api-key": settings.CLAIM_IMAGE_PROCESS_API_KEY,
-                    "Content-Type": "application/json",
-                },
-                timeout=settings.CLAIM_IMAGE_PROCESS_TIMEOUT
-            )
-            
-            if response.status_code != 200:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to process image analysis: {response.text}"
-                )
+        response = await process_image_with_gpt(new_image.image_url)
 
-            # Update image with results
-            new_image.status = ClaimImageStatus.SUCCESS.value
-            new_image.list_json_data = response.json().get("data", [])
+        # Update image with results
+        new_image.status = ClaimImageStatus.SUCCESS.value
+        new_image.list_json_data = response
+        db.commit()
+        db.refresh(new_image)
+
+        # Map assessment items
+        mapped_results = []
+        if new_image.list_json_data:
+            # Transform and map the data
+            transformed_items = []
+            for data_dict in new_image.list_json_data:
+                for category, state in data_dict.items():
+                    transformed_items.append({
+                        "damage_name": state,
+                        "item_name": category
+                    })
+
+            if transformed_items:
+                # Build query
+                placeholders = []
+                values = []
+                for i, item in enumerate(transformed_items):
+                    placeholders.append(f"(iclc.name = ${2*i + 1} AND isc.name = ${2*i + 2})")
+                    values.extend([item["item_name"], item["damage_name"]])
+
+                query = f"""
+                    SELECT 
+                        iclc.id AS category_id,
+                        isc.id AS state_id,
+                        iclc.name AS category_name,
+                        isc.name AS state_name
+                    FROM insurance_claim_list_category iclc
+                    JOIN insurance_state_category isc ON 1=1
+                    WHERE {' OR '.join(placeholders)};
+                """
+
+                results = await PostgresDB.execute_query(query, values)
+
+                if results:
+                    result_map = {
+                        (row["category_name"], row["state_name"]): {
+                            "damage_id": row["state_id"],
+                            "item_id": row["category_id"]
+                        } for row in results
+                    }
+
+                    for item in transformed_items:
+                        key = (item["item_name"], item["damage_name"])
+                        if key in result_map:
+                            item.update(result_map[key])
+                            mapped_results.append(item)
+
+            new_image.results = json.dumps(mapped_results)
             db.commit()
-            db.refresh(new_image)
 
-            # Map assessment items
-            mapped_results = []
-            if new_image.list_json_data:
-                # Transform and map the data
-                transformed_items = []
-                for data_dict in new_image.list_json_data:
-                    for category, state in data_dict.items():
-                        transformed_items.append({
-                            "damage_name": state,
-                            "item_name": category
-                        })
+        # Send notification
+        notification_data = {
+            "analysis_id": new_image.analysis_id,
+            "assessment_id": new_image.assessment_id,
+            "image_id": str(new_image.id),
+            "image_url": str(new_image.image_url),
+            "auto_analysis": str(new_image.auto_analysis),
+            "results": json.dumps(mapped_results)
+        }
 
-                if transformed_items:
-                    # Build query
-                    placeholders = []
-                    values = []
-                    for i, item in enumerate(transformed_items):
-                        placeholders.append(f"(iclc.name = ${2*i + 1} AND isc.name = ${2*i + 2})")
-                        values.extend([item["item_name"], item["damage_name"]])
-
-                    query = f"""
-                        SELECT 
-                            iclc.id AS category_id,
-                            isc.id AS state_id,
-                            iclc.name AS category_name,
-                            isc.name AS state_name
-                        FROM insurance_claim_list_category iclc
-                        JOIN insurance_state_category isc ON 1=1
-                        WHERE {' OR '.join(placeholders)};
-                    """
-
-                    results = await PostgresDB.execute_query(query, values)
-                    
-                    if results:
-                        result_map = {
-                            (row["category_name"], row["state_name"]): {
-                                "damage_id": row["state_id"],
-                                "item_id": row["category_id"]
-                            } for row in results
-                        }
-
-                        for item in transformed_items:
-                            key = (item["item_name"], item["damage_name"])
-                            if key in result_map:
-                                item.update(result_map[key])
-                                mapped_results.append(item)
-
-                new_image.results = json.dumps(mapped_results)
-                db.commit()
-
-            # Send notification
-            notification_data = {
-                "analysis_id": new_image.analysis_id,
-                "assessment_id": new_image.assessment_id,
-                "image_id": str(new_image.id),
-                "image_url": str(new_image.image_url),
-                "auto_analysis": str(new_image.auto_analysis),
-                "results": json.dumps(mapped_results)
-            }
-
-            await FirebaseNotificationService.send_notification_to_topic(
-                topic=f'tic_claim_{str(new_image.keycloak_user_id)}',
-                title="Image Analysis Complete",
-                body="Your image has been successfully analyzed.",
-                data=notification_data
-            )
+        await FirebaseNotificationService.send_notification_to_topic(
+            topic=f'tic_claim_{str(new_image.keycloak_user_id)}',
+            title="Image Analysis Complete",
+            body="Your image has been successfully analyzed.",
+            data=notification_data
+        )
 
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}")
@@ -254,3 +250,68 @@ async def process_image_analysis(
         )
 
     return new_image
+
+
+async def process_image_with_gpt(image_url: str) -> list:
+    try:
+        #convert image_url to base64
+        async with httpx.AsyncClient() as client:
+            image = await client.get(image_url)
+        base64_image = base64.b64encode(image.content).decode('utf-8')
+
+        prompt = f"""Bạn là một chuyên gia giám định xe ô tô hàng đầu thế giới. 
+Hãy phân tích chính xác xem trong hình ảnh sau đây những bộ phận nào của xe ô tô bị tổn thất.
+Luôn luôn lựa chọn bộ phận và tổn thất chính xác nhất từ danh sách bộ phận và danh sách tổn thất bên dưới. **Không được tự ý suy diễn hoặc tạo ra thông tin không có trong danh sách.**  
+
+**Lưu ý quan trọng:**
+**Không được nhầm lẫn giữa bên trái và bên phải của xe.**  
+**Luôn xác định trái/phải dựa trên góc nhìn khi đứng từ phía sau xe.**  
+
+**Nguyên tắc quan trọng khi xác định bộ phận trái/phải:**  
+1. **Tưởng tượng bạn đang đứng phía sau xe, nhìn về phía trước.**  
+2. **Bộ phận bên trái là những bộ phận nằm về phía tay trái của bạn.**  
+3. **Bộ phận bên phải là những bộ phận nằm về phía tay phải của bạn.**  
+4. Không xác định trái/phải theo hình ảnh mà bạn đang thấy nếu không xét đến quy tắc trên.  
+
+**Danh sách bộ phận của xe ô tô (ID - Tên bộ phận):**  
+{LIST_NAME_DICT}  
+
+**Danh sách tổn thất có thể có của xe ô tô (ID - Tên tổn thất):**  
+{LIST_DAMAGE_DICT}  
+
+**Output yêu cầu:**  
+- Trả về dữ liệu dưới dạng JSON. 
+- Key là 'damage_info', value là 1 dict có key là id của bộ phận, value là id của tổn thất. ID để dạng string.
+- Không trả ra bất kỳ thông tin nào khác.
+"""
+        client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        response = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": prompt
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+                        }
+                    ]
+                }
+            ],
+            response_format={"type": "json_object"}
+        )
+        response_content = response.choices[0].message.content
+        output = json.loads(response_content)["damage_info"]
+        output_final = []
+        for key, value in output.items():
+            output_final.append({
+                LIST_NAME_DICT[str(key)]: LIST_DAMAGE_DICT[str(value)]
+            })
+        return output_final
+
+    except Exception as e:
+        raise e
