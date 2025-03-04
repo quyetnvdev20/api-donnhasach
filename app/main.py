@@ -3,8 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 from .services.rabbitmq import publish_event
 from .db_init import init_db
-from .api.v1.endpoints import analysis, notifications, assessment
-
+from .api.v1.endpoints import analysis, notifications, assessment, repair
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,7 +26,7 @@ app.add_middleware(
 app.include_router(analysis.router, prefix="/claims", tags=["analysis"])
 app.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 app.include_router(assessment.router, prefix="/assessment", tags=["assessments"])
-
+app.include_router(repair.router, prefix="/repairs", tags=["repairs"])
 
 @app.get("/health")
 async def health_check():
