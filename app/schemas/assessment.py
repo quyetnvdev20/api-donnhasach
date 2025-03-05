@@ -111,7 +111,7 @@ class AssessmentItem(BaseModel):
     category_id: CategoryId
     status: Status
     solution: Solution
-    listImageRemove: List[int]
+    listImageRemove: List[int] = None
     images: List[ImageInfo] = None
 
 
