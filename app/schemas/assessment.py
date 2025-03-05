@@ -5,15 +5,19 @@ from pydantic import BaseModel
 
 # Models for Assessment List
 class AssessmentListItem(BaseModel):
+    name: str
     license_plate: str
-    vehicle: str
-    customer_name: str
-    assessment_address: str
+    vehicle: Optional[str]
+    customer_name: Optional[str]
+    assessment_address: Optional[str]
     current_distance: float
-    notification_time: str
+    notification_time: Optional[str]
+    complete_time: Optional[str]
     urgency_level: bool
     assessment_progress: int
     note: Optional[str] = None
+    status: Optional[str]
+    status_color: Optional[str] = "#212121"
 
 
 # Models for Assessment Detail

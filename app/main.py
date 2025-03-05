@@ -29,6 +29,7 @@ app.include_router(assessment.router, prefix="/assessment", tags=["assessments"]
 app.include_router(repair.router, prefix="/repairs", tags=["repairs"])
 app.include_router(odoo_test.router, prefix="/odoo", tags=["odoo"])
 
+
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}

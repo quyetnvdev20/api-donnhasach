@@ -14,45 +14,102 @@ import logging
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+color = {
+    'wait': '#2196F3',
+    'done': '#4CAF50',
+    'cancel': '#212121',
+}
+
 
 @router.get("", response_model=List[AssessmentListItem])
 async def get_assessment_list(
+        search: Optional[str] = None,
+        page: int = 1,
+        size: int = 10,
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
     """
     Get list of assessments that need to be processed
     """
-    if not current_user.get("sub"):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    query = f"""
+        SELECT
+            rc.license_plate AS license_plate,
+            rcb.name AS vehicle,
+            gd_chi_tiet.name_driver AS customer_name,
+            gd_chi_tiet.name AS name,
+            gd_chi_tiet.state AS status,
+            CONCAT_WS(', ', 
+                NULLIF(first_damage.location_damage, ''),
+                NULLIF(ward.name, ''),
+                NULLIF(district.name, ''),
+                NULLIF(province.name, '')
+            ) AS assessment_address,
+            TO_CHAR(icr.date_damage, 'DD/MM/YYYY - HH24:MI') AS notification_time,
+            TO_CHAR(icr.date_damage + INTERVAL '3 hours', 'DD/MM/YYYY - HH24:MI') AS complete_time,
+            icr.note AS note
+        FROM insurance_claim_appraisal_detail gd_chi_tiet
+        LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
+        LEFT JOIN res_car rc ON rc.id = gd_chi_tiet.car_id
+        LEFT JOIN res_car_brand rcb ON rcb.id = rc.car_brand_id
+        LEFT JOIN LATERAL (
+            SELECT * FROM insurance_claim_damage icd 
+            WHERE icd.insur_claim_id = icr.id
+            ORDER BY icd.id
+            LIMIT 1
+        ) AS first_damage ON true
+        LEFT JOIN res_province province ON province.id = first_damage.province_id
+        LEFT JOIN res_district district ON district.id = first_damage.district_id
+        LEFT JOIN res_ward ward ON ward.id = first_damage.ward_id
+        WHERE 1=1
+    """
 
-    # Mock data for now - in production this would come from a database
-    assessments = [
-        {
-            "license_plate": "30H92087",
-            "vehicle": "Mitsubishi Expander",
-            "customer_name": "Lê Văn An",
-            "assessment_address": "Số 15 đường Trần Phú Phường Tân Thạch Thành phố Nam Kỳ",
-            "current_distance": 2.3,
-            "notification_time": "01/03/2025 00:00",
-            "urgency_level": True,
-            "assessment_progress": 25,
-            "note": "Khách hàng đang cần giám định gấp tại Gara Ford Đà Nẵng!"
-        },
-        {
-            "license_plate": "30H93333",
-            "vehicle": "Mitsubishi Outlander",
-            "customer_name": "Nguyễn Văn Sĩ",
-            "assessment_address": "Số 15 đường Tân Phú Phường Trấn Thạch Thành phố Nam Kỳ",
-            "current_distance": 3.5,
-            "notification_time": "01/03/2025 00:00",
-            "urgency_level": False,
-            "assessment_progress": 0,
-            "note": "Khách hàng đang cần giám định gấp tại Gara Ford Đà Nẵng!"
-        }
-    ]
+    params = []
 
-    return assessments
+    if search:
+        query += """
+            AND (
+                gd_chi_tiet.name ILIKE $1
+                OR rc.license_plate ILIKE $1
+                OR rcb.name ILIKE $1
+                OR gd_chi_tiet.name_driver ILIKE $1
+                OR CONCAT_WS(', ', 
+                    NULLIF(first_damage.location_damage, ''),
+                    NULLIF(ward.name, ''),
+                    NULLIF(district.name, ''),
+                    NULLIF(province.name, '')
+                ) ILIKE $1
+            )
+        """
+        params.append(f"%{search}%")
+
+    # Add ordering and pagination
+    query += f"""
+    ORDER BY gd_chi_tiet.id DESC
+    LIMIT {size} OFFSET {(page - 1) * size}
+    """
+
+    results = await PostgresDB.execute_query(query, params)
+    
+    # Add status_color based on status
+    enhanced_results = []
+    for result in results:
+        # Convert result to dict if it's not already
+        if not isinstance(result, dict):
+            result = dict(result)
+        
+        # Add status_color based on the status
+        status = result.get('status')
+        result['status_color'] = color.get(status, '#757575')  # Default to gray if status not found
+        
+        # Add random values for current_distance and assessment_progress
+        result['urgency_level'] = True
+        result['current_distance'] = 2.5
+        result['assessment_progress'] = 1
+
+        enhanced_results.append(result)
+    
+    return enhanced_results
 
 
 @router.get("/{assessment_id}", response_model=AssessmentDetail)
@@ -64,8 +121,6 @@ async def get_assessment_detail(
     """
     Get detailed information about a specific assessment
     """
-    if not current_user.get("sub"):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
     # Mock data for now - in production this would come from a database
     assessment_detail = {
@@ -143,8 +198,6 @@ async def get_vehicle_detail_assessment(
     """
     Get detailed vehicle assessment information
     """
-    if not current_user.get("sub"):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
     # Mock data for now - in production this would come from a database
     vehicle_detail = {
@@ -192,8 +245,6 @@ async def update_vehicle_detail_assessment(
     """
     Update vehicle detail assessment information
     """
-    if not current_user.get("sub"):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
     # In a real implementation, you would save the data to the database
     # For now, we'll just return the input data
@@ -209,8 +260,6 @@ async def get_document_collection(
     """
     Get document collection information
     """
-    if not current_user.get("sub"):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
     # Mock data for now - in production this would come from a database
     document_collection = {
@@ -278,9 +327,6 @@ async def update_document_collection(
     """
     Update document collection information
     """
-    if not current_user.get("sub"):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
-
     # In a real implementation, you would save the data to the database
     # For now, we'll just return the input data
     return document_collection
@@ -295,9 +341,6 @@ async def get_accident_notification(
     """
     Get accident notification information
     """
-    if not current_user.get("sub"):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
-
     # Mock data for now - in production this would come from a database
     accident_notification = {
         "id": 1,
@@ -337,8 +380,6 @@ async def update_accident_notification(
     """
     Update accident notification information
     """
-    if not current_user.get("sub"):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
     # In a real implementation, you would save the data to the database
     # For now, we'll create a mock response
@@ -360,8 +401,6 @@ async def get_assessment_report(
     """
     Get assessment report information
     """
-    if not current_user.get("sub"):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
     # Mock data for now - in production this would come from a database
     assessment_report = {
@@ -402,8 +441,6 @@ async def update_assessment_report(
     """
     Update assessment report information
     """
-    if not current_user.get("sub"):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
     # In a real implementation, you would save the data to the database
     # For now, we'll create a mock response
