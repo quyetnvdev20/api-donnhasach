@@ -127,9 +127,16 @@ class DocumentCollection(BaseModel):
 
 # Models for Accident Notification and Assessment Report
 class DocumentUpload(BaseModel):
+    type_document_id: int
+    type: str
     scan_url: List[ImageInfo]
+    list_image_remove: List[int]
 
 
 class DocumentResponse(BaseModel):
     preview_url: str = ""
     scan_url: List[ImageInfo]
+
+
+class UpdateDocumentResponse(BaseModel):
+    status: str = ""

@@ -2,16 +2,24 @@ from fastapi import APIRouter, Depends, HTTPException, status, Body, Header
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
-from ....config import settings
+from ....config import settings, odoo
 from ....database import get_db
 from ...deps import get_current_user, api_key_header
-from ....schemas.assessment import DocumentResponse, DocumentUpload
+from ....schemas.assessment import DocumentResponse, DocumentUpload, UpdateDocumentResponse
 from ....utils.erp_db import PostgresDB
+from ....utils.odoo import Odoo
 import httpx
 import logging
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Khởi tạo đối tượng Odoo với config
+config = {
+    'ODOO_URL': settings.ODOO_URL,
+    'ODOO_TOKEN': settings.ODOO_TOKEN
+}
+odoo = Odoo(config=config)
 
 async def get_receive_id(assessment_id: int):
     sql_query = """
@@ -95,7 +103,7 @@ async def get_accident_notification(
         "scan_url": image_list
     }
 
-@router.put("/{assessment_id}/accident_notification", response_model=DocumentResponse)
+@router.put("/{assessment_id}/accident_notification", response_model=UpdateDocumentResponse)
 async def update_accident_notification(
         assessment_id: int,
         document_upload: DocumentUpload,
@@ -106,18 +114,46 @@ async def update_accident_notification(
     """
     if not current_user.get("sub"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
-
-    # In a real implementation, you would save the data to the database
     
-    # For now, we'll create a mock response
-    response = {
-        "id": 1,
-        "preview_url": "",
-        "scan_url": document_upload.scan_url
+    # Prepare body
+    # Chuyển đổi các đối tượng không thể serialize thành JSON
+    scan_urls = []
+    for url in document_upload.scan_url:
+        if hasattr(url, 'dict'):  # Nếu là Pydantic model
+            scan_urls.append(url.dict())
+        elif hasattr(url, '__dict__'):  # Nếu là object khác
+            scan_urls.append(vars(url))
+        else:  # Nếu là kiểu dữ liệu cơ bản
+            scan_urls.append(str(url))
+    
+    body = {
+        "id": assessment_id,
+        "profile_attachment_ids":
+            {
+                "image" : [
+                    {
+                        "type_document_id": document_upload.type_document_id,
+                        "type": document_upload.type,
+                        "list_image": scan_urls  # Sử dụng danh sách đã được xử lý
+                    }
+                ],
+                "listImageRemove": document_upload.list_image_remove
+            }
+
     }
-
-    return response
-
+    
+    # In a real implementation, you would save the data to the database
+    response = await odoo.call_method_not_record(
+        model='insurance.claim.appraisal.detail',
+        method='update_profile_attachment',
+        token=settings.ODOO_TOKEN,
+        kwargs=body
+    )
+    
+    if response:
+        return UpdateDocumentResponse(status="Success")
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update accident notification")
 
 @router.get("/{assessment_id}/assessment_report", response_model=DocumentResponse)
 async def get_assessment_report(

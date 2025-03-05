@@ -75,7 +75,7 @@ class RequestOdoo():
         try:
             headers = {'Content-Type': 'application/json'}
             async with httpx.AsyncClient(timeout=TIMEOUT, verify=True) as client:
-                response = await client.post(url=url, json=data, headers=headers)
+                response = await client.post(url=url, data=json.dumps(data), headers=headers)
                 res = response.text
                 _logger.debug(f'RequestOdoo.post.json={res}')
         except httpx.TimeoutException as ex:
@@ -280,13 +280,14 @@ class Odoo(RequestOdoo):
             kwargs = {}
         if not base_url:
             base_url = self.config['ODOO_URL']
-        url = '{0}/api/{1}/call_not_record/{2}?token={3}'.format(base_url, model, method, token)
+        data = {'params': {'kwargs': kwargs, 'token': token}}
+        url = '{0}/api/{1}/method_not_record/{2}?token={3}'.format(base_url, model, method, token)
         if fields:
             url = '{0}&fields={1}'.format(url, fields)
         try:
             _logger.info('call_method_not_record.url={}'.format(url))
             _logger.info('call_method_not_record.kwargs={}'.format(kwargs))
-            return await self.post(url, kwargs)
+            return await self.post(url, data)
         except Exception as ex:
             _logger.error('call_method_not_record.Exception.url={}'.format(url))
             _logger.error('call_method_not_record.Exception.ex={}'.format(ex))
