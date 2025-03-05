@@ -110,6 +110,5 @@ class DocumentUpload(BaseModel):
 
 
 class DocumentResponse(BaseModel):
-    id: int
     preview_url: str = ""
     scan_url: List[ImageInfo]

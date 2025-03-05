@@ -9,6 +9,7 @@ from ....schemas.assessment import AssessmentListItem, VehicleDetailAssessment, 
     DocumentResponse, DocumentUpload
 from ....utils.erp_db import PostgresDB
 import json
+import httpx
 import logging
 
 router = APIRouter()
@@ -90,25 +91,25 @@ async def get_assessment_list(
     """
 
     results = await PostgresDB.execute_query(query, params)
-    
+
     # Add status_color based on status
     enhanced_results = []
     for result in results:
         # Convert result to dict if it's not already
         if not isinstance(result, dict):
             result = dict(result)
-        
+
         # Add status_color based on the status
         status = result.get('status')
         result['status_color'] = color.get(status, '#757575')  # Default to gray if status not found
-        
+
         # Add random values for current_distance and assessment_progress
         result['urgency_level'] = True
         result['current_distance'] = 2.5
         result['assessment_progress'] = 1
 
         enhanced_results.append(result)
-    
+
     return enhanced_results
 
 

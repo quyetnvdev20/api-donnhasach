@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     ODOO_URL: str
     ODOO_TOKEN: str
     
+    # Report configuration
+    ACCIDENT_NOTIFICATION_TEMPLATE: str = ""
+    ASSESSMENT_REPORT_TEMPLATE: str = ""
+    
+    # Insurance API
+    INSURANCE_API_URL: str = ""
+    
     @property
     def DATABASE_URL(self) -> str:
         return self.POSTGRES_DATABASE_URL
