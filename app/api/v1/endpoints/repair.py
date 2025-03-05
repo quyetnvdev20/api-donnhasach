@@ -161,8 +161,10 @@ async def get_repair_plan_awaiting_detail(
                 }
             ],
             "amount_subtotal": 2345687834,
-            "amount_discount": 100000,
-            "amount_untaxed_total": 546467657
+            "amount_discount": 897500,
+            "amount_untaxed_total": 20602500,
+            "amount_garage": 22500000,
+            "amount_propose": 21500000
         }
 
         return RepairPlanDetailResponse(
