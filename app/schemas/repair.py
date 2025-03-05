@@ -122,7 +122,7 @@ class RepairPlanApproveResponse(BaseModel):
 
 
 class RepairPlanRejectRequest(BaseModel):
-    repair_plan_id: int
+    repair_id: int
     reject_reason: str
 
 
