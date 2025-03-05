@@ -111,7 +111,8 @@ class AssessmentItem(BaseModel):
     category_id: CategoryId
     status: Status
     solution: Solution
-    images: List[ImageInfo]
+    listImageRemove: List[int]
+    images: List[ImageInfo] = None
 
 
 class VehicleDetailAssessment(BaseModel):
@@ -162,4 +163,8 @@ class DocumentResponse(BaseModel):
 
 
 class UpdateDocumentResponse(BaseModel):
+    status: str = ""
+
+class UpdateAssessmentItemResponse(BaseModel):
+    assessment_id: str = ""
     status: str = ""

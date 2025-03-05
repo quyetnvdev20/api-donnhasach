@@ -6,7 +6,7 @@ from datetime import datetime
 from ....database import get_db
 from ...deps import get_current_user
 from ....schemas.assessment import AssessmentListItem, VehicleDetailAssessment, AssessmentDetail, DocumentCollection, \
-    DocumentResponse, DocumentUpload, DocumentType
+    DocumentResponse, DocumentUpload, DocumentType, UpdateAssessmentItemResponse
 from ....utils.erp_db import PostgresDB
 import json
 import httpx
@@ -337,20 +337,58 @@ async def get_vehicle_detail_assessment(
     }
 
 
-@router.put("/{assessment_id}/detail", response_model=VehicleDetailAssessment)
+@router.put("/{assessment_id}/detail", response_model=UpdateAssessmentItemResponse)
 async def update_vehicle_detail_assessment(
         assessment_id: str,
         vehicle_detail: VehicleDetailAssessment,
-        db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
+
+    if not current_user.get("sub"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     """
     Update vehicle detail assessment information
     """
+    vals_items = []
 
-    # In a real implementation, you would save the data to the database
-    # For now, we'll just return the input data
-    return vehicle_detail
+    for item in vehicle_detail.items:
+        val_images = []
+        for image in item.images:
+            val_images.append({
+                'id': image.id,
+                'link': image.link,
+                'location': image.location,
+                'lat': image.lat,
+                'long': image.long,
+                'date_upload': image.date
+            })
+
+        vals_items.append({
+            'id': item.id,
+            'category_id': item.category_id.id,
+            'listImageRemove': item.listImageRemove,
+            'status': item.status.id,
+            'solution': item.solution.code,
+            'images': val_images
+        })
+
+    body = {
+        'assessment_id': int(assessment_id),
+        'items': vals_items
+    }
+
+    response = await odoo.call_method_not_record(
+        model='insurance.claim.appraisal.detail',
+        method='update_insurance_assessment_detail',
+        token=settings.ODOO_TOKEN,
+        kwargs=body
+    )
+
+    if response:
+        return UpdateAssessmentItemResponse(assessment_id=assessment_id, status="Success")
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update accident notification")
+
 
 
 @router.get("/{assessment_id}/collect_document", response_model=DocumentCollection)
