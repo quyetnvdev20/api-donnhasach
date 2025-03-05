@@ -65,8 +65,8 @@ class ImageInfo(BaseModel):
     id: Optional[int] = None
     link: str
     location: Optional[str] = None
-    lat: Optional[str] = None
-    long: Optional[str] = None
+    lat: Optional[float] = None
+    long: Optional[float] = None
     date: Optional[str] = None
     
     def dict(self, *args, **kwargs):
@@ -88,7 +88,7 @@ class ImageInfo(BaseModel):
 
 
 # Schema for category ID
-class CategoryId(BaseModel):
+class Category(BaseModel):
     id: int
     name: str
 
@@ -108,15 +108,14 @@ class Solution(BaseModel):
 # Schema for assessment item
 class AssessmentItem(BaseModel):
     id: int
-    category_id: CategoryId
-    status: Status
-    solution: Solution
+    category: Category
+    state: Status
+    solution: Solution = Solution(code='repair', name='Sửa chữa')
     listImageRemove: List[int] = None
     images: List[ImageInfo] = None
 
 
 class VehicleDetailAssessment(BaseModel):
-    assessment_id: int
     items: List[AssessmentItem]
 
 class DocumentType(BaseModel):

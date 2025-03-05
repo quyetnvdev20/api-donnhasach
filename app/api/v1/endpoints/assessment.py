@@ -367,10 +367,11 @@ async def update_vehicle_detail_assessment(
 
         vals_items.append({
             'id': item.id,
-            'category_id': item.category_id.id,
+            'category_id': item.category.id,
             'listImageRemove': item.listImageRemove,
-            'status': item.status.id,
-            'solution': item.solution.code,
+            'status': item.state.id,
+            # TODO: hardcode solution code
+            'solution': 'repair',
             'images': val_images
         })
 
