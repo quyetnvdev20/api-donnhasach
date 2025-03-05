@@ -1,20 +1,11 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from typing import List, Optional, Dict, Any
 import json
-from app.utils.odoo import Odoo
-from app.config import settings
+from app.config import settings, odoo
 import logging
-import os
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-# Khởi tạo đối tượng Odoo với config
-config = {
-    'ODOO_URL': os.getenv('ODOO_URL', settings.ODOO_URL),
-    'ODOO_TOKEN': os.getenv('ODOO_TOKEN', settings.ODOO_TOKEN)
-}
-odoo = Odoo(config=config)
 
 @router.get("/search")
 async def search_odoo(
@@ -38,7 +29,7 @@ async def search_odoo(
             fields_list = json.loads(fields)
         
         # Gọi hàm search_method của Odoo
-        result = odoo.search_method(
+        result = await odoo.search_method(
             model=model,
             domain=domain_list,
             fields=fields_list,
@@ -74,7 +65,7 @@ async def search_ids_odoo(
         domain_list = json.loads(domain)
         
         # Gọi hàm search_ids của Odoo
-        result = odoo.search_ids(
+        result = await odoo.search_ids(
             model=model,
             domain=domain_list,
             limit=limit,

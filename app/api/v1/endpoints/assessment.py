@@ -11,9 +11,7 @@ from ....utils.erp_db import PostgresDB
 import json
 import httpx
 import logging
-import os
-from app.config import settings
-from app.utils.odoo import Odoo
+from app.config import settings, odoo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -23,13 +21,6 @@ color = {
     'done': '#4CAF50',
     'cancel': '#212121',
 }
-
-# Khởi tạo đối tượng Odoo với config
-config = {
-    'ODOO_URL': os.getenv('ODOO_URL', settings.ODOO_URL),
-    'ODOO_TOKEN': os.getenv('ODOO_TOKEN', settings.ODOO_TOKEN)
-}
-odoo = Odoo(config=config)
 
 
 @router.get("", response_model=List[AssessmentListItem])

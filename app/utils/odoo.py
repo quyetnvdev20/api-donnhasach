@@ -4,7 +4,9 @@ import os
 import traceback
 
 import requests
+import httpx
 import json
+import asyncio
 from fastapi.exceptions import RequestValidationError, HTTPException
 
 # Tạo custom exception classes
@@ -40,16 +42,18 @@ def get_debug_exception(error: Exception):
 
 class RequestOdoo():
 
-    def get(self, url):
+    async def get(self, url):
         try:
             headers = {'Content-Type': 'application/json'}
-            res = requests.get(url=url, headers=headers, timeout=TIMEOUT, verify=True).text
-            _logger.info(f'RequestOdoo.get.res={res}')
-            res_data = json.loads(res, strict=False)
-        except requests.exceptions.Timeout:
+            async with httpx.AsyncClient(timeout=TIMEOUT, verify=True) as client:
+                response = await client.get(url=url, headers=headers)
+                res = response.text
+                _logger.info(f'RequestOdoo.get.res={res}')
+                res_data = json.loads(res, strict=False)
+        except httpx.TimeoutException:
             raise TimeoutError('Timeout get data')
-        except requests.exceptions.RequestException as ex:
-            raise HTTPException(status_code=500, detail=ex)
+        except httpx.RequestError as ex:
+            raise HTTPException(status_code=500, detail=str(ex))
         if 'error' in res_data:
             if res_data.get('exception_type') == 'MissingError':
                 raise UserError("Đối tượng không tồn tại", description=res_data.get('debug'))
@@ -67,23 +71,25 @@ class RequestOdoo():
             return res_data['success']
         return res_data
 
-    def post(self, url, data):
+    async def post(self, url, data):
         try:
             headers = {'Content-Type': 'application/json'}
-            res = requests.post(url=url, data=json.dumps(data), headers=headers, verify=True, timeout=TIMEOUT).text
-            _logger.debug(f'RequestOdoo.post.json={res}')
-        except requests.exceptions.Timeout as ex:
+            async with httpx.AsyncClient(timeout=TIMEOUT, verify=True) as client:
+                response = await client.post(url=url, json=data, headers=headers)
+                res = response.text
+                _logger.debug(f'RequestOdoo.post.json={res}')
+        except httpx.TimeoutException as ex:
             _logger.error('post.Timeout.url={}'.format(url))
             _logger.error('post.Timeout.ex={}'.format(ex))
             raise TimeoutError('Timeout execute')
-        except requests.exceptions.RequestException as ex:
+        except httpx.RequestError as ex:
             _logger.error('post.RequestException.url={}'.format(url))
             _logger.error('post.RequestException.ex={}'.format(ex))
-            raise HTTPException(status_code=500, detail=ex)
+            raise HTTPException(status_code=500, detail=str(ex))
         except Exception as ex:
             _logger.error('post.Exception.url={}'.format(url))
             _logger.error('post.Exception.ex={}'.format(ex))
-            raise HTTPException(status_code=500, detail=ex)
+            raise HTTPException(status_code=500, detail=str(ex))
         res = json.loads(res, strict=False)
         if 'result' in res:
             result = json.loads(res.get('result'), strict=False)
@@ -118,18 +124,18 @@ class Odoo(RequestOdoo):
 
     def init_app(self, app, config=None):
         if not (config is None or isinstance(config, dict)):
-            raise ValueError("'config' must be an instance of dict or None")
+            raise TypeError("config must be an instance of dict or None")
 
-        base_config = app.config.copy()
-        if self.config:
-            base_config.update(self.config)
-        if config:
-            self.config['ODOO_URL'] = os.getenv('ODOO_URL')
-            self.config['ODOO_TOKEN'] = os.getenv('ODOO_TOKEN')
+        base_config = {
+            'ODOO_URL': os.getenv('ODOO_URL', ''),
+            'ODOO_TOKEN': os.getenv('ODOO_TOKEN', ''),
+        }
+
+        if config is not None:
             base_config.update(config)
         self.config = base_config
 
-    def search_method(self, model, token=None, record_id=None, fields=None, domain=[], offset=None, limit=None,
+    async def search_method(self, model, token=None, record_id=None, fields=None, domain=[], offset=None, limit=None,
                       order=None):
         if not token:
             token = self.config['ODOO_TOKEN']
@@ -145,20 +151,22 @@ class Odoo(RequestOdoo):
                     self.config['ODOO_URL'], model, token, fields, domain, offset, limit)
         try:
             _logger.info('search_method.url={}'.format(url))
-            res = requests.get(url=url, timeout=TIMEOUT, verify=True).text
-            res = json.loads(res, strict=False)
-        except requests.exceptions.Timeout as ex:
+            async with httpx.AsyncClient(timeout=TIMEOUT, verify=True) as client:
+                response = await client.get(url=url)
+                res = response.text
+                res = json.loads(res, strict=False)
+        except httpx.TimeoutException as ex:
             _logger.error('search_method.Timeout.url={}'.format(url))
             _logger.error('search_method.Timeout.ex={}'.format(ex))
             raise TimeoutError('Timeout execute')
-        except requests.exceptions.RequestException as ex:
+        except httpx.RequestError as ex:
             _logger.error('search_method.RequestException.url={}'.format(url))
             _logger.error('search_method.RequestException.ex={}'.format(ex))
-            raise HTTPException(status_code=500, detail=ex)
+            raise HTTPException(status_code=500, detail=str(ex))
         except Exception as ex:
             _logger.error('search_method.Exception.url={}'.format(url))
             _logger.error('search_method.Exception.ex={}'.format(ex))
-            raise HTTPException(status_code=500, detail=ex)
+            raise HTTPException(status_code=500, detail=str(ex))
 
         if 'error' in res:
             res_data = str(res['error'])
@@ -167,117 +175,136 @@ class Odoo(RequestOdoo):
             raise HTTPException(status_code=500, detail=res_data)
         return res
 
-    def search_ids(self, model, token=None, domain=[], offset=0, limit=None, order=None):
+    async def search_ids(self, model, token=None, domain=[], offset=0, limit=None, order=None):
         if not token:
             token = self.config['ODOO_TOKEN']
         if order:
-            url = '{}/api/{}/search_ids?token={}&domain={}&offset={}&order={}'.format(
-                self.config['ODOO_URL'], model, token, domain, offset, order)
-            if limit:
-                url = '{}/api/{}/search_ids?token={}&domain={}&offset={}&limit={}&order={}'.format(
-                    self.config['ODOO_URL'], model, token, domain, offset, limit, order)
+            url = '{0}/api/{1}/search_ids?token={2}&domain={3}&offset={4}&limit={5}&order={6}'.format(
+                self.config['ODOO_URL'], model, token, domain, offset, limit, order)
         else:
-            _logger.error('search_ids.ODOO_URL={}'.format(self.config['ODOO_URL']))
-            url = '{}/api/{}/search_ids?token={}&domain={}&offset={}'.format(
-                self.config['ODOO_URL'], model, token, domain, offset)
-            if limit:
-                url = '{}/api/{}/search_ids?token={}&domain={}&offset={}&limit={}'.format(
-                    self.config['ODOO_URL'], model, token, domain, offset, limit)
-        _logger.info(f"Odoo.search_ids.url={url}")
-        res = self.get(url)
+            url = '{0}/api/{1}/search_ids?token={2}&domain={3}&offset={4}&limit={5}'.format(
+                self.config['ODOO_URL'], model, token, domain, offset, limit)
+        try:
+            _logger.info('search_ids.url={}'.format(url))
+            async with httpx.AsyncClient(timeout=TIMEOUT, verify=True) as client:
+                response = await client.get(url=url)
+                res = response.text
+                res = json.loads(res, strict=False)
+        except httpx.TimeoutException as ex:
+            _logger.error('search_ids.Timeout.url={}'.format(url))
+            _logger.error('search_ids.Timeout.ex={}'.format(ex))
+            raise TimeoutError('Timeout execute')
+        except httpx.RequestError as ex:
+            _logger.error('search_ids.RequestException.url={}'.format(url))
+            _logger.error('search_ids.RequestException.ex={}'.format(ex))
+            raise HTTPException(status_code=500, detail=str(ex))
+        except Exception as ex:
+            _logger.error('search_ids.Exception.url={}'.format(url))
+            _logger.error('search_ids.Exception.ex={}'.format(ex))
+            raise HTTPException(status_code=500, detail=str(ex))
+
+        if 'error' in res:
+            res_data = str(res['error'])
+            if 'Invalid User Token' in res_data:
+                raise UnauthorizedError("Invalid User Token")
+            raise HTTPException(status_code=500, detail=res_data)
         return res
 
-    def create_method(self, model, vals, token=None):
+    async def create_method(self, model, vals, token=None):
         if not token:
             token = self.config['ODOO_TOKEN']
-        data = {'params': {'create_vals': vals, 'token': token}}
-        _logger.debug(f'odoo.create_method.data={data}')
-        url = '{0}/api/{1}/create'.format(self.config['ODOO_URL'], model)
-        _logger.debug('odoo.create_method.url={}'.format(url))
-        res = self.post(url=url, data=data)
-        return res
+        url = '{0}/api/{1}/create?token={2}'.format(self.config['ODOO_URL'], model, token)
+        try:
+            _logger.info('create_method.url={}'.format(url))
+            _logger.info('create_method.vals={}'.format(vals))
+            return await self.post(url, vals)
+        except Exception as ex:
+            _logger.error('create_method.Exception.url={}'.format(url))
+            _logger.error('create_method.Exception.ex={}'.format(ex))
+            raise HTTPException(status_code=500, detail=str(ex))
 
-    def update_method(self, model, record_id, vals, token=None):
+    async def update_method(self, model, record_id, vals, token=None):
         if not token:
             token = self.config['ODOO_TOKEN']
-        data = {'params': {'update_vals': vals, 'token': token}}
-        _logger.debug(f'odoo.update_method.data={data}')
-        url = '{0}/api/{1}/update/{2}'.format(self.config['ODOO_URL'], model, record_id)
-        _logger.debug('odoo.update_method.url={}'.format(url))
-        res = self.post(url=url, data=data)
-        return res
+        url = '{0}/api/{1}/update/{2}?token={3}'.format(self.config['ODOO_URL'], model, record_id, token)
+        try:
+            _logger.info('update_method.url={}'.format(url))
+            _logger.info('update_method.vals={}'.format(vals))
+            return await self.post(url, vals)
+        except Exception as ex:
+            _logger.error('update_method.Exception.url={}'.format(url))
+            _logger.error('update_method.Exception.ex={}'.format(ex))
+            raise HTTPException(status_code=500, detail=str(ex))
 
-    def delete_method(self, model, record_id, token):
-        url = '{0}/api/{1}/unlink/{2}?token={3}'.format(self.config['ODOO_URL'], model, record_id, token)
-        res = self.post(url=url, data={})
-        return res
+    async def delete_method(self, model, record_id, token):
+        url = '{0}/api/{1}/delete/{2}?token={3}'.format(self.config['ODOO_URL'], model, record_id, token)
+        return await self.get(url)
 
-    def call_method(self, model, record_ids, method, token=None, fields=None, kwargs=None):
+    async def call_method(self, model, record_ids, method, token=None, fields=None, kwargs=None):
         if not token:
             token = self.config['ODOO_TOKEN']
-        if kwargs:
-            url = '{}/api/{}/method/{}?token={}&kwargs={}&ids={}'.format(self.config['ODOO_URL'], model, method, token,
-                                                                         kwargs, record_ids)
-        else:
-            url = '{}/api/{}/method/{}?token={}&ids={}'.format(self.config['ODOO_URL'], model, method, token,
-                                                               record_ids)
+        if not kwargs:
+            kwargs = {}
+        url = '{0}/api/{1}/call/{2}/{3}?token={4}'.format(self.config['ODOO_URL'], model, record_ids, method, token)
+        if fields:
+            url = '{0}&fields={1}'.format(url, fields)
+        try:
+            _logger.info('call_method.url={}'.format(url))
+            _logger.info('call_method.kwargs={}'.format(kwargs))
+            return await self.post(url, kwargs)
+        except Exception as ex:
+            _logger.error('call_method.Exception.url={}'.format(url))
+            _logger.error('call_method.Exception.ex={}'.format(ex))
+            raise HTTPException(status_code=500, detail=str(ex))
 
-        if len(record_ids) == 1:
-            if kwargs:
-                url = '{0}/api/{1}/{2}/method/{3}?token={4}&kwargs={5}'.format(self.config['ODOO_URL'], model,
-                                                                               record_ids[0],
-                                                                               method, token, kwargs)
-            else:
-                url = '{0}/api/{1}/{2}/method/{3}?token={4}'.format(self.config['ODOO_URL'], model, record_ids[0],
-                                                                    method,
-                                                                    token)
-        _logger.info('odoo.call_method.url={}'.format(url))
-        res = self.get(url=url)
-        return res
-
-    def call_method_post(self, model, record_id, method, token=None, fields=None, kwargs=None):
+    async def call_method_post(self, model, record_id, method, token=None, fields=None, kwargs=None):
         if not token:
             token = self.config['ODOO_TOKEN']
-        data = {'params': {'kwargs': kwargs, 'token': token}}
-        url = '{0}/api/{1}/{2}/method_post/{3}'.format(self.config['ODOO_URL'], model, record_id,
-                                                  method)
-        res = self.post(url=url, data=data)
-        return res
+        url = '{0}/api/{1}/call/{2}/{3}?token={4}'.format(self.config['ODOO_URL'], model, record_id, method, token)
+        if fields:
+            url = '{0}&fields={1}'.format(url, fields)
+        return await self.post(url, kwargs)
 
-    def authenticate(self, login, password):
-        url = "{0}/api/user/get_token?login={1}&password={2}".format(self.config['ODOO_URL'], login, password)
-        _logger.info(url)
-        res = self.get(url=url)
-        return res
+    async def authenticate(self, login, password):
+        url = '{0}/api/authenticate?login={1}&password={2}'.format(self.config['ODOO_URL'], login, password)
+        return await self.get(url)
 
-    def reset_password(self, login, password):
-        res = requests.get(
-            '{0}/api/user/reset_password?login={1}&password={2}'.format(self.config['ODOO_URL'], login, password),
-            timeout=TIMEOUT)
-        return res
+    async def reset_password(self, login, password):
+        url = '{0}/api/reset_password?login={1}&password={2}'.format(self.config['ODOO_URL'], login, password)
+        return await self.get(url)
 
-    def call_method_not_record(self, model, method, token=None, fields=None, kwargs=None, base_url=None):
+    async def call_method_not_record(self, model, method, token=None, fields=None, kwargs=None, base_url=None):
+        if not token:
+            token = self.config['ODOO_TOKEN']
+        if not kwargs:
+            kwargs = {}
         if not base_url:
             base_url = self.config['ODOO_URL']
-        if not token:
-            token = self.config['ODOO_TOKEN']
-        data = {'params': {'kwargs': kwargs, 'token': token}}
-        if kwargs:
-            url = '{}/api/{}/method_not_record/{}?token={}&kwargs={}'.format(base_url, model, method, token,
-                                                                             kwargs)
-        else:
-            url = '{}/api/{}/method_not_record/{}?token={}'.format(self.config['ODOO_URL'], model, method, token)
-        _logger.info('URL={}'.format(url))
-        _logger.info('data={}'.format(data))
-        res = self.post(url=url, data=data)
-        return res
+        url = '{0}/api/{1}/call_not_record/{2}?token={3}'.format(base_url, model, method, token)
+        if fields:
+            url = '{0}&fields={1}'.format(url, fields)
+        try:
+            _logger.info('call_method_not_record.url={}'.format(url))
+            _logger.info('call_method_not_record.kwargs={}'.format(kwargs))
+            return await self.post(url, kwargs)
+        except Exception as ex:
+            _logger.error('call_method_not_record.Exception.url={}'.format(url))
+            _logger.error('call_method_not_record.Exception.ex={}'.format(ex))
+            raise HTTPException(status_code=500, detail=str(ex))
 
-    def call_method_record(self, model, method, token=None, fields=None, kwargs=None):
+    async def call_method_record(self, model, method, token=None, fields=None, kwargs=None):
         if not token:
             token = self.config['ODOO_TOKEN']
-        data = {'params': {'kwargs': kwargs, 'token': token}}
-        url = '{}/api/{}/method_not_record/{}?token={}'.format(self.config['ODOO_URL'], model, method, token)
-        _logger.info('call_method_record.URL={}'.format(url))
-        _logger.info('call_method_record.data={}'.format(data))
-        res = self.post(url=url, data=data)
-        return res
+        if not kwargs:
+            kwargs = {}
+        url = '{0}/api/{1}/call_record/{2}?token={3}'.format(self.config['ODOO_URL'], model, method, token)
+        if fields:
+            url = '{0}&fields={1}'.format(url, fields)
+        try:
+            _logger.info('call_method_record.url={}'.format(url))
+            _logger.info('call_method_record.kwargs={}'.format(kwargs))
+            return await self.post(url, kwargs)
+        except Exception as ex:
+            _logger.error('call_method_record.Exception.url={}'.format(url))
+            _logger.error('call_method_record.Exception.ex={}'.format(ex))
+            raise HTTPException(status_code=500, detail=str(ex))

@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 from enum import Enum
+from app.utils.odoo import Odoo
 
 class ClaimImageStatus(str, Enum):
     PENDING = "pending"
@@ -55,4 +56,13 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
 
-settings = Settings() 
+settings = Settings()
+
+# Cấu hình Odoo
+odoo_config = {
+    'ODOO_URL': settings.ODOO_URL,
+    'ODOO_TOKEN': settings.ODOO_TOKEN
+}
+
+# Khởi tạo đối tượng Odoo
+odoo = Odoo(config=odoo_config) 
