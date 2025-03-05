@@ -1,6 +1,6 @@
-from typing import List, Optional
-
-from pydantic import BaseModel
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field
+from datetime import datetime
 
 
 # Models for Assessment List
@@ -56,21 +56,40 @@ class DamageInfo(BaseModel):
     name: str
 
 
+# Schema for image information
 class ImageInfo(BaseModel):
-    date: str
     id: int
-    lat: Optional[str] = None
     link: str
     location: Optional[str] = None
+    lat: Optional[str] = None
     long: Optional[str] = None
-    thumbnail: Optional[str] = None
-    description: Optional[str] = None
+    date: Optional[str] = None
 
 
-class AssessmentItem(BaseModel):
+# Schema for category ID
+class CategoryId(BaseModel):
     id: int
     name: str
-    damage: DamageInfo
+
+
+# Schema for status
+class Status(BaseModel):
+    id: int
+    name: str
+
+
+# Schema for solution
+class Solution(BaseModel):
+    code: Optional[str] = None
+    name: str
+
+
+# Schema for assessment item
+class AssessmentItem(BaseModel):
+    id: int
+    category_id: CategoryId
+    status: Status
+    solution: Solution
     images: List[ImageInfo]
 
 
