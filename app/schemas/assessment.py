@@ -5,6 +5,7 @@ from datetime import datetime
 
 # Models for Assessment List
 class AssessmentListItem(BaseModel):
+    id: int
     name: str
     license_plate: str
     vehicle: Optional[str]

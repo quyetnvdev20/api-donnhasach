@@ -36,6 +36,7 @@ async def get_assessment_list(
     """
     query = f"""
         SELECT
+            gd_chi_tiet.id AS id,
             rc.license_plate AS license_plate,
             rcb.name AS vehicle,
             gd_chi_tiet.name_driver AS customer_name,
