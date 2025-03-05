@@ -57,6 +57,8 @@ class RepairPlanListItem(BaseModel):
     owner_name: str
     repair_garage_location: RepairGarageLocation
     inspection_date: str
+    location_damage: str
+    submitter: str
     status: Status
     label: Label
     total_cost: Optional[dict] = None
