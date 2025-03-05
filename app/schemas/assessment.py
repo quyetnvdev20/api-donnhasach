@@ -118,6 +118,10 @@ class VehicleDetailAssessment(BaseModel):
     assessment_id: int
     items: List[AssessmentItem]
 
+class DocumentType(BaseModel):
+    id: int
+    name: str
+    code: str
 
 # Models for Document Collection
 class Document(BaseModel):

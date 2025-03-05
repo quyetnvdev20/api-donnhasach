@@ -137,6 +137,7 @@ class Odoo(RequestOdoo):
 
     async def search_method(self, model, token=None, record_id=None, fields=None, domain=[], offset=None, limit=None,
                       order=None):
+        _logger.info(f"search_method.model={model}")
         if not token:
             token = self.config['ODOO_TOKEN']
         if record_id:

@@ -6,7 +6,7 @@ from datetime import datetime
 from ....database import get_db
 from ...deps import get_current_user
 from ....schemas.assessment import AssessmentListItem, VehicleDetailAssessment, AssessmentDetail, DocumentCollection, \
-    DocumentResponse, DocumentUpload
+    DocumentResponse, DocumentUpload, DocumentType
 from ....utils.erp_db import PostgresDB
 import json
 import httpx
@@ -22,6 +22,38 @@ color = {
     'cancel': '#212121',
 }
 
+@router.get("/document_type")
+async def get_document_type(
+        db: Session = Depends(get_db),
+        current_user: dict = Depends(get_current_user)
+):
+    """
+    Get document type information
+    """
+    logger.info(f"current_user: {current_user}")
+    # Get document type from odoo
+    query = """
+        SELECT 
+            id,
+            name,
+            type_document
+        FROM insurance_type_document
+        WHERE active IS TRUE
+        ORDER BY id DESC
+        LIMIT 100
+    """
+    
+    document_types = await PostgresDB.execute_query(query)
+    result = []
+    
+    for doc_type in document_types:
+        result.append({
+            "id": str(doc_type["id"]),
+            "name": doc_type["name"],
+            "code": doc_type["type_document"] or ""
+        })
+    
+    return result
 
 @router.get("", response_model=List[AssessmentListItem])
 async def get_assessment_list(
@@ -414,3 +446,4 @@ async def done_assessment(
         "id": assessment_id,
         "status": "Success"
     }
+    
