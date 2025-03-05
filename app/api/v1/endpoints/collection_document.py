@@ -112,6 +112,9 @@ async def get_document_collection(
         assessment_id: int,
         current_user: dict = Depends(get_current_user)
 ):
+    
+    if not current_user.get("sub"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     """
     Get document collection information
     """
@@ -140,63 +143,6 @@ async def get_document_collection(
     }
 
     return data
-
-
-
-    # Mock data for now - in production this would come from a database
-    document_collection = {
-        "name_driver": "Nguyễn văn An",
-        "phone_driver": "0918515121",
-        "cccd": None,
-        "gender_driver": None,
-        "gplx_effect_date": None,
-        "gplx_expired_date": None,
-        "gplx_level": None,
-        "gplx_no": None,
-        "registry_date": None,
-        "registry_expired_date": None,
-        "registry_no": None,
-        "documents": [
-            {
-                "type_document_id": 1,
-                "type": "",
-                "name": "",
-                "desc": "",
-                "images": [
-                    {
-                        "date": "27/02/2025 11:02:09",
-                        "description": "Chụp mặt trước & sau, rõ nét, đọc được thông tin",
-                        "id": 117348,
-                        "lat": "21.004388702201652",
-                        "link": "https://dev-storage.baohiemtasco.vn/forum.carpla.online/tic-store/1740672577458314_9_1740672577398258_compressed_image_1740672577263_claim.png",
-                        "location": "Q. Thanh Xuân, Thành Phố Hà Nội, Việt Nam",
-                        "long": "105.80242028756557",
-                        "thumbnail": "https://file-cdn.baohiemtasco.vn/insurance-data/car-video-thumb.jpeg"
-                    }
-                ]
-            },
-            {
-                "type_document_id": 1,
-                "type": "",
-                "name": "",
-                "desc": "",
-                "images": [
-                    {
-                        "date": "27/02/2025 11:02:09",
-                        "description": "Chụp mặt trước & sau, rõ nét, đọc được thông tin",
-                        "id": 117348,
-                        "lat": "21.004388702201652",
-                        "link": "https://dev-storage.baohiemtasco.vn/forum.carpla.online/tic-store/1740672577458314_9_1740672577398258_compressed_image_1740672577263_claim.png",
-                        "location": "Q. Thanh Xuân, Thành Phố Hà Nội, Việt Nam",
-                        "long": "105.80242028756557",
-                        "thumbnail": "https://file-cdn.baohiemtasco.vn/insurance-data/car-video-thumb.jpeg"
-                    }
-                ]
-            }
-        ]
-    }
-
-    return document_collection
 
 
 @router.put("/{assessment_id}/collect_document", response_model=DocumentCollection)
