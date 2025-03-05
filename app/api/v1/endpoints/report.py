@@ -55,6 +55,15 @@ async def get_image_list(assessment_id: int, document_type: str):
     result = await PostgresDB.execute_query(sql_query, (document_type, assessment_id))
     return result
 
+async def get_id_document_type(document_type: str):
+    sql_query = """
+        select id, type_document
+        from insurance_type_document 
+        where type_document = $1
+    """
+    result = await PostgresDB.execute_query(sql_query, (document_type,))
+    return result[0]['id']
+
 async def get_report_url(report_name: str, id: str, authorization: str):
     request_body = {
         "data": [
@@ -73,7 +82,7 @@ async def get_report_url(report_name: str, id: str, authorization: str):
         else:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get report")
 
-async def format_build_body(assessment_id: int, document_upload: DocumentUpload):
+async def format_build_body(assessment_id: int, document_upload: DocumentUpload, document_type: str):
     scan_urls = []
     for url in document_upload.scan_url:
         if hasattr(url, 'dict'):  # Nếu là Pydantic model
@@ -83,14 +92,15 @@ async def format_build_body(assessment_id: int, document_upload: DocumentUpload)
         else:  # Nếu là kiểu dữ liệu cơ bản
             scan_urls.append(str(url))
             
+    id_document_type = await get_id_document_type(document_type)
     body = {
         "id": assessment_id,
         "profile_attachment_ids":
             {
                 "image" : [
                     {
-                        "type_document_id": document_upload.type_document_id,
-                        "type": document_upload.type,
+                        "type_document_id": id_document_type,
+                        "type": document_type,
                         "list_image": scan_urls
                     }
                 ],
@@ -139,7 +149,7 @@ async def update_accident_notification(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     
     # Prepare body
-    body = await format_build_body(assessment_id, document_upload)
+    body = await format_build_body(assessment_id, document_upload, 'accident_ycbt')
     # Update accident notification
     response = await odoo.call_method_not_record(
         model='insurance.claim.appraisal.detail',
@@ -189,7 +199,7 @@ async def update_assessment_report(
     if not current_user.get("sub"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    body = await format_build_body(assessment_id, document_upload)
+    body = await format_build_body(assessment_id, document_upload, 'appraisal_report')
     response = await odoo.call_method_not_record(
         model='insurance.claim.appraisal.detail',
         method='update_profile_attachment',

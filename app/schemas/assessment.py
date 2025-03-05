@@ -167,8 +167,8 @@ class DocumentCollection(BaseModel):
 
 # Models for Accident Notification and Assessment Report
 class DocumentUpload(BaseModel):
-    type_document_id: int
-    type: str
+    # type_document_id: int
+    # type: str
     scan_url: List[ImageInfo]
     list_image_remove: List[int] = []
 
