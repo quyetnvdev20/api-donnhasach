@@ -218,7 +218,7 @@ async def reject_repair_plan(
             )
         
         return RepairPlanRejectResponse(
-            id=int(request.repair_plan_id)
+            id=int(request.repair_id)
         )
 
     except Exception as e:
