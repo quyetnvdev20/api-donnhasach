@@ -60,12 +60,29 @@ class DamageInfo(BaseModel):
 
 # Schema for image information
 class ImageInfo(BaseModel):
-    id: int
+    id: Optional[int] = None
     link: str
     location: Optional[str] = None
     lat: Optional[str] = None
     long: Optional[str] = None
     date: Optional[str] = None
+    
+    def dict(self, *args, **kwargs):
+        """Custom dict method to ensure proper serialization"""
+        result = super().dict(*args, **kwargs)
+        # Ensure all values are JSON serializable
+        for key, value in result.items():
+            if value is None:
+                continue
+            if not isinstance(value, (str, int, float, bool, list, dict)):
+                result[key] = str(value)
+        return result
+    
+    class Config:
+        orm_mode = True
+        json_encoders = {
+            # Add custom encoders if needed
+        }
 
 
 # Schema for category ID
@@ -130,7 +147,7 @@ class DocumentUpload(BaseModel):
     type_document_id: int
     type: str
     scan_url: List[ImageInfo]
-    list_image_remove: List[int]
+    list_image_remove: List[int] = []
 
 
 class DocumentResponse(BaseModel):
