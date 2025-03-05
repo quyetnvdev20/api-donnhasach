@@ -3,9 +3,11 @@ from fastapi.security import APIKeyHeader
 from ..config import settings
 import requests
 from typing import Optional
+import logging
 
 # Thay thế HTTPBearer bằng APIKeyHeader
 api_key_header = APIKeyHeader(name="Authorization", auto_error=True)
+logger = logging.getLogger(__name__)
 
 def get_token_introspection_url():
     return f"{settings.KEYCLOAK_HOST}/realms/{settings.KEYCLOAK_REALM}/protocol/openid-connect/token/introspect"
@@ -35,6 +37,7 @@ async def get_current_user(token: str = Depends(api_key_header)) -> dict:
         )
 
     token_data = response.json()
+    logger.info(f"Token data: {token_data}")
     
     # Kiểm tra token có active không
     if not token_data.get("active", False):
@@ -44,4 +47,4 @@ async def get_current_user(token: str = Depends(api_key_header)) -> dict:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return token_data 
+    return token_data

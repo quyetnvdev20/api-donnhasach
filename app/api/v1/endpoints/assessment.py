@@ -11,6 +11,9 @@ from ....utils.erp_db import PostgresDB
 import json
 import httpx
 import logging
+import os
+from app.config import settings
+from app.utils.odoo import Odoo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
