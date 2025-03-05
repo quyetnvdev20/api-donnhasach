@@ -50,6 +50,7 @@ class AssessmentDetail(BaseModel):
     assessment_progress: int
     note: Optional[str] = None
     tasks: List[Task]
+    status_color: Optional[str] = "#212121"
 
 
 # Models for Vehicle Detail Assessment

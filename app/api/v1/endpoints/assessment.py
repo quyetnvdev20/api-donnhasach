@@ -165,6 +165,7 @@ async def get_assessment_detail(
     if assessment_detail:
         assessment_detail = assessment_detail[0]
         assessment_detail['assessment_progress'] = 100
+        assessment_detail['status_color'] = color.get(assessment_detail['status'], '#757575')  # Default to gray if status not found
         assessment_detail['tasks'] = [{
             "seq": 1,
             "name": "Giám định chi tiết xe",
