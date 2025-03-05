@@ -63,6 +63,7 @@ async def get_repair_plan_awaiting_list(
                 "file_name": "HS202403001",
                 "vehicle_info": "Toyota Camry 2.5Q 2020 - 30A12345",
                 "owner_name": "Nguyễn Văn A",
+                "location_damage": "Đường Bình Kỳ, Ngũ Hành sơn, TP Đà Nẵng",
                 "repair_garage_location": {
                     "id": "867",
                     "name": "Mitsubishi Quảng Nam"
@@ -71,6 +72,7 @@ async def get_repair_plan_awaiting_list(
                     "value": 1500000,
                     "color_code": "FF5733"
                 },
+                "submitter": "Nguyễn Văn B",
                 "inspection_date": "01/03/2024",
                 "status": {
                     "name": "Chờ duyệt",
