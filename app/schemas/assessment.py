@@ -28,7 +28,6 @@ class TaskStatus(BaseModel):
 
 class Task(BaseModel):
     seq: int
-    id: Optional[int] = None
     name: str
     path: str
     desc: str
@@ -38,13 +37,15 @@ class Task(BaseModel):
 
 class AssessmentDetail(BaseModel):
     case_number: str
-    vehicle: str
-    location: str
-    owner_name: str
-    phone_number: str
-    accident_date: str
-    incident_desc: str
-    damage_desc: str
+    vehicle: Optional[str] = None
+    location: Optional[str] = None
+    owner_name: Optional[str] = None
+    phone_number: Optional[str] = None
+    accident_date: Optional[str] = None
+    incident_desc: Optional[str] = None
+    appraisal_date: Optional[str] = None
+    complete_time: Optional[str] = None
+    damage_desc: Optional[str] = None
     assessment_progress: int
     note: Optional[str] = None
     tasks: List[Task]

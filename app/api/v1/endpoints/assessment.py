@@ -123,71 +123,95 @@ async def get_assessment_detail(
     """
     Get detailed information about a specific assessment
     """
+    query = f"""
+            SELECT
+                gd_chi_tiet.name AS case_number,
+                rc.license_plate AS license_plate,
+                rcb.name AS vehicle,
+                CONCAT_WS(', ', 
+                    NULLIF(first_damage.location_damage, ''),
+                    NULLIF(ward.name, ''),
+                    NULLIF(district.name, ''),
+                    NULLIF(province.name, '')
+                ) AS location,
+                gd_chi_tiet.name_driver AS owner_name,
+                gd_chi_tiet.phone_driver AS phone_number,
+                gd_chi_tiet.state AS status,
+                icr.description_damage AS incident_desc,
+                icr.sequel_damage AS damage_desc,
+                TO_CHAR(icr.date_damage, 'DD/MM/YYYY - HH24:MI') AS accident_date,
+                TO_CHAR(gd_chi_tiet.date, 'DD/MM/YYYY - HH24:MI') AS appraisal_date,
+                TO_CHAR(icr.date_damage + INTERVAL '3 hours', 'DD/MM/YYYY - HH24:MI') AS complete_time,
+                icr.note AS note
+            FROM insurance_claim_appraisal_detail gd_chi_tiet
+            LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
+            LEFT JOIN res_car rc ON rc.id = gd_chi_tiet.car_id
+            LEFT JOIN res_car_brand rcb ON rcb.id = rc.car_brand_id
+            LEFT JOIN LATERAL (
+                SELECT * FROM insurance_claim_damage icd 
+                WHERE icd.insur_claim_id = icr.id
+                ORDER BY icd.id
+                LIMIT 1
+            ) AS first_damage ON true
+            LEFT JOIN res_province province ON province.id = first_damage.province_id
+            LEFT JOIN res_district district ON district.id = first_damage.district_id
+            LEFT JOIN res_ward ward ON ward.id = first_damage.ward_id
+            WHERE gd_chi_tiet.id = $1
+        """
 
-    # Mock data for now - in production this would come from a database
-    assessment_detail = {
-        "case_number": "BH-203421",
-        "vehicle": "Mitsubishi Expander - 30H92312",
-        "location": "Mitsubishi Quảng Nam",
-        "owner_name": "Trần Đức Hạnh",
-        "phone_number": "0942216765",
-        "accident_date": "01/01/2025 00:00",
-        "incident_desc": "Va quẹt với cây",
-        "damage_desc": "Nắp ca pô bị trầy",
-        "assessment_progress": 0,
-        "note": "",
-        "tasks": [
-            {
-                "seq": 1,
-                "id": 1,
-                "name": "Giám định chi tiết xe",
-                "path": "/detail",
-                "desc": "Kiểm tra trực tiếp các hạng mục và mực độ tổn thất",
-                "icon": "https://example.com",
-                "status": {
-                    "bg_color": "#00000",
-                    "name": "not_start",
-                }
-            },
+    params = [int(assessment_id)]
+
+    assessment_detail = await PostgresDB.execute_query(query, params)
+    if assessment_detail:
+        assessment_detail = assessment_detail[0]
+        assessment_detail['assessment_progress'] = 100
+        assessment_detail['tasks'] = [{
+            "seq": 1,
+            "name": "Giám định chi tiết xe",
+            "path": "/detail",
+            "desc": "Kiểm tra trực tiếp các hạng mục và mực độ tổn thất",
+            "icon": "https://example.com",
+            "status": {
+                "bg_color": "#00000",
+                "name": "completed",
+            }
+        },
             {
                 "seq": 2,
-                "id": None,
                 "name": "Thu thập hồ sơ",
                 "path": "/collect_document",
                 "desc": "Chụp và trích xuất thông tin từ giấy tờ cần thiết",
                 "icon": "https://example.com",
                 "status": {
                     "bg_color": "#00000",
-                    "name": "not_start",
+                    "name": "completed",
                 }
             },
             {
                 "seq": 3,
-                "id": None,
                 "name": "Upload Thông tin tai nạn & Yêu cầu BT",
                 "path": "/accident_notification",
                 "desc": "Chia sẻ, in và upload bản kí tươi",
                 "icon": "https://example.com",
                 "status": {
                     "bg_color": "#00000",
-                    "name": "not_start",
+                    "name": "completed",
                 }
             },
             {
                 "seq": 4,
-                "id": None,
                 "name": "Upload Biên bản giám định & Xác định thiệt hại",
                 "path": "/assessment_report",
                 "desc": "Chia sẻ, in và upload bản kí tươi",
                 "icon": "https://example.com",
                 "status": {
                     "bg_color": "#00000",
-                    "name": "not_start",
+                    "name": "completed",
                 }
             }
         ]
-    }
-
+    else:
+        assessment_detail = None
     return assessment_detail
 
 
@@ -225,7 +249,7 @@ async def get_vehicle_detail_assessment(
         # Process each assessment category item
         for item in results:
             item_id = item.get('id')
-            
+
             # Query to fetch images related to this category
             sql_image = f"""
                 SELECT 
@@ -241,7 +265,7 @@ async def get_vehicle_detail_assessment(
             # Execute image query and get results
             result_image = await PostgresDB.execute_query(sql_image)
             list_image = []
-            
+
             # Process each image for this category
             if result_image:
                 for res in result_image:
@@ -253,7 +277,7 @@ async def get_vehicle_detail_assessment(
                         'long': res.get('long'),
                         'date': res.get('date_upload'),
                     })
-                    
+
             # Build the assessment detail object with category info and images
             assessment_detail.append({
                 'id': item_id,
