@@ -398,3 +398,17 @@ async def update_document_collection(
     # In a real implementation, you would save the data to the database
     # For now, we'll just return the input data
     return document_collection
+
+
+@router.post("/{assessment_id}/done")
+async def done_assessment(
+        assessment_id: str,
+        current_user: dict = Depends(get_current_user)
+):
+    """
+    Done assessment
+    """
+    return {
+        "id": assessment_id,
+        "status": "Success"
+    }
