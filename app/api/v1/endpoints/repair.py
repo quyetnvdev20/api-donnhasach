@@ -42,7 +42,7 @@ async def submit_repair_plan_approval(
             response_model=RepairPlanListResponse,
             status_code=status.HTTP_200_OK)
 async def get_repair_plan_awaiting_list(
-        state: str = 'new',
+        state: str,
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ) -> RepairPlanListResponse:
@@ -66,6 +66,10 @@ async def get_repair_plan_awaiting_list(
                 "repair_garage_location": {
                     "id": "867",
                     "name": "Mitsubishi Quảng Nam"
+                },
+                "total_cost": {
+                    "value": 1500000,
+                    "color_code": "FF5733"
                 },
                 "inspection_date": "01/03/2024",
                 "status": {
