@@ -47,4 +47,8 @@ async def get_current_user(token: str = Depends(api_key_header)) -> dict:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    token_data.update({
+        "access_token": token
+    })
+
     return token_data
