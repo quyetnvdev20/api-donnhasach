@@ -21,6 +21,13 @@ color = {
     'cancel': '#212121',
 }
 
+# Khởi tạo đối tượng Odoo với config
+config = {
+    'ODOO_URL': os.getenv('ODOO_URL', settings.ODOO_URL),
+    'ODOO_TOKEN': os.getenv('ODOO_TOKEN', settings.ODOO_TOKEN)
+}
+odoo = Odoo(config=config)
+
 
 @router.get("", response_model=List[AssessmentListItem])
 async def get_assessment_list(
@@ -200,40 +207,85 @@ async def get_vehicle_detail_assessment(
     Get detailed vehicle assessment information
     """
 
-    # Mock data for now - in production this would come from a database
-    vehicle_detail = {
-        "assessment_id": int(assessment_id),
-        "items": [
-            {
-                "id": 6425,
-                "name": "Cửa trước trái",
-                "damage": {
-                    "id": 55,
-                    "name": "Móp méo, cong vênh"
-                },
-                "images": [
-                    {
-                        "date": "28/02/2025 02:02:18",
-                        "id": 117352,
-                        "lat": None,
-                        "link": "https://dev-storage.baohiemtasco.vn/forum.carpla.online/tic-store/1740623866712237_32_1740623866651245_compressed_image_CAP_F8F24AA2-C9B6-4791-BE6E-3CFB93841BD5.png",
-                        "location": None,
-                        "long": None
-                    },
-                    {
-                        "date": "28/02/2025 02:02:18",
-                        "id": 117353,
-                        "lat": None,
-                        "link": "https://dev-storage.baohiemtasco.vn/forum.carpla.online/tic-store/1740623915572745_69_1740623915511677_compressed_image_CAP_9C189B67-549F-4D4D-8184-A9C096AF3309.png",
-                        "location": None,
-                        "long": None
-                    }
-                ]
-            }
-        ]
-    }
+    # Query to fetch assessment categories with their details
+    query = f"""
+        SELECT 
+            ica.id,
+            ica.category_id, 
+            iclc.name as category_name,
+            ica.type, 
+            ica.type_document_id, 
+            itd.name as type_document_name,
+            ica.status,
+            isc.name as status_name,
+            ica.solution as solution_code,
+            to_char(ica.date, 'dd/mm/YYYY') as date           
+            from insurance_claim_attachment_category ica
+        left join insurance_type_document itd on ica.type_document_id = itd.id
+        left join insurance_state_category isc on ica.status = isc.id
+        left join insurance_claim_list_category iclc on ica.category_id = iclc.id
+        where detail_category_id = {assessment_id}
+    """
 
-    return vehicle_detail
+    # Execute the query and get results
+    results = await PostgresDB.execute_query(query)
+    assessment_detail = []
+    if results:
+        # Process each assessment category item
+        for item in results:
+            item_id = item.get('id')
+            
+            # Query to fetch images related to this category
+            sql_image = f"""
+                SELECT 
+                    ica.id,
+                    ica.link_preview as link,
+                    ica.location,
+                    ica.lat,
+                    ica.long,
+                    to_char(ica.date_upload, 'dd/mm/YYYY hh:mm:ss') as date_upload
+                FROM insurance_claim_attachment ica
+                WHERE ica.category_id = {item_id}
+            """
+            # Execute image query and get results
+            result_image = await PostgresDB.execute_query(sql_image)
+            list_image = []
+            
+            # Process each image for this category
+            if result_image:
+                for res in result_image:
+                    list_image.append({
+                        'id': res.get('id'),
+                        'link': res.get('link'),
+                        'location': res.get('location'),
+                        'lat': res.get('lat'),
+                        'long': res.get('long'),
+                        'date': res.get('date_upload'),
+                    })
+                    
+            # Build the assessment detail object with category info and images
+            assessment_detail.append({
+                'id': item_id,
+                'category_id': {
+                    'id': item.get('category_id'),
+                    'name': item.get('category_name'),
+                },
+                'status': {
+                    'id': item.get('status'),
+                    'name': item.get('status_name'),
+                },
+                'solution': {
+                    'code': item.get('solution_code'),
+                    'name': 'Sửa chữa' if item.get('solution_code') == 'repair' else (
+                        'Thay thế' if item.get('solution_code') == 'replace' else '')
+                },
+                'images': list_image
+            })
+
+    return {
+        "assessment_id": int(assessment_id),
+        "items": assessment_detail
+    }
 
 
 @router.put("/{assessment_id}/detail", response_model=VehicleDetailAssessment)
