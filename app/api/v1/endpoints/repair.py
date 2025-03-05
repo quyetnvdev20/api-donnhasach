@@ -186,13 +186,6 @@ async def approve_repair_plan(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Unauthorized"
             )
-
-        # Check if user has approval permission
-        if not current_user.get("roles", {}).get("can_approve_repair"):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User does not have permission to approve repair plans"
-            )
         
         return RepairPlanApproveResponse(
             id=int(request.repair_id)
@@ -222,13 +215,6 @@ async def reject_repair_plan(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Unauthorized"
-            )
-
-        # Check if user has rejection permission
-        if not current_user.get("roles", {}).get("can_reject_repair"):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User does not have permission to reject repair plans"
             )
         
         return RepairPlanRejectResponse(
