@@ -35,15 +35,15 @@ class RepairPlanApprovalRequest(BaseModel):
     file_number: str
     vehicle_name: str
     repair_garage_location: str
-    inspection_date: datetime
-    approval_deadline: datetime
+    inspection_date: str
+    approval_deadline: str
     status: Status
     label: Label
     repair_plan_details: List[RepairPlanDetail]
 
 
 class RepairPlanApprovalResponse(BaseModel):
-    id: Optional[dict] = None
+    id: int
 
 
 class RepairGarageLocation(BaseModel):
