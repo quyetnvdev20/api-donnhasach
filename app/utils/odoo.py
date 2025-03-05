@@ -238,8 +238,9 @@ class Odoo(RequestOdoo):
             raise HTTPException(status_code=500, detail=str(ex))
 
     async def delete_method(self, model, record_id, token):
-        url = '{0}/api/{1}/delete/{2}?token={3}'.format(self.config['ODOO_URL'], model, record_id, token)
-        return await self.get(url)
+        url = '{0}/api/{1}/unlink/{2}?token={3}'.format(self.config['ODOO_URL'], model, record_id, token)
+        _logger.info('delete_method.url={}'.format(url))
+        return await self.post(url, {})
 
     async def call_method(self, model, record_ids, method, token=None, fields=None, kwargs=None):
         if not token:
