@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
-
+from typing import List, Optional, Dict, Any
 from ...deps import get_current_user
 from ....database import get_db
 from ....schemas.repair import RepairPlanApprovalRequest, RepairPlanApprovalResponse, RepairPlanListResponse, \
     RepairPlanDetailResponse, RepairPlanApproveRequest, RepairPlanApproveResponse, RepairPlanRejectRequest, \
-    RepairPlanRejectResponse
+    RepairPlanRejectResponse, RepairCategory
+import logging
 
 router = APIRouter()
 
@@ -232,6 +233,49 @@ async def reject_repair_plan(
             id=int(request.repair_id)
         )
 
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.get("/repair-categories", 
+            response_model=List[RepairCategory],
+            status_code=status.HTTP_200_OK)
+async def get_repair_categories(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+) -> List[RepairCategory]:
+    """
+    Get repair categories: parts, paint, and labor
+    """
+    try:
+        # Validate user authentication
+        if not current_user.get("sub"):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Unauthorized"
+            )
+        
+        # Return the three repair categories
+        categories = [
+            RepairCategory(
+                code="parts",
+                name="Phụ tùng"
+            ),
+            RepairCategory(
+                code="paint",
+                name="Sơn"
+            ),
+            RepairCategory(
+                code="labor",
+                name="Nhân công"
+            )
+        ]
+        
+        return categories
+        
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

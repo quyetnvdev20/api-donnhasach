@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 
@@ -132,3 +132,8 @@ class RepairPlanRejectRequest(BaseModel):
 
 class RepairPlanRejectResponse(BaseModel):
     id: int
+
+
+class RepairCategory(BaseModel):
+    code: str
+    name: str
