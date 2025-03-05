@@ -55,7 +55,7 @@ async def get_image_list(assessment_id: int, document_type: str):
     result = await PostgresDB.execute_query(sql_query, (document_type, assessment_id))
     return result
 
-async def get_report_url(report_name: str, id: str, authorization: str = Header(None)):
+async def get_report_url(report_name: str, id: str, authorization: str):
     request_body = {
         "data": [
             f"/report/pdf/{report_name}/{id}",
@@ -78,7 +78,6 @@ async def get_report_url(report_name: str, id: str, authorization: str = Header(
 @router.get("/{assessment_id}/accident_notification", response_model=DocumentResponse)
 async def get_accident_notification(
         assessment_id: int,
-        authorization: str = Header(None),
         current_user: dict = Depends(get_current_user)
 ):
     """
@@ -94,7 +93,7 @@ async def get_accident_notification(
     
     # Get accident notification template from config
     accident_notification_template = settings.ACCIDENT_NOTIFICATION_TEMPLATE
-    accident_notification_url = await get_report_url(accident_notification_template, receive_id, authorization)
+    accident_notification_url = await get_report_url(accident_notification_template, receive_id, current_user.get('access_token'))
     
     image_list = await get_image_list(assessment_id, "accident_ycbt")
 
