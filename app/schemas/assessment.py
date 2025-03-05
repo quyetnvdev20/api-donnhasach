@@ -37,6 +37,7 @@ class Task(BaseModel):
 
 class AssessmentDetail(BaseModel):
     case_number: str
+    status: str
     vehicle: Optional[str] = None
     location: Optional[str] = None
     owner_name: Optional[str] = None
