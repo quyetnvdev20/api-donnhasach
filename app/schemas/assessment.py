@@ -125,27 +125,43 @@ class DocumentType(BaseModel):
     code: str
 
 # Models for Document Collection
-class Document(BaseModel):
-    type_document_id: int
-    type: str = ""
-    name: str = ""
-    desc: str = ""
-    place_holder: Optional[str] = ""
-    images: List[ImageInfo]
+class ImageDocument(BaseModel):
+    date: Optional[str] = None
+    description: Optional[str] = None
+    id: Optional[int] = None
+    lat: Optional[float] = None
+    long: Optional[float] = None
+    location: Optional[str] = None
+    link: Optional[str] = None
 
+class Document(BaseModel):
+    type: str = ""
+    type_document_id: Optional[int] = None
+    name: Optional[str] = None
+    desc: Optional[str] = None
+    images: Optional[List[ImageDocument]] = None
 
 class DocumentCollection(BaseModel):
+    # Thông tin từ get_data_collect_document
+    id: Optional[int] = None
+    state: Optional[str] = None
     name_driver: Optional[str] = None
     phone_driver: Optional[str] = None
     cccd: Optional[str] = None
     gender_driver: Optional[str] = None
+    gplx_no: Optional[str] = None
+    gplx_level: Optional[str] = None
     gplx_effect_date: Optional[str] = None
     gplx_expired_date: Optional[str] = None
-    gplx_level: Optional[str] = None
-    gplx_no: Optional[str] = None
+    registry_no: Optional[str] = None
     registry_date: Optional[str] = None
     registry_expired_date: Optional[str] = None
-    registry_no: Optional[str] = None
+    user_id: Optional[int] = None
+    state_assign: Optional[str] = None
+    appraisal_ho_id: Optional[int] = None
+    object: Optional[str] = None
+    
+    # Thông tin document từ format_image_document
     documents: List[Document]
 
 

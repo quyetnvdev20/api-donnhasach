@@ -36,7 +36,8 @@ async def get_document_type(
         SELECT 
             id,
             name,
-            type_document
+            type_document,
+            description
         FROM insurance_type_document
         WHERE active IS TRUE
         ORDER BY priority_level
@@ -48,9 +49,10 @@ async def get_document_type(
     
     for doc_type in document_types:
         result.append({
-            "id": str(doc_type["id"]),
+            "id": doc_type["id"],
             "name": doc_type["name"],
-            "code": doc_type["type_document"] or ""
+            "code": doc_type["type_document"] or "",
+            "description": doc_type["description"] or ""
         })
     
     return result
@@ -390,88 +392,6 @@ async def update_vehicle_detail_assessment(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update accident notification")
 
 
-
-@router.get("/{assessment_id}/collect_document", response_model=DocumentCollection)
-async def get_document_collection(
-        assessment_id: str,
-        db: Session = Depends(get_db),
-        current_user: dict = Depends(get_current_user)
-):
-    """
-    Get document collection information
-    """
-
-    # Mock data for now - in production this would come from a database
-    document_collection = {
-        "name_driver": "Nguyễn văn An",
-        "phone_driver": "0918515121",
-        "cccd": None,
-        "gender_driver": None,
-        "gplx_effect_date": None,
-        "gplx_expired_date": None,
-        "gplx_level": None,
-        "gplx_no": None,
-        "registry_date": None,
-        "registry_expired_date": None,
-        "registry_no": None,
-        "documents": [
-            {
-                "type_document_id": 1,
-                "type": "",
-                "name": "",
-                "desc": "",
-                "images": [
-                    {
-                        "date": "27/02/2025 11:02:09",
-                        "description": "Chụp mặt trước & sau, rõ nét, đọc được thông tin",
-                        "id": 117348,
-                        "lat": "21.004388702201652",
-                        "link": "https://dev-storage.baohiemtasco.vn/forum.carpla.online/tic-store/1740672577458314_9_1740672577398258_compressed_image_1740672577263_claim.png",
-                        "location": "Q. Thanh Xuân, Thành Phố Hà Nội, Việt Nam",
-                        "long": "105.80242028756557",
-                        "thumbnail": "https://file-cdn.baohiemtasco.vn/insurance-data/car-video-thumb.jpeg"
-                    }
-                ]
-            },
-            {
-                "type_document_id": 1,
-                "type": "",
-                "name": "",
-                "desc": "",
-                "images": [
-                    {
-                        "date": "27/02/2025 11:02:09",
-                        "description": "Chụp mặt trước & sau, rõ nét, đọc được thông tin",
-                        "id": 117348,
-                        "lat": "21.004388702201652",
-                        "link": "https://dev-storage.baohiemtasco.vn/forum.carpla.online/tic-store/1740672577458314_9_1740672577398258_compressed_image_1740672577263_claim.png",
-                        "location": "Q. Thanh Xuân, Thành Phố Hà Nội, Việt Nam",
-                        "long": "105.80242028756557",
-                        "thumbnail": "https://file-cdn.baohiemtasco.vn/insurance-data/car-video-thumb.jpeg"
-                    }
-                ]
-            }
-        ]
-    }
-
-    return document_collection
-
-
-@router.put("/{assessment_id}/collect_document", response_model=DocumentCollection)
-async def update_document_collection(
-        assessment_id: str,
-        document_collection: DocumentCollection,
-        db: Session = Depends(get_db),
-        current_user: dict = Depends(get_current_user)
-):
-    """
-    Update document collection information
-    """
-    # In a real implementation, you would save the data to the database
-    # For now, we'll just return the input data
-    return document_collection
-
-
 @router.post("/{assessment_id}/done")
 async def done_assessment(
         assessment_id: str,
@@ -484,7 +404,7 @@ async def done_assessment(
         "id": assessment_id,
         "status": "Success"
     }
-    
+
 #Xóa các danh mục ảnh hạng mục giám định
 @router.delete("/{claim_attachment_category_id}")
 async def delete_claim_attachment_category(
@@ -502,14 +422,14 @@ async def delete_claim_attachment_category(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Unauthorized"
             )
-            
+
         # Call Odoo to delete the claim attachment category
         response = await odoo.delete_method(
             model='insurance.claim.attachment.category',
             record_id=claim_attachment_category_id,
             token=settings.ODOO_TOKEN
         )
-        
+
         if response:
             return {
                 "id": claim_attachment_category_id,
@@ -517,7 +437,7 @@ async def delete_claim_attachment_category(
             }
         else:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Failed to delete claim attachment category"
             )
     except Exception as e:
