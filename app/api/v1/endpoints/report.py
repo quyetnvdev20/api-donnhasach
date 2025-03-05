@@ -73,7 +73,31 @@ async def get_report_url(report_name: str, id: str, authorization: str):
         else:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get report")
 
-
+async def format_build_body(assessment_id: int, document_upload: DocumentUpload):
+    scan_urls = []
+    for url in document_upload.scan_url:
+        if hasattr(url, 'dict'):  # Nếu là Pydantic model
+            scan_urls.append(url.dict())
+        elif hasattr(url, '__dict__'):  # Nếu là object khác
+            scan_urls.append(vars(url))
+        else:  # Nếu là kiểu dữ liệu cơ bản
+            scan_urls.append(str(url))
+            
+    body = {
+        "id": assessment_id,
+        "profile_attachment_ids":
+            {
+                "image" : [
+                    {
+                        "type_document_id": document_upload.type_document_id,
+                        "type": document_upload.type,
+                        "list_image": scan_urls
+                    }
+                ],
+                "listImageRemove": document_upload.list_image_remove
+            }
+    }
+    return body
 
 @router.get("/{assessment_id}/accident_notification", response_model=DocumentResponse)
 async def get_accident_notification(
@@ -115,33 +139,8 @@ async def update_accident_notification(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     
     # Prepare body
-    # Chuyển đổi các đối tượng không thể serialize thành JSON
-    scan_urls = []
-    for url in document_upload.scan_url:
-        if hasattr(url, 'dict'):  # Nếu là Pydantic model
-            scan_urls.append(url.dict())
-        elif hasattr(url, '__dict__'):  # Nếu là object khác
-            scan_urls.append(vars(url))
-        else:  # Nếu là kiểu dữ liệu cơ bản
-            scan_urls.append(str(url))
-    
-    body = {
-        "id": assessment_id,
-        "profile_attachment_ids":
-            {
-                "image" : [
-                    {
-                        "type_document_id": document_upload.type_document_id,
-                        "type": document_upload.type,
-                        "list_image": scan_urls  # Sử dụng danh sách đã được xử lý
-                    }
-                ],
-                "listImageRemove": document_upload.list_image_remove
-            }
-
-    }
-    
-    # In a real implementation, you would save the data to the database
+    body = await format_build_body(assessment_id, document_upload)
+    # Update accident notification
     response = await odoo.call_method_not_record(
         model='insurance.claim.appraisal.detail',
         method='update_profile_attachment',
@@ -165,34 +164,17 @@ async def get_assessment_report(
     if not current_user.get("sub"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    # Mock data for now - in production this would come from a database
-    assessment_report = {
-        "id": 1,
-        "preview_url": "",
-        "scan_url": [
-            {
-                "date": "27/02/2025 11:02:09",
-                "description": "",
-                "id": 117348,
-                "lat": "21.004388702201652",
-                "link": "https://dev-storage.baohiemtasco.vn/forum.carpla.online/tic-store/1740672577458314_9_1740672577398258_compressed_image_1740672577263_claim.png",
-                "location": "Q. Thanh Xuân, Thành Phố Hà Nội, Việt Nam",
-                "long": "105.80242028756557",
-            },
-            {
-                "date": "27/02/2025 11:02:09",
-                "description": "",
-                "id": 117348,
-                "lat": "21.004388702201652",
-                "link": "https://dev-storage.baohiemtasco.vn/forum.carpla.online/tic-store/1740672577458314_9_1740672577398258_compressed_image_1740672577263_claim.png",
-                "location": "Q. Thanh Xuân, Thành Phố Hà Nội, Việt Nam",
-                "long": "105.80242028756557",
-            }
-        ]
+    # Get accident notification template from config
+    assessment_report_template = settings.ASSESSMENT_REPORT_TEMPLATE
+    assessment_report_url = await get_report_url(assessment_report_template, assessment_id,
+                                                     current_user.get('access_token'))
+
+    image_list = await get_image_list(assessment_id, "appraisal_report")
+
+    return {
+        "preview_url": assessment_report_url,
+        "scan_url": image_list
     }
-
-    return assessment_report
-
 
 @router.put("/{assessment_id}/assessment_report", response_model=DocumentResponse)
 async def update_assessment_report(
@@ -207,12 +189,15 @@ async def update_assessment_report(
     if not current_user.get("sub"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    # In a real implementation, you would save the data to the database
-    # For now, we'll create a mock response
-    response = {
-        "id": 1,
-        "preview_url": "",
-        "scan_url": document_upload.scan_url
-    }
-
-    return response
+    body = await format_build_body(assessment_id, document_upload)
+    response = await odoo.call_method_not_record(
+        model='insurance.claim.appraisal.detail',
+        method='update_profile_attachment',
+        token=settings.ODOO_TOKEN,
+        kwargs=body
+    )
+    
+    if response:
+        return UpdateDocumentResponse(status="Success")
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update assessment report")
