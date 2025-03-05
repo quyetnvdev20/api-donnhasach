@@ -26,8 +26,8 @@ color = {
 @router.get("", response_model=List[AssessmentListItem])
 async def get_assessment_list(
         search: Optional[str] = None,
-        page: int = 1,
-        size: int = 10,
+        offset: int = 0,
+        limit: int = 20,
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
@@ -88,7 +88,7 @@ async def get_assessment_list(
     # Add ordering and pagination
     query += f"""
     ORDER BY gd_chi_tiet.id DESC
-    LIMIT {size} OFFSET {(page - 1) * size}
+    LIMIT {limit} OFFSET {offset}
     """
 
     results = await PostgresDB.execute_query(query, params)
