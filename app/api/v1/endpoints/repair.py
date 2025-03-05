@@ -129,6 +129,8 @@ async def get_repair_plan_awaiting_detail(
                 "code": "PASC001",
                 "color_code": "F1C40F"
             },
+            "btn_approve": True,
+            "btn_reject": True,
             "approval_history": [
                 {
                     "reason": "Chi phí hợp lý",
