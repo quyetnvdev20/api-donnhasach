@@ -1,14 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
+
+from .config import settings
 from .services.rabbitmq import publish_event
 from .db_init import init_db
 from .api.v1.endpoints import analysis, notifications, assessment, repair, odoo_test, report
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
+    openapi_prefix=settings.API_PREFIX,
     title="Claim AI Service",
     description="Service xử lý các hình ảnh bồi thường của giám định viên",
     version="1.0.0",

@@ -10,7 +10,7 @@ class ClaimImageStatus(str, Enum):
 
 class Settings(BaseSettings):
     ROOT_DIR: str = '/'.join(__file__.split('/')[:-2])
-
+    API_PREFIX: str = '/claim-ai'
     DATABASE_URL: str
     OPENAI_API_KEY: str
     RABBITMQ_URL: str
