@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     
     # Database settings
     POSTGRES_DATABASE_URL: str
+
+    # Odoo configuration
+    ODOO_URL: str
+    ODOO_TOKEN: str
     
     @property
     def DATABASE_URL(self) -> str:

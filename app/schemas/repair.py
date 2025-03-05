@@ -62,7 +62,7 @@ class RepairPlanListItem(BaseModel):
 
 
 class RepairPlanListResponse(BaseModel):
-    data: List[RepairPlanListItem: dict]
+    data: List[RepairPlanListItem]
 
 
 class ApprovalHistory(BaseModel):
