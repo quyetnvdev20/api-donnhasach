@@ -53,6 +53,7 @@ class RepairGarageLocation(BaseModel):
 
 class RepairPlanListItem(BaseModel):
     file_name: str
+    id: int
     vehicle_info: str
     owner_name: str
     repair_garage_location: RepairGarageLocation

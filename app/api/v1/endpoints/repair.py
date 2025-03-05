@@ -61,6 +61,7 @@ async def get_repair_plan_awaiting_list(
         formatted_plans = [
             {
                 "file_name": "HS202403001",
+                "id": 123,
                 "vehicle_info": "Toyota Camry 2.5Q 2020 - 30A12345",
                 "owner_name": "Nguyễn Văn A",
                 "location_damage": "Đường Bình Kỳ, Ngũ Hành sơn, TP Đà Nẵng",
