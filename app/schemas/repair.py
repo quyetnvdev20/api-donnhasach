@@ -59,6 +59,7 @@ class RepairPlanListItem(BaseModel):
     inspection_date: str
     status: Status
     label: Label
+    total_cost: Optional[dict] = None
 
 
 class RepairPlanListResponse(BaseModel):
