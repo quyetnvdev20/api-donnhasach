@@ -10,6 +10,8 @@ from ....schemas.repair import RepairPlanApprovalRequest, RepairPlanApprovalResp
 import logging
 from ....utils.erp_db import PostgresDB
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 STATE_COLOR = {
@@ -140,9 +142,9 @@ async def get_repair_plan_awaiting_list(
                 "submitter": res.get('submitter'),
                 "inspection_date": res.get('date_noti'),
                 "status": {
-                    "name": STATE_COLOR.get(res.get('repair_state'))[1],
+                    "name": STATE_COLOR.get(res.get('repair_state'))[1] if STATE_COLOR.get(res.get('repair_state')) else "Chờ duyệt",
                     "code": res.get('repair_state'),
-                    "color_code": STATE_COLOR.get(res.get('repair_state'))[0]
+                    "color_code": STATE_COLOR.get(res.get('repair_state'))[0] if STATE_COLOR.get(res.get('repair_state')) else "#faad14"
                 },
                 "label": {
                     "name": "Gấp",  # TODO chưa biết lấy dữ liệu ở đâu
@@ -185,7 +187,6 @@ async def get_repair_plan_awaiting_detail(
             select 
                 a.id repair_id,
                 a.state repair_state,
-                to_char(a.date_quote,'dd/MM/yyyy') as date_quote,
                 a.price_subtotal,
                 b.id as gara_id,
                 rp.name gara_name,
@@ -290,9 +291,9 @@ async def get_repair_plan_awaiting_detail(
             "owner_name": res.get('car_owner_name'),
             "owner_phone": res.get('car_owner_phone'),
             "status": {
-                "name": STATE_COLOR.get(res.get('repair_state'))[1],
+                "name": STATE_COLOR.get(res.get('repair_state'))[1] if STATE_COLOR.get(res.get('repair_state')) else "Chờ duyệt",
                 "code": res.get('repair_state'),
-                "color_code": STATE_COLOR.get(res.get('repair_state'))[0]
+                "color_code": STATE_COLOR.get(res.get('repair_state'))[0] if STATE_COLOR.get(res.get('repair_state')) else "#faad14"
             },
             "btn_approve": True if res.get('repair_state') == 'pending' else False,  # TODO chưa xử lý phân quyền
             "btn_reject": True if res.get('repair_state') == 'pending' else False,  # TODO chưa xử lý phân quyền
