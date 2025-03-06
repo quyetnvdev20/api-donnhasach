@@ -8,32 +8,46 @@ from ..config import settings
 logger = logging.getLogger(__name__)
 
 class PostgresDB:
-    @staticmethod
-    async def get_async_connection():
-        """Get async connection pool for PostgreSQL"""
-        try:
-            pool = await asyncpg.create_pool(settings.POSTGRES_DATABASE_URL)
-            return pool
-        except Exception as e:
-            logger.error(f"Error connecting to PostgreSQL: {str(e)}")
-            raise
+    _pool = None
 
-    @staticmethod
-    def get_sync_connection():
-        """Get synchronous connection for PostgreSQL"""
-        try:
-            return psycopg2.connect(
-                settings.POSTGRES_DATABASE_URL,
-                cursor_factory=RealDictCursor
-            )
-        except Exception as e:
-            logger.error(f"Error connecting to PostgreSQL: {str(e)}")
-            raise
 
-    @staticmethod
-    async def execute_query(query: str, params: list = None) -> list:
+    @classmethod
+    async def initialize_pool(cls, min_size=5, max_size=10):
+        """Initialize a connection pool once during application startup"""
+        if cls._pool is None:
+            try:
+                cls._pool = await asyncpg.create_pool(
+                    settings.POSTGRES_DATABASE_URL,
+                    min_size=min_size,
+                    max_size=max_size,
+                    command_timeout=60,
+                    max_inactive_connection_lifetime=300
+                )
+                logger.info("PostgreSQL connection pool initialized")
+            except Exception as e:
+                logger.error(f"Error initializing PostgreSQL connection pool: {str(e)}")
+                raise
+        return cls._pool
+
+    @classmethod
+    async def close_pool(cls):
+        """Close the connection pool during application shutdown"""
+        if cls._pool:
+            await cls._pool.close()
+            cls._pool = None
+            logger.info("PostgreSQL connection pool closed")
+
+    @classmethod
+    async def get_pool(cls):
+        """Get the connection pool, initializing if necessary"""
+        if cls._pool is None:
+            await cls.initialize_pool()
+        return cls._pool
+
+    @classmethod
+    async def execute_query(cls, query: str, params: list = None) -> list:
         """Execute a query and return results"""
-        pool = await PostgresDB.get_async_connection()
+        pool = await cls.get_pool()
         try:
             async with pool.acquire() as connection:
                 if params:
@@ -44,13 +58,11 @@ class PostgresDB:
         except Exception as e:
             logger.error(f"Error executing query: {str(e)}")
             raise
-        finally:
-            await pool.close()
 
-    @staticmethod
-    async def execute_transaction(queries: list) -> None:
+    @classmethod
+    async def execute_transaction(cls, queries: list) -> None:
         """Execute multiple queries in a transaction"""
-        pool = await PostgresDB.get_async_connection()
+        pool = await cls.get_pool()
         try:
             async with pool.acquire() as connection:
                 async with connection.transaction():
@@ -59,5 +71,16 @@ class PostgresDB:
         except Exception as e:
             logger.error(f"Error executing transaction: {str(e)}")
             raise
-        finally:
-            await pool.close() 
+
+# Khởi tạo pool khi ứng dụng khởi động
+async def startup_event():
+    await PostgresDB.initialize_pool(min_size=10, max_size=50)
+
+# Đóng pool khi ứng dụng shutdown
+async def shutdown_event():
+    await PostgresDB.close_pool()
+
+# # Sử dụng trong các endpoint
+# async def handle_request():
+#     data = await PostgresDB.execute_query("SELECT * FROM table WHERE id = $1", [1])
+#     return data 

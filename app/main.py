@@ -51,6 +51,11 @@ async def startup_event():
         init_db()
         logger.info("Database initialized successfully")
         
+        # Initialize PostgresDB connection pool
+        from app.utils.erp_db import PostgresDB
+        await PostgresDB.initialize_pool(min_size=10, max_size=50)
+        logger.info("PostgreSQL connection pool initialized successfully")
+        
         # Initialize Redis connection
         await redis_client.connect()
         logger.info("Redis connection initialized successfully")
@@ -65,5 +70,10 @@ async def shutdown_event():
     # Close Redis connection
     await redis_client.close()
     logger.info("Redis connection closed")
+    
+    # Close PostgresDB connection pool
+    from app.utils.erp_db import PostgresDB
+    await PostgresDB.close_pool()
+    logger.info("PostgreSQL connection pool closed")
     
     # Clean up other resources here
