@@ -31,34 +31,54 @@ class RepairPlanDetail(BaseModel):
     discount_percentage: float
 
 
+class RepairItem(BaseModel):
+    name: str
+    id: int
+
+
+class RepairType(BaseModel):
+    name: str
+    code: str
+    color_code: str
+
+
+class RepairGarageLocation(BaseModel):
+    id: int
+    name: str
+
+
+class RepairPlanDetailItem(BaseModel):
+    name: str
+    item: RepairItem
+    type: RepairType
+    garage_price: float
+    suggested_price: float
+    discount_percentage: float
+
+
 class RepairPlanApprovalRequest(BaseModel):
     file_number: str
     vehicle_name: str
-    repair_garage_location: str
+    repair_garage_location: RepairGarageLocation
     inspection_date: str
     approval_deadline: str
     status: Status
     label: Label
-    repair_plan_details: List[RepairPlanDetail]
+    repair_plan_details: List[RepairPlanDetailItem]
 
 
 class RepairPlanApprovalResponse(BaseModel):
     id: int
 
 
-class RepairGarageLocation(BaseModel):
-    id: str
-    name: str
-
-
 class RepairPlanListItem(BaseModel):
-    file_name: str
+    file_name: Optional[str] = None
     id: int
     vehicle_info: str
-    owner_name: str
+    owner_name: Optional[str] = None
     repair_garage_location: RepairGarageLocation
-    inspection_date: str
-    location_damage: str
+    inspection_date: Optional[str] = None
+    location_damage: Optional[str] = None
     submitter: str
     status: Status
     label: Label
@@ -72,26 +92,6 @@ class RepairPlanListResponse(BaseModel):
 class ApprovalHistory(BaseModel):
     reason: str
     approval_time: str
-
-
-class RepairItem(BaseModel):
-    name: str
-    id: int
-
-
-class RepairType(BaseModel):
-    name: str
-    code: str
-    color_code: str
-
-
-class RepairPlanDetailItem(BaseModel):
-    name: str
-    item: RepairItem
-    type: RepairType
-    garage_price: float
-    suggested_price: float
-    discount_percentage: float
 
 
 class RepairPlanAwaitingDetail(BaseModel):
