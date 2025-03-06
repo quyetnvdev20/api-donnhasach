@@ -103,17 +103,19 @@ async def get_assessment_list(
 --             ORDER BY icd.id
 --             LIMIT 1
 --         ) AS first_damage ON true
-        LEFT JOIN LATERAL (
-            SELECT * FROM insurance_contract_certification icc 
-            LEFT JOIN insurance_claim_receive_insurance_contract_certification_rel rel on rel.insurance_contract_certification_id = icc.id
-            WHERE rel.insurance_claim_receive_id = icr.id and icc.type = 'vcx'
-            ORDER BY icc.id
-            LIMIT 1
-        ) AS first_certificate ON true
+--         LEFT JOIN LATERAL (
+--             SELECT * FROM insurance_contract_certification icc 
+--             LEFT JOIN insurance_claim_receive_insurance_contract_certification_rel rel on rel.insurance_contract_certification_id = icc.id
+--             WHERE rel.insurance_claim_receive_id = icr.id and icc.type = 'vcx'
+--             ORDER BY icc.id
+--             LIMIT 1
+--         ) AS first_certificate ON true
         LEFT JOIN res_province province ON province.id = icr.province_id
         LEFT JOIN res_district district ON district.id = icr.district_id
         LEFT JOIN res_ward ward ON ward.id = icr.ward_id
-        WHERE icr.car_at_scene = false and first_certificate.id is not null
+        WHERE 
+--         icr.car_at_scene = false and first_certificate.id is not null
+        1=1
     """
 
     params = [time_zone.key]  # Add time_zone as the first parameter
@@ -209,18 +211,19 @@ async def get_assessment_detail(
 --                 ORDER BY icd.id
 --                 LIMIT 1
 --             ) AS first_damage ON true
-            LEFT JOIN LATERAL (
-                SELECT * FROM insurance_contract_certification icc 
-                LEFT JOIN insurance_claim_receive_insurance_contract_certification_rel rel on rel.insurance_contract_certification_id = icc.id
-                WHERE rel.insurance_claim_receive_id = icr.id and icc.type = 'vcx'
-                ORDER BY icc.id
-                LIMIT 1
-            ) AS first_certificate ON true
+--             LEFT JOIN LATERAL (
+--                 SELECT * FROM insurance_contract_certification icc 
+--                 LEFT JOIN insurance_claim_receive_insurance_contract_certification_rel rel on rel.insurance_contract_certification_id = icc.id
+--                 WHERE rel.insurance_claim_receive_id = icr.id and icc.type = 'vcx'
+--                 ORDER BY icc.id
+--                 LIMIT 1
+--             ) AS first_certificate ON true
             LEFT JOIN res_province province ON province.id = icr.province_id
             LEFT JOIN res_district district ON district.id = icr.district_id
             LEFT JOIN res_ward ward ON ward.id = icr.ward_id
-            WHERE gd_chi_tiet.id = $1 and icr.car_at_scene = false 
-            and first_certificate.id is not null
+            WHERE gd_chi_tiet.id = $1 
+--             and icr.car_at_scene = false 
+--             and first_certificate.id is not null
         """
 
     params = [int(assessment_id), time_zone.key]
