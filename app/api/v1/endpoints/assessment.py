@@ -175,6 +175,7 @@ async def get_assessment_detail(
     Get detailed information about a specific assessment
     """
     time_zone = headers.time_zone
+    logger.info(f"timezoneeeeeeeeee {time_zone.key}")
     query = f"""
             SELECT
                 gd_chi_tiet.name AS case_number,
@@ -229,7 +230,7 @@ async def get_assessment_detail(
         assessment_detail = assessment_detail[0]
 
         # todo: fix hardcode
-        assessment_detail['assessment_progress'] = 30
+        assessment_detail['assessment_progress'] = 100
         assessment_detail['status_color'] = color.get(assessment_detail['status'],
                                                       '#757575')  # Default to gray if status not found
         assessment_detail['tasks'] = [{
@@ -240,7 +241,7 @@ async def get_assessment_detail(
             "icon": "https://example.com",
             "status": {
                 "bg_color": "#00000",
-                "name": "in_progress",
+                "name": "completed",
             }
         },
             {
@@ -251,7 +252,7 @@ async def get_assessment_detail(
                 "icon": "https://example.com",
                 "status": {
                     "bg_color": "#00000",
-                    "name": "in_progress",
+                    "name": "completed",
                 }
             },
             {
@@ -262,7 +263,7 @@ async def get_assessment_detail(
                 "icon": "https://example.com",
                 "status": {
                     "bg_color": "#00000",
-                    "name": "in_progress",
+                    "name": "completed",
                 }
             },
             {
@@ -273,7 +274,7 @@ async def get_assessment_detail(
                 "icon": "https://example.com",
                 "status": {
                     "bg_color": "#00000",
-                    "name": "in_progress",
+                    "name": "completed",
                 }
             }
         ]
