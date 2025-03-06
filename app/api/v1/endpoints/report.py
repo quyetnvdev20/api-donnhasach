@@ -297,7 +297,7 @@ async def get_assessment_report(
         "scan_url": image_list
     }
 
-@router.put("/{assessment_id}/assessment_report", response_model=DocumentResponse)
+@router.put("/{assessment_id}/assessment_report", response_model=UpdateDocumentResponse)
 async def update_assessment_report(
         assessment_id: int,
         document_upload: DocumentUpload,
