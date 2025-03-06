@@ -34,8 +34,8 @@ async def submit_repair_plan_approval(
         current_user: dict = Depends(get_current_user)
 ) -> dict[str, int]:
     try:
-        response = await odoo.call_method(
-            record_ids=[repair_id],
+        response = await odoo.call_method_post(
+            record_id=repair_id,
             model='insurance.claim.solution.repair',
             method='submit_repair_plan_approval',
             kwargs=repair_plan.model_dump()
@@ -332,8 +332,8 @@ async def approve_repair_plan(
     Approve a repair plan
     """
     try:
-        response = await odoo.call_method(
-            record_ids=[request.repair_id],
+        response = await odoo.call_method_post(
+            record_id=request.repair_id,
             model='insurance.claim.solution.repair',
             method='action_approve_api',
             kwargs={'reason': request.approve_reason}
@@ -358,8 +358,8 @@ async def reject_repair_plan(
     Reject a repair plan
     """
     try:
-        response = await odoo.call_method(
-            record_ids=[request.repair_id],
+        response = await odoo.call_method_post(
+            record_id=request.repair_id,
             model='insurance.claim.solution.repair',
             method='action_reject_api',
             kwargs={'reason': request.reject_reason}
