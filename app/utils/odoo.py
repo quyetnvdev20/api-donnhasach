@@ -89,6 +89,7 @@ class RequestOdoo():
         except Exception as ex:
             _logger.error('post.Exception.url={}'.format(url))
             _logger.error('post.Exception.ex={}'.format(ex))
+
             raise HTTPException(status_code=500, detail=str(ex))
         res = json.loads(res, strict=False)
         if 'result' in res:
@@ -238,7 +239,7 @@ class Odoo(RequestOdoo):
             raise HTTPException(status_code=500, detail=str(ex))
 
     async def delete_method(self, model, record_id, token):
-        url = '{0}/api/{1}/unlink/{2}?token={3}'.format(self.config['ODOO_URL'], model, record_id, token)
+        url = '{0}/api/{1}/delete/{2}?token={3}'.format(self.config['ODOO_URL'], model, record_id, token)
         _logger.info('delete_method.url={}'.format(url))
         return await self.post(url, {})
 
@@ -247,13 +248,16 @@ class Odoo(RequestOdoo):
             token = self.config['ODOO_TOKEN']
         if not kwargs:
             kwargs = {}
-        url = '{0}/api/{1}/call/{2}/{3}?token={4}'.format(self.config['ODOO_URL'], model, record_ids, method, token)
+        if len(record_ids) == 1:
+            url = '{0}/api/{1}/{2}/method/{3}?token={4}'.format(self.config['ODOO_URL'], model, record_ids[0], method, token)
+        else:
+            url = '{0}/api/{1}/method/{2}?token={3}'.format(self.config['ODOO_URL'], model, method, token)
         if fields:
             url = '{0}&fields={1}'.format(url, fields)
         try:
             _logger.info('call_method.url={}'.format(url))
             _logger.info('call_method.kwargs={}'.format(kwargs))
-            return await self.post(url, kwargs)
+            return await self.get(url, kwargs)
         except Exception as ex:
             _logger.error('call_method.Exception.url={}'.format(url))
             _logger.error('call_method.Exception.ex={}'.format(ex))
@@ -262,7 +266,7 @@ class Odoo(RequestOdoo):
     async def call_method_post(self, model, record_id, method, token=None, fields=None, kwargs=None):
         if not token:
             token = self.config['ODOO_TOKEN']
-        url = '{0}/api/{1}/call/{2}/{3}?token={4}'.format(self.config['ODOO_URL'], model, record_id, method, token)
+        url = '{0}/api/{1}/method/{2}/{3}?token={4}'.format(self.config['ODOO_URL'], model, record_id, method, token)
         if fields:
             url = '{0}&fields={1}'.format(url, fields)
         return await self.post(url, kwargs)
