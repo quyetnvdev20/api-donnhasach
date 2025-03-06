@@ -138,7 +138,7 @@ class ImageDocument(BaseModel):
 class Document(BaseModel):
     type: str = ""
     type_document_id: Optional[int] = None
-    listImageRemove: List[int] = None
+    listImageRemove: Optional[List[int]] = None
     name: Optional[str] = None
     desc: Optional[str] = None
     images: Optional[List[ImageDocument]] = None
