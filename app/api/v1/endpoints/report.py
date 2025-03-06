@@ -139,37 +139,42 @@ async def get_accident_notification(
     if not current_user.get("sub"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     
-    # Tạo cache key cho preview URL
-    cache_key = f"accident_notification_preview:{assessment_id}"
+    # # Tạo cache key cho preview URL
+    # cache_key = f"accident_notification_preview:{assessment_id}"
     
-    # Thử lấy preview URL từ Redis
-    cached_preview_url, list_image = await asyncio.gather(redis_client.get(cache_key), get_image_list(assessment_id, "accident_ycbt"))
+    # # Thử lấy preview URL từ Redis
+    # cached_preview_url, list_image = await asyncio.gather(redis_client.get(cache_key), get_image_list(assessment_id, "accident_ycbt"))
     
-    # Kiểm tra URL trong cache có khả dụng không
-    if cached_preview_url and await is_url_valid(cached_preview_url):
-        logger.info(f"Using cached preview URL for assessment_id: {assessment_id}")
-        return {
-            "preview_url": cached_preview_url,
-            "scan_url": list_image
-        }
+    # # Kiểm tra URL trong cache có khả dụng không
+    # if cached_preview_url and await is_url_valid(cached_preview_url):
+    #     logger.info(f"Using cached preview URL for assessment_id: {assessment_id}")
+    #     return {
+    #         "preview_url": cached_preview_url,
+    #         "scan_url": list_image
+    #     }
     
-    # Nếu không có trong cache hoặc URL không khả dụng, lấy từ API
-    # Get receive_id from assessment_id
-    receive_id = await get_receive_id(assessment_id)
-    if not receive_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found")
+    # # Nếu không có trong cache hoặc URL không khả dụng, lấy từ API
+    # # Get receive_id from assessment_id
+    # receive_id = await get_receive_id(assessment_id)
+    # if not receive_id:
+    #     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found")
     
-    # Get accident notification template from config
-    accident_notification_template = settings.ACCIDENT_NOTIFICATION_TEMPLATE
-    accident_notification_url = await get_report_url(accident_notification_template, receive_id, current_user.get('access_token'))
+    # # Get accident notification template from config
+    # accident_notification_template = settings.ACCIDENT_NOTIFICATION_TEMPLATE
+    # accident_notification_url = await get_report_url(accident_notification_template, receive_id, current_user.get('access_token'))
     
-    # Kiểm tra URL mới có khả dụng không trước khi lưu vào Redis
-    if accident_notification_url and await is_url_valid(accident_notification_url):
-        # Lưu vào Redis không có thời gian timeout (expiry=None)
-        await redis_client.set(cache_key, accident_notification_url, expiry=None)
-        logger.info(f"Cached preview URL for assessment_id: {assessment_id}")
-    else:
-        logger.warning(f"Generated URL is not valid for assessment_id: {assessment_id}")
+    # # Kiểm tra URL mới có khả dụng không trước khi lưu vào Redis
+    # if accident_notification_url and await is_url_valid(accident_notification_url):
+    #     # Lưu vào Redis không có thời gian timeout (expiry=None)
+    #     await redis_client.set(cache_key, accident_notification_url, expiry=None)
+    #     logger.info(f"Cached preview URL for assessment_id: {assessment_id}")
+    # else:
+    #     logger.warning(f"Generated URL is not valid for assessment_id: {assessment_id}")
+    
+    
+    # Version test
+    accident_notification_url = "https://storage.baohiemtasco.vn/tic-store/static/documents/claim/BM.Tasco.XCG.01.03.docx"
+    list_image = await get_image_list(assessment_id, "accident_ycbt")
         
     return {
         "preview_url": accident_notification_url or "",
@@ -258,45 +263,49 @@ async def get_assessment_report(
     if not current_user.get("sub"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     
-    # Tạo cache key cho preview URL
-    cache_key = f"assessment_report_preview:{assessment_id}"
+    # # Tạo cache key cho preview URL
+    # cache_key = f"assessment_report_preview:{assessment_id}"
     
-    # Thử lấy preview URL từ Redis và danh sách hình ảnh cùng lúc
-    cached_preview_url, image_list = await asyncio.gather(
-        redis_client.get(cache_key), 
-        get_image_list(assessment_id, "assessment_report")
-    )
+    # # Thử lấy preview URL từ Redis và danh sách hình ảnh cùng lúc
+    # cached_preview_url, image_list = await asyncio.gather(
+    #     redis_client.get(cache_key), 
+    #     get_image_list(assessment_id, "assessment_report")
+    # )
     
-    # Kiểm tra URL trong cache có khả dụng không
-    if cached_preview_url and await is_url_valid(cached_preview_url):
-        logger.info(f"Using cached preview URL for assessment report, assessment_id: {assessment_id}")
-        return {
-            "preview_url": cached_preview_url,
-            "scan_url": image_list
-        }
+    # # Kiểm tra URL trong cache có khả dụng không
+    # if cached_preview_url and await is_url_valid(cached_preview_url):
+    #     logger.info(f"Using cached preview URL for assessment report, assessment_id: {assessment_id}")
+    #     return {
+    #         "preview_url": cached_preview_url,
+    #         "scan_url": image_list
+    #     }
     
-    # Nếu không có trong cache hoặc URL không khả dụng, lấy từ API
-    # Get receive_id from assessment_id
-    receive_id = await get_receive_id(assessment_id)
-    if not receive_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found")
+    # # Nếu không có trong cache hoặc URL không khả dụng, lấy từ API
+    # # Get receive_id from assessment_id
+    # receive_id = await get_receive_id(assessment_id)
+    # if not receive_id:
+    #     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found")
     
-    # Get assessment report template from config
-    assessment_report_template = settings.ASSESSMENT_REPORT_TEMPLATE
-    assessment_report_url = await get_report_url(assessment_report_template, assessment_id,
-                                                     current_user.get('access_token'))
+    # # Get assessment report template from config
+    # assessment_report_template = settings.ASSESSMENT_REPORT_TEMPLATE
+    # assessment_report_url = await get_report_url(assessment_report_template, assessment_id,
+    #                                                  current_user.get('access_token'))
     
-    # Kiểm tra URL mới có khả dụng không trước khi lưu vào Redis
-    if assessment_report_url and await is_url_valid(assessment_report_url):
-        # Lưu vào Redis không có thời gian timeout (expiry=None)
-        await redis_client.set(cache_key, assessment_report_url, expiry=None)
-        logger.info(f"Cached preview URL for assessment report, assessment_id: {assessment_id}")
-    else:
-        logger.warning(f"Generated URL is not valid for assessment report, assessment_id: {assessment_id}")
+    # # Kiểm tra URL mới có khả dụng không trước khi lưu vào Redis
+    # if assessment_report_url and await is_url_valid(assessment_report_url):
+    #     # Lưu vào Redis không có thời gian timeout (expiry=None)
+    #     await redis_client.set(cache_key, assessment_report_url, expiry=None)
+    #     logger.info(f"Cached preview URL for assessment report, assessment_id: {assessment_id}")
+    # else:
+    #     logger.warning(f"Generated URL is not valid for assessment report, assessment_id: {assessment_id}")
+    
+    # Version test
+    assessment_report_url = "https://storage.baohiemtasco.vn/tic-store/static/documents/claim/BM.Tasco.XCG.01.12.docx"
+    list_image = await get_image_list(assessment_id, "assessment_report")
     
     return {
         "preview_url": assessment_report_url or "",
-        "scan_url": image_list
+        "scan_url": list_image
     }
 
 @router.put("/{assessment_id}/assessment_report", response_model=UpdateDocumentResponse)
