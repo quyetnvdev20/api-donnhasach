@@ -8,31 +8,20 @@ from ....schemas.assessment import OCRQuoteResponse
 import logging
 import httpx
 import asyncio
+import json
+import re
 from ....utils.erp_db import PostgresDB
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+with open(f'{settings.ROOT_DIR}/app/data/repair_item.json', 'r', encoding='utf-8') as f:
+    LIST_REPAIR_ITEM = json.load(f)
 
-@router.get("/ocr-quote",
-            response_model=OCRQuoteResponse,
-            status_code=status.HTTP_200_OK)
-async def get_ocr_quote(
-        image_url: str,
-        current_user: dict = Depends(get_current_user)
-) -> OCRQuoteResponse:
-    """
-    Get OCR quote from an image URL
-    
-    This endpoint sends the image URL to the OCR service and returns the extracted information.
-    
-    Parameters:
-    - image_url: URL of the image to be processed
-    
-    Returns:
-    - OCR extracted data
-    """
+
+async def get_ocr_quote_data(image_url: str):
+
     try:
         # Định nghĩa URL của dịch vụ OCR
         ocr_service_url = settings.OCR_SERVICE_URL
@@ -74,41 +63,7 @@ async def get_ocr_quote(
             data = response.json()
             logger.info(f"OCR response received: {data}")
             
-            # Xử lý dữ liệu OCR
-            result_data = []
-            
-            if data.get('data') and len(data.get('data')):
-                for item in data.get('data'):
-                    if not item.get('info') or not item.get('info').get('table'):
-                        continue
-                        
-                    table_data = item.get('info').get('table')
-                    if not table_data or not len(table_data):
-                        continue
-                        
-                    for line in table_data:
-                        try:
-                            price = float(line.get('amount_total')) if line.get('amount_total') else 0
-                            discount = float(line.get('percent_discount')) if line.get('percent_discount') else 0
-                            
-                            result_data.append({
-                                'name': line.get('description', ''),
-                                'quantity': 1,
-                                'garage_price': price,
-                                'item': {
-                                    'id': 1540,
-                                    'name': 'Cửa sau phải'
-                                },
-                                'discount_percentage': discount,
-                            })
-                        except (ValueError, TypeError) as e:
-                            logger.warning(f"Error parsing line data: {line}, error: {str(e)}")
-                            continue
-            
-            return OCRQuoteResponse(
-                url_cvs=image_url,
-                data=result_data
-            )
+            return data
             
     except httpx.TimeoutException as e:
         logger.error(f"Request to OCR service timed out: {str(e)}")
@@ -128,4 +83,105 @@ async def get_ocr_quote(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Unexpected error: {str(e)}"
         )
+    
+async def get_data_mapping():
+    query = """
+        SELECT DISTINCT
+            line.name AS repair_item_name,
+            category.id AS category_id,
+            category.name AS category_name
+        FROM 
+            insurance_claim_solution_repair_line line
+        LEFT JOIN insurance_claim_list_category category ON line.category_id = category.id
+        WHERE 
+        line.name IS NOT NULL 
+        AND category.name IS NOT NULL
+     """
+     
+    data_mapping = await PostgresDB.execute_query(query)
+    return data_mapping
+
+
+def clean_numeric_value(value):
+    """
+    Remove commas from numeric strings and convert to integer.
+    If the value is not a string or doesn't contain commas, return it as is.
+    """
+    if isinstance(value, str):
+        # Remove commas and convert to integer if it's a numeric string
+        cleaned_value = value.replace(',', '')
+        if re.match(r'^\d+$', cleaned_value):
+            return int(cleaned_value)
+    return value
+
+@router.get("/ocr-quote",
+            response_model=OCRQuoteResponse,
+            status_code=status.HTTP_200_OK)
+async def get_ocr_quote(
+        image_url: str,
+        current_user: dict = Depends(get_current_user)
+) -> OCRQuoteResponse:
+    """
+    Get OCR quote from an image URL
+    
+    This endpoint sends the image URL to the OCR service and returns the extracted information.
+    
+    Parameters:
+    - image_url: URL of the image to be processed
+    
+    Returns:
+    - OCR extracted data
+    """
+
+
+    ocr_quote_data = await get_ocr_quote_data(image_url)
+
+
+    data_mapping = {item['repair_item_name']: item for item in LIST_REPAIR_ITEM}
+
+    
+
+    # Xử lý dữ liệu OCR
+    result_data = []
+            
+    if ocr_quote_data.get('data') and len(ocr_quote_data.get('data')):
+        for item in ocr_quote_data.get('data'):
+            if not item.get('info') or not item.get('info').get('table'):
+                        continue
+                        
+            table_data = item.get('info').get('table')
+            if not table_data or not len(table_data):
+                continue
+                
+            for line in table_data:
+                try:
+                    price = float(line.get('amount_total')) if line.get('amount_total') else 0
+                    discount = float(line.get('percent_discount')) if line.get('percent_discount') else 0
+                    name = line.get('description', '')
+
+
+                    category = {
+                        'id': None,
+                        'name': None
+                    }
+                    if data_mapping.get(name):
+                        category['id'] = clean_numeric_value(data_mapping.get(name).get('category_id'))
+                        category['name'] = clean_numeric_value(data_mapping.get(name).get('category_name'))
+                    
+                    result_data.append({
+                        'name': name,
+                        'quantity': 1,
+                        'garage_price': price,
+                        'item': category,
+                        'discount_percentage': discount,
+                    })
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Error parsing line data: {line}, error: {str(e)}")
+                    continue
+            
+    return OCRQuoteResponse(
+        url_cvs=image_url,
+        data=result_data
+    )
+
        

@@ -92,8 +92,8 @@ class ImageInfo(BaseModel):
 
 # Schema for category ID
 class Category(BaseModel):
-    id: int
-    name: str
+    id: Optional[int] = None
+    name: Optional[str] = None
 
 
 # Schema for status
