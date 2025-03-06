@@ -34,15 +34,16 @@ async def submit_repair_plan_approval(
         current_user: dict = Depends(get_current_user)
 ) -> dict[str, int]:
     try:
-        response = await odoo.call_method_record(
-            model='insurance.claim.appraisal.detail',
-            method='function',
-            token=settings.ODOO_TOKEN,
-            kwargs=repair_plan
+        response = await odoo.call_method(
+            record_ids=[repair_id],
+            model='insurance.claim.solution.repair',
+            method='submit_repair_plan_approval',
+            kwargs=repair_plan.model_dump()
         )
-
-        return response
-
+        if response.get("status_code") == status.HTTP_200_OK:
+            return {'id': response.get("data")}
+        else:
+            raise Exception(response.get("message"))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -326,14 +327,11 @@ async def approve_repair_plan(
     Approve a repair plan
     """
     try:
-        response = await odoo.call_method_not_record(
+        return await odoo.call_method_not_record(
             model='insurance.claim.appraisal.detail',
-            method='update_insurance_assessment_detail',
-            token=settings.ODOO_TOKEN,
-            kwargs=request
+            method='',
+            kwargs=request.model_dump()
         )
-
-        return response
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -353,13 +351,11 @@ async def reject_repair_plan(
     Reject a repair plan
     """
     try:
-        response = await odoo.call_method_not_record(
+        return await odoo.call_method_not_record(
             model='insurance.claim.appraisal.detail',
-            method='update_insurance_assessment_detail',
-            token=settings.ODOO_TOKEN,
-            kwargs=request
+            method='',
+            kwargs=request.model_dump()
         )
-        return response
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

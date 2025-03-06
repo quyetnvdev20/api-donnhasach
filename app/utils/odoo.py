@@ -249,15 +249,15 @@ class Odoo(RequestOdoo):
         if not kwargs:
             kwargs = {}
         if len(record_ids) == 1:
-            url = '{0}/api/{1}/{2}/method/{3}?token={4}'.format(self.config['ODOO_URL'], model, record_ids[0], method, token)
+            url = '{0}/api/{1}/{2}/method/{3}?token={4}&kwargs={5}'.format(self.config['ODOO_URL'], model, record_ids[0], method, token, kwargs)
         else:
-            url = '{0}/api/{1}/method/{2}?token={3}'.format(self.config['ODOO_URL'], model, method, token)
+            url = '{0}/api/{1}/method/{2}?token={3}&kwargs={4}'.format(self.config['ODOO_URL'], model, method, token, kwargs)
         if fields:
             url = '{0}&fields={1}'.format(url, fields)
         try:
             _logger.info('call_method.url={}'.format(url))
             _logger.info('call_method.kwargs={}'.format(kwargs))
-            return await self.get(url, kwargs)
+            return await self.get(url)
         except Exception as ex:
             _logger.error('call_method.Exception.url={}'.format(url))
             _logger.error('call_method.Exception.ex={}'.format(ex))
