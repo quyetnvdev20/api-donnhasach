@@ -111,7 +111,7 @@ class Solution(BaseModel):
 # Schema for assessment item
 class AssessmentItem(BaseModel):
     id: int
-    category: Category
+    category_id: Category
     state: Status
     solution: Solution = Solution(code='repair', name='Sửa chữa')
     listImageRemove: List[int] = None
