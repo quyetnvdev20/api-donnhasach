@@ -43,8 +43,8 @@ class RepairType(BaseModel):
 
 
 class RepairGarageLocation(BaseModel):
-    id: int
-    name: str
+    id: Optional[int] = None
+    name: Optional[str] = None
 
 
 class RepairPlanDetailItem(BaseModel):
@@ -79,7 +79,7 @@ class RepairPlanListItem(BaseModel):
     repair_garage_location: RepairGarageLocation
     inspection_date: Optional[str] = None
     location_damage: Optional[str] = None
-    submitter: str
+    submitter: Optional[str] = None
     status: Status
     label: Label
     total_cost: Optional[dict] = None
@@ -137,3 +137,4 @@ class RepairPlanRejectResponse(BaseModel):
 class RepairCategory(BaseModel):
     code: str
     name: str
+    color_code: str
