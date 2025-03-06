@@ -90,3 +90,5 @@ Pipfile.lock
 # poetry
 poetry.lock 
 docker-compose.yml
+
+test.py

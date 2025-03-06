@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from ...deps import get_current_user
+from ....config import settings, odoo
 from ....database import get_db
 from ....schemas.repair import RepairPlanApprovalRequest, RepairPlanApprovalResponse, RepairPlanListResponse, \
     RepairPlanDetailResponse, RepairPlanApproveRequest, RepairPlanApproveResponse, RepairPlanRejectRequest, \
@@ -21,16 +22,14 @@ async def submit_repair_plan_approval(
         current_user: dict = Depends(get_current_user)
 ) -> dict[str, int]:
     try:
-        # Validate user authentication
-        if not current_user.get("sub"):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Unauthorized"
-            )
+        response = await odoo.call_method_record(
+            model='insurance.claim.appraisal.detail',
+            method='function',
+            token=settings.ODOO_TOKEN,
+            kwargs=repair_plan
+        )
 
-        return {
-            "id": repair_id
-        }
+        return response
 
     except Exception as e:
         raise HTTPException(
@@ -192,17 +191,14 @@ async def approve_repair_plan(
     Approve a repair plan
     """
     try:
-        # Validate user authentication
-        if not current_user.get("sub"):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Unauthorized"
-            )
-        
-        return RepairPlanApproveResponse(
-            id=int(request.repair_id)
+        response = await odoo.call_method_not_record(
+            model='insurance.claim.appraisal.detail',
+            method='update_insurance_assessment_detail',
+            token=settings.ODOO_TOKEN,
+            kwargs=request
         )
 
+        return response
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -222,17 +218,13 @@ async def reject_repair_plan(
     Reject a repair plan
     """
     try:
-        # Validate user authentication
-        if not current_user.get("sub"):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Unauthorized"
-            )
-        
-        return RepairPlanRejectResponse(
-            id=int(request.repair_id)
+        response = await odoo.call_method_not_record(
+            model='insurance.claim.appraisal.detail',
+            method='update_insurance_assessment_detail',
+            token=settings.ODOO_TOKEN,
+            kwargs=request
         )
-
+        return response
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

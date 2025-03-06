@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Header
 from sqlalchemy.orm import Session
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Annotated
 from pydantic import BaseModel
 from datetime import datetime
 from ....database import get_db
 from ...deps import get_current_user
 from ....schemas.assessment import AssessmentListItem, VehicleDetailAssessment, AssessmentDetail, DocumentCollection, \
     DocumentResponse, DocumentUpload, DocumentType, UpdateAssessmentItemResponse
+from ....schemas.common import CommonHeaders
 from ....utils.erp_db import PostgresDB
 import json
 import httpx
@@ -21,6 +22,7 @@ color = {
     'done': '#4CAF50',
     'cancel': '#212121',
 }
+
 
 @router.get("/document_type")
 async def get_document_type(
@@ -43,10 +45,10 @@ async def get_document_type(
         ORDER BY priority_level
         LIMIT 100
     """
-    
+
     document_types = await PostgresDB.execute_query(query)
     result = []
-    
+
     for doc_type in document_types:
         result.append({
             "id": doc_type["id"],
@@ -54,20 +56,23 @@ async def get_document_type(
             "code": doc_type["type_document"] or "",
             "description": doc_type["description"] or ""
         })
-    
+
     return result
+
 
 @router.get("", response_model=List[AssessmentListItem])
 async def get_assessment_list(
+        headers: Annotated[CommonHeaders, Header()],
         search: Optional[str] = None,
         offset: int = 0,
         limit: int = 20,
         db: Session = Depends(get_db),
-        current_user: dict = Depends(get_current_user)
+        current_user: dict = Depends(get_current_user),
 ):
     """
     Get list of assessments that need to be processed
     """
+    time_zone = headers.time_zone
     query = f"""
         SELECT
             gd_chi_tiet.id AS id,
@@ -81,12 +86,14 @@ async def get_assessment_list(
                 NULLIF(ward.name, ''),
                 NULLIF(district.name, ''),
                 NULLIF(province.name, '')
-            ) AS assessment_address,
-            TO_CHAR(icr.date_damage, 'DD/MM/YYYY - HH24:MI') AS notification_time,
-            TO_CHAR(icr.date_damage + INTERVAL '3 hours', 'DD/MM/YYYY - HH24:MI') AS complete_time,
+            ) AS location,
+            rpg.display_name AS assessment_address,
+            TO_CHAR(icr.date_damage AT TIME ZONE 'UTC' AT TIME ZONE $1, 'DD/MM/YYYY - HH24:MI') AS notification_time,
+            TO_CHAR((icr.date_damage + INTERVAL '3 hours') AT TIME ZONE 'UTC' AT TIME ZONE $1, 'DD/MM/YYYY - HH24:MI') AS complete_time,
             icr.note AS note
         FROM insurance_claim_appraisal_detail gd_chi_tiet
         LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
+        LEFT JOIN res_partner_gara rpg ON rpg.id = gd_chi_tiet.gara_partner_id
         LEFT JOIN res_car rc ON rc.id = gd_chi_tiet.car_id
         LEFT JOIN res_car_brand rcb ON rcb.id = rc.car_brand_id
         LEFT JOIN LATERAL (
@@ -95,27 +102,34 @@ async def get_assessment_list(
             ORDER BY icd.id
             LIMIT 1
         ) AS first_damage ON true
+        LEFT JOIN LATERAL (
+            SELECT * FROM insurance_contract_certification icc 
+            LEFT JOIN insurance_claim_receive_insurance_contract_certification_rel rel on rel.insurance_contract_certification_id = icc.id
+            WHERE rel.insurance_claim_receive_id = icr.id and icc.type = 'vcx'
+            ORDER BY icc.id
+            LIMIT 1
+        ) AS first_certificate ON true
         LEFT JOIN res_province province ON province.id = first_damage.province_id
         LEFT JOIN res_district district ON district.id = first_damage.district_id
         LEFT JOIN res_ward ward ON ward.id = first_damage.ward_id
-        WHERE 1=1
+        WHERE icr.car_at_scene = false and first_certificate.id is not null
     """
 
-    params = []
+    params = [time_zone.key]  # Add time_zone as the first parameter
 
     if search:
         query += """
             AND (
-                gd_chi_tiet.name ILIKE $1
-                OR rc.license_plate ILIKE $1
-                OR rcb.name ILIKE $1
-                OR gd_chi_tiet.name_driver ILIKE $1
+                gd_chi_tiet.name ILIKE $2
+                OR rc.license_plate ILIKE $2
+                OR rcb.name ILIKE $2
+                OR gd_chi_tiet.name_driver ILIKE $2
                 OR CONCAT_WS(', ', 
                     NULLIF(first_damage.location_damage, ''),
                     NULLIF(ward.name, ''),
                     NULLIF(district.name, ''),
                     NULLIF(province.name, '')
-                ) ILIKE $1
+                ) ILIKE $2
             )
         """
         params.append(f"%{search}%")
@@ -152,12 +166,14 @@ async def get_assessment_list(
 @router.get("/{assessment_id}", response_model=AssessmentDetail)
 async def get_assessment_detail(
         assessment_id: str,
+        headers: Annotated[CommonHeaders, Header()],
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
     """
     Get detailed information about a specific assessment
     """
+    time_zone = headers.time_zone
     query = f"""
             SELECT
                 gd_chi_tiet.name AS case_number,
@@ -169,17 +185,19 @@ async def get_assessment_detail(
                     NULLIF(district.name, ''),
                     NULLIF(province.name, '')
                 ) AS location,
+                rpg.display_name AS assessment_address,
                 gd_chi_tiet.name_driver AS owner_name,
                 gd_chi_tiet.phone_driver AS phone_number,
                 gd_chi_tiet.state AS status,
                 icr.description_damage AS incident_desc,
                 icr.sequel_damage AS damage_desc,
-                TO_CHAR(icr.date_damage, 'DD/MM/YYYY - HH24:MI') AS accident_date,
-                TO_CHAR(gd_chi_tiet.date, 'DD/MM/YYYY - HH24:MI') AS appraisal_date,
-                TO_CHAR(icr.date_damage + INTERVAL '3 hours', 'DD/MM/YYYY - HH24:MI') AS complete_time,
+                TO_CHAR(icr.date_damage AT TIME ZONE 'UTC' AT TIME ZONE $2, 'DD/MM/YYYY - HH24:MI') AS accident_date,
+                TO_CHAR(gd_chi_tiet.date AT TIME ZONE 'UTC' AT TIME ZONE $2, 'DD/MM/YYYY - HH24:MI') AS appraisal_date,
+                TO_CHAR((icr.date_damage + INTERVAL '3 hours') AT TIME ZONE 'UTC' AT TIME ZONE $2, 'DD/MM/YYYY - HH24:MI') AS complete_time,
                 icr.note AS note
             FROM insurance_claim_appraisal_detail gd_chi_tiet
             LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
+            LEFT JOIN res_partner_gara rpg ON rpg.id = gd_chi_tiet.gara_partner_id
             LEFT JOIN res_car rc ON rc.id = gd_chi_tiet.car_id
             LEFT JOIN res_car_brand rcb ON rcb.id = rc.car_brand_id
             LEFT JOIN LATERAL (
@@ -188,19 +206,29 @@ async def get_assessment_detail(
                 ORDER BY icd.id
                 LIMIT 1
             ) AS first_damage ON true
+            LEFT JOIN LATERAL (
+                SELECT * FROM insurance_contract_certification icc 
+                LEFT JOIN insurance_claim_receive_insurance_contract_certification_rel rel on rel.insurance_contract_certification_id = icc.id
+                WHERE rel.insurance_claim_receive_id = icr.id and icc.type = 'vcx'
+                ORDER BY icc.id
+                LIMIT 1
+            ) AS first_certificate ON true
             LEFT JOIN res_province province ON province.id = first_damage.province_id
             LEFT JOIN res_district district ON district.id = first_damage.district_id
             LEFT JOIN res_ward ward ON ward.id = first_damage.ward_id
-            WHERE gd_chi_tiet.id = $1
+            WHERE gd_chi_tiet.id = $1 and icr.car_at_scene = false and first_certificate.id is not null
         """
 
-    params = [int(assessment_id)]
+    params = [int(assessment_id), time_zone.key]
 
     assessment_detail = await PostgresDB.execute_query(query, params)
     if assessment_detail:
         assessment_detail = assessment_detail[0]
-        assessment_detail['assessment_progress'] = 100
-        assessment_detail['status_color'] = color.get(assessment_detail['status'], '#757575')  # Default to gray if status not found
+
+        # todo: fix hardcode
+        assessment_detail['assessment_progress'] = 30
+        assessment_detail['status_color'] = color.get(assessment_detail['status'],
+                                                      '#757575')  # Default to gray if status not found
         assessment_detail['tasks'] = [{
             "seq": 1,
             "name": "Giám định chi tiết xe",
@@ -209,7 +237,7 @@ async def get_assessment_detail(
             "icon": "https://example.com",
             "status": {
                 "bg_color": "#00000",
-                "name": "completed",
+                "name": "in_progress",
             }
         },
             {
@@ -220,7 +248,7 @@ async def get_assessment_detail(
                 "icon": "https://example.com",
                 "status": {
                     "bg_color": "#00000",
-                    "name": "completed",
+                    "name": "in_progress",
                 }
             },
             {
@@ -231,7 +259,7 @@ async def get_assessment_detail(
                 "icon": "https://example.com",
                 "status": {
                     "bg_color": "#00000",
-                    "name": "completed",
+                    "name": "in_progress",
                 }
             },
             {
@@ -242,7 +270,7 @@ async def get_assessment_detail(
                 "icon": "https://example.com",
                 "status": {
                     "bg_color": "#00000",
-                    "name": "completed",
+                    "name": "in_progress",
                 }
             }
         ]
@@ -345,7 +373,6 @@ async def update_vehicle_detail_assessment(
         vehicle_detail: VehicleDetailAssessment,
         current_user: dict = Depends(get_current_user)
 ):
-
     if not current_user.get("sub"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     """
@@ -406,7 +433,8 @@ async def done_assessment(
         "status": "Success"
     }
 
-#Xóa các danh mục ảnh hạng mục giám định
+
+# Xóa các danh mục ảnh hạng mục giám định
 @router.delete("/{claim_attachment_category_id}")
 async def delete_claim_attachment_category(
         claim_attachment_category_id: str,

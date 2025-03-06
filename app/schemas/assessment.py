@@ -11,6 +11,7 @@ class AssessmentListItem(BaseModel):
     vehicle: Optional[str]
     customer_name: Optional[str]
     assessment_address: Optional[str]
+    location: Optional[str]
     current_distance: float
     notification_time: Optional[str]
     complete_time: Optional[str]
@@ -41,6 +42,7 @@ class AssessmentDetail(BaseModel):
     status: str
     vehicle: Optional[str] = None
     location: Optional[str] = None
+    assessment_address: Optional[str] = None
     owner_name: Optional[str] = None
     phone_number: Optional[str] = None
     accident_date: Optional[str] = None
