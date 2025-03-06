@@ -289,7 +289,7 @@ async def get_assessment_detail(
 
 @router.post("/{assessment_id}/done")
 async def done_assessment(
-        assessment_id: str,
+        assessment_id: int,
         current_user: dict = Depends(get_current_user)
 ):
     """
