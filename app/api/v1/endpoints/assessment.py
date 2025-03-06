@@ -78,7 +78,7 @@ async def get_assessment_list(
             gd_chi_tiet.id AS id,
             rc.license_plate AS license_plate,
             rcb.name AS vehicle,
-            gd_chi_tiet.name_driver AS customer_name,
+            contact.name AS customer_name,
             gd_chi_tiet.name AS name,
             gd_chi_tiet.state AS status,
             CONCAT_WS(', ', 
@@ -94,6 +94,7 @@ async def get_assessment_list(
         FROM insurance_claim_appraisal_detail gd_chi_tiet
         LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
         LEFT JOIN res_partner_gara rpg ON rpg.id = gd_chi_tiet.gara_partner_id
+        LEFT JOIN res_partner contact ON contact.id = icr.person_contact_id
         LEFT JOIN res_car rc ON rc.id = gd_chi_tiet.car_id
         LEFT JOIN res_car_brand rcb ON rcb.id = rc.car_brand_id
 --         LEFT JOIN LATERAL (
@@ -186,8 +187,8 @@ async def get_assessment_detail(
                     NULLIF(province.name, '')
                 ) AS location,
                 rpg.display_name AS assessment_address,
-                gd_chi_tiet.name_driver AS owner_name,
-                gd_chi_tiet.phone_driver AS phone_number,
+                contact.name AS owner_name,
+                icr.phone_contact AS phone_number,
                 gd_chi_tiet.state AS status,
                 icr.description_damage AS incident_desc,
                 icr.sequel_damage AS damage_desc,
@@ -198,6 +199,7 @@ async def get_assessment_detail(
             FROM insurance_claim_appraisal_detail gd_chi_tiet
             LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
             LEFT JOIN res_partner_gara rpg ON rpg.id = gd_chi_tiet.gara_partner_id
+            LEFT JOIN res_partner contact ON contact.id = icr.person_contact_id
             LEFT JOIN res_car rc ON rc.id = gd_chi_tiet.car_id
             LEFT JOIN res_car_brand rcb ON rcb.id = rc.car_brand_id
 --             LEFT JOIN LATERAL (
