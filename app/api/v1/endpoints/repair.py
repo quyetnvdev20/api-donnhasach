@@ -333,8 +333,8 @@ async def approve_repair_plan(
     """
     try:
         return await odoo.call_method_not_record(
-            model='insurance.claim.appraisal.detail',
-            method='',
+            model='insurance.claim.solution.repair',
+            method='action_approve',
             kwargs=request.model_dump()
         )
     except Exception as e:
@@ -356,10 +356,11 @@ async def reject_repair_plan(
     Reject a repair plan
     """
     try:
-        return await odoo.call_method_not_record(
-            model='insurance.claim.appraisal.detail',
-            method='',
-            kwargs=request.model_dump()
+        return await odoo.call_method(
+            record_ids=[request.repair_id],
+            model='insurance.claim.solution.repair',
+            method='action_reject_api',
+            kwargs={'reason': request.reject_reason}
         )
     except Exception as e:
         raise HTTPException(
