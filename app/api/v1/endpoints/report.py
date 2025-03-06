@@ -67,6 +67,7 @@ async def get_id_document_type(document_type: str):
     return result[0]['id']
 
 async def get_report_url(report_name: str, id: str, authorization: str):
+    # TODO: Cần refactor lại, hàm này call về api insurance -> refactor call orm odoo
     request_body = {
         "data": [
             f"/report/pdf/{report_name}/{id}",
@@ -233,6 +234,7 @@ async def update_accident_notification(
     # Prepare body
     body = await format_build_body(assessment_id, document_upload, 'accident_ycbt')
     # Update accident notification
+    # TODO: Kế thừa lại hàm cũ từ core erp, cần refactor
     response = await odoo.call_method_not_record(
         model='insurance.claim.appraisal.detail',
         method='update_profile_attachment',
@@ -310,6 +312,7 @@ async def update_assessment_report(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
     body = await format_build_body(assessment_id, document_upload, 'appraisal_report')
+    # TODO: Kế thừa lại hàm cũ từ core erp, cần refactor
     response = await odoo.call_method_not_record(
         model='insurance.claim.appraisal.detail',
         method='update_profile_attachment',
