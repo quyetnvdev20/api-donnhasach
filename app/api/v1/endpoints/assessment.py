@@ -82,7 +82,7 @@ async def get_assessment_list(
             gd_chi_tiet.name AS name,
             gd_chi_tiet.state AS status,
             CONCAT_WS(', ', 
-                NULLIF(first_damage.location_damage, ''),
+                NULLIF(icr.location_damage, ''),
                 NULLIF(ward.name, ''),
                 NULLIF(district.name, ''),
                 NULLIF(province.name, '')
@@ -96,12 +96,12 @@ async def get_assessment_list(
         LEFT JOIN res_partner_gara rpg ON rpg.id = gd_chi_tiet.gara_partner_id
         LEFT JOIN res_car rc ON rc.id = gd_chi_tiet.car_id
         LEFT JOIN res_car_brand rcb ON rcb.id = rc.car_brand_id
-        LEFT JOIN LATERAL (
-            SELECT * FROM insurance_claim_damage icd 
-            WHERE icd.insur_claim_id = icr.id
-            ORDER BY icd.id
-            LIMIT 1
-        ) AS first_damage ON true
+--         LEFT JOIN LATERAL (
+--             SELECT * FROM insurance_claim_damage icd 
+--             WHERE icd.insur_claim_id = icr.id
+--             ORDER BY icd.id
+--             LIMIT 1
+--         ) AS first_damage ON true
         LEFT JOIN LATERAL (
             SELECT * FROM insurance_contract_certification icc 
             LEFT JOIN insurance_claim_receive_insurance_contract_certification_rel rel on rel.insurance_contract_certification_id = icc.id
@@ -109,9 +109,9 @@ async def get_assessment_list(
             ORDER BY icc.id
             LIMIT 1
         ) AS first_certificate ON true
-        LEFT JOIN res_province province ON province.id = first_damage.province_id
-        LEFT JOIN res_district district ON district.id = first_damage.district_id
-        LEFT JOIN res_ward ward ON ward.id = first_damage.ward_id
+        LEFT JOIN res_province province ON province.id = icr.province_id
+        LEFT JOIN res_district district ON district.id = icr.district_id
+        LEFT JOIN res_ward ward ON ward.id = icr.ward_id
         WHERE icr.car_at_scene = false and first_certificate.id is not null
     """
 
@@ -125,7 +125,7 @@ async def get_assessment_list(
                 OR rcb.name ILIKE $2
                 OR gd_chi_tiet.name_driver ILIKE $2
                 OR CONCAT_WS(', ', 
-                    NULLIF(first_damage.location_damage, ''),
+                    NULLIF(icr.location_damage, ''),
                     NULLIF(ward.name, ''),
                     NULLIF(district.name, ''),
                     NULLIF(province.name, '')
@@ -180,7 +180,7 @@ async def get_assessment_detail(
                 rc.license_plate AS license_plate,
                 rcb.name AS vehicle,
                 CONCAT_WS(', ', 
-                    NULLIF(first_damage.location_damage, ''),
+                    NULLIF(icr.location_damage, ''),
                     NULLIF(ward.name, ''),
                     NULLIF(district.name, ''),
                     NULLIF(province.name, '')
@@ -200,12 +200,12 @@ async def get_assessment_detail(
             LEFT JOIN res_partner_gara rpg ON rpg.id = gd_chi_tiet.gara_partner_id
             LEFT JOIN res_car rc ON rc.id = gd_chi_tiet.car_id
             LEFT JOIN res_car_brand rcb ON rcb.id = rc.car_brand_id
-            LEFT JOIN LATERAL (
-                SELECT * FROM insurance_claim_damage icd 
-                WHERE icd.insur_claim_id = icr.id
-                ORDER BY icd.id
-                LIMIT 1
-            ) AS first_damage ON true
+--             LEFT JOIN LATERAL (
+--                 SELECT * FROM insurance_claim_damage icd 
+--                 WHERE icd.insur_claim_id = icr.id
+--                 ORDER BY icd.id
+--                 LIMIT 1
+--             ) AS first_damage ON true
             LEFT JOIN LATERAL (
                 SELECT * FROM insurance_contract_certification icc 
                 LEFT JOIN insurance_claim_receive_insurance_contract_certification_rel rel on rel.insurance_contract_certification_id = icc.id
@@ -213,10 +213,11 @@ async def get_assessment_detail(
                 ORDER BY icc.id
                 LIMIT 1
             ) AS first_certificate ON true
-            LEFT JOIN res_province province ON province.id = first_damage.province_id
-            LEFT JOIN res_district district ON district.id = first_damage.district_id
-            LEFT JOIN res_ward ward ON ward.id = first_damage.ward_id
-            WHERE gd_chi_tiet.id = $1 and icr.car_at_scene = false and first_certificate.id is not null
+            LEFT JOIN res_province province ON province.id = icr.province_id
+            LEFT JOIN res_district district ON district.id = icr.district_id
+            LEFT JOIN res_ward ward ON ward.id = icr.ward_id
+            WHERE gd_chi_tiet.id = $1 and icr.car_at_scene = false 
+            and first_certificate.id is not null
         """
 
     params = [int(assessment_id), time_zone.key]
