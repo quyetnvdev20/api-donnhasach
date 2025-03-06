@@ -57,7 +57,7 @@ class RepairPlanDetailItem(BaseModel):
 
 
 class RepairPlanApprovalRequest(BaseModel):
-    file_number: str
+    # file_number: str = None
     vehicle_name: str
     repair_garage_location: RepairGarageLocation
     inspection_date: Optional[str] = None
