@@ -307,11 +307,11 @@ async def done_assessment(
     )
     if response:
         return {
-            "id": assessment_id,
+            "id": int(response.get('repair_plan_id')),
             "status": "Success"
         }
-    # else:
-    #     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to done assessment")
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to done assessment")
     
 #Xóa các danh mục ảnh hạng mục giám định
 @router.delete("/{claim_attachment_category_id}")
