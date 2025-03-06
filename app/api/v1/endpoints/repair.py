@@ -12,6 +12,17 @@ from ....utils.erp_db import PostgresDB
 
 router = APIRouter()
 
+STATE_COLOR = {
+    "new": "#84d9d8",
+    "pending": "#faad14",
+}
+
+CATEGORIES_COLOR = {
+    "parts": "#0958d9",
+    "labor": "#d46b08",
+    "paint": "#531dab",
+}
+
 
 @router.put("/{repair_id}/submit-repair-plan-approval",
             response_model=RepairPlanApprovalResponse,
@@ -122,19 +133,19 @@ async def get_repair_plan_awaiting_list(
                 },
                 "total_cost": {
                     "value": int(res.get('price_subtotal')),
-                    "color_code": "FF5733"
+                    "color_code": "#52C41A"
                 },
                 "submitter": res.get('submitter'),
                 "inspection_date": res.get('date_noti'),
                 "status": {
                     "name": "Chờ duyệt" if state == 'pending' else "Mới",
                     "code": res.get('repair_state'),
-                    "color_code": "F1C40F"
+                    "color_code": STATE_COLOR.get(res.get('repair_state'))
                 },
                 "label": {
                     "name": "Gấp",
                     "code": "LABEL001",
-                    "color_code": "7D3C98"
+                    "color_code": "#f5222d"
                 }
             })
 
@@ -240,9 +251,9 @@ async def get_repair_plan_awaiting_detail(
         repair_plan_details = []
 
         category_type_dict = {
-            'paint': ("F1C40F", "Sơn"),
-            'labor': ("F1C40F", "Nhân công"),
-            'parts': ("F1C40F", "Phụ tùng"),
+            'paint': "Sơn",
+            'labor': "Nhân công",
+            'parts': "Phụ tùng",
         }
 
         for detail in results_detail:
@@ -253,15 +264,14 @@ async def get_repair_plan_awaiting_detail(
                     "id": detail.get('category_id'),
                 },
                 "type": {
-                    "name": category_type_dict.get(detail.get('category_type'))[1],
+                    "name": category_type_dict.get(detail.get('category_type')),
                     "code": detail.get('category_type'),
-                    "color_code": category_type_dict.get(detail.get('category_type'))[0],
+                    "color_code": CATEGORIES_COLOR.get(detail.get('category_type')),
                 },
                 "garage_price": int(detail.get('garage_price')),
                 "suggested_price": int(detail.get('suggested_price')),
                 "discount_percentage": int(detail.get('discount_percentage')),
             })
-
 
         # Mock data - replace with actual database query later
         repair_plan_detail = {
@@ -280,7 +290,7 @@ async def get_repair_plan_awaiting_detail(
             "status": {
                 "name": "Chờ duyệt" if res.get('repair_state') == 'pending' else "Mới",
                 "code": res.get('repair_state'),
-                "color_code": "F1C40F"
+                "color_code": STATE_COLOR.get(res.get('repair_state'))
             },
             "btn_approve": True if res.get('repair_state') == 'pending' else False,
             "btn_reject": True if res.get('repair_state') == 'pending' else False,
@@ -305,12 +315,12 @@ async def get_repair_plan_awaiting_detail(
 
 
 @router.post("/approve",
-            response_model=RepairPlanApproveResponse,
-            status_code=status.HTTP_200_OK)
+             response_model=RepairPlanApproveResponse,
+             status_code=status.HTTP_200_OK)
 async def approve_repair_plan(
-    request: RepairPlanApproveRequest,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+        request: RepairPlanApproveRequest,
+        db: Session = Depends(get_db),
+        current_user: dict = Depends(get_current_user)
 ) -> RepairPlanApproveResponse:
     """
     Approve a repair plan
@@ -332,12 +342,12 @@ async def approve_repair_plan(
 
 
 @router.post("/reject",
-            response_model=RepairPlanRejectResponse,
-            status_code=status.HTTP_200_OK)
+             response_model=RepairPlanRejectResponse,
+             status_code=status.HTTP_200_OK)
 async def reject_repair_plan(
-    request: RepairPlanRejectRequest,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+        request: RepairPlanRejectRequest,
+        db: Session = Depends(get_db),
+        current_user: dict = Depends(get_current_user)
 ) -> RepairPlanRejectResponse:
     """
     Reject a repair plan
@@ -357,12 +367,12 @@ async def reject_repair_plan(
         )
 
 
-@router.get("/repair-categories", 
+@router.get("/repair-categories",
             response_model=List[RepairCategory],
             status_code=status.HTTP_200_OK)
 async def get_repair_categories(
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+        db: Session = Depends(get_db),
+        current_user: dict = Depends(get_current_user)
 ) -> List[RepairCategory]:
     """
     Get repair categories: parts, paint, and labor
@@ -374,28 +384,30 @@ async def get_repair_categories(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Unauthorized"
             )
-        
+
         # Return the three repair categories
         categories = [
             RepairCategory(
                 code="parts",
-                name="Phụ tùng"
+                name="Phụ tùng",
+                color_code=CATEGORIES_COLOR.get('parts')
             ),
             RepairCategory(
                 code="paint",
-                name="Sơn"
+                name="Sơn",
+                color_code=CATEGORIES_COLOR.get('paint')
             ),
             RepairCategory(
                 code="labor",
-                name="Nhân công"
+                name="Nhân công",
+                color_code=CATEGORIES_COLOR.get('labor')
             )
         ]
-        
+
         return categories
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
-    
