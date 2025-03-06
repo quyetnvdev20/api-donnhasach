@@ -316,7 +316,7 @@ async def done_assessment(
 #Xóa các danh mục ảnh hạng mục giám định
 @router.delete("/{claim_attachment_category_id}")
 async def delete_claim_attachment_category(
-        claim_attachment_category_id: str,
+        claim_attachment_category_id: int,
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
