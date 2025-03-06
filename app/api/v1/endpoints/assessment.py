@@ -320,34 +320,24 @@ async def delete_claim_attachment_category(
     """
     Delete claim attachment category
     """
-    try:
-        # Validate user authentication
-        if not current_user.get("sub"):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Unauthorized"
-            )
-
-        # Call Odoo to delete the claim attachment category
-        response = await odoo.delete_method(
-            model='insurance.claim.attachment.category',
-            record_id=claim_attachment_category_id,
-            token=settings.ODOO_TOKEN
-        )
-
-        if response:
-            return {
-                "id": claim_attachment_category_id,
-                "status": "Success"
-            }
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to delete claim attachment category"
-            )
-    except Exception as e:
-        logger.error(f"Error deleting claim attachment category: {str(e)}")
+    
+    # Validate user authentication
+    if not current_user.get("sub"):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to delete claim attachment category: {str(e)}"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized"
         )
+
+    # Call Odoo to delete the claim attachment category
+    response = await odoo.delete_method(
+        model='insurance.claim.attachment.category',
+        record_id=claim_attachment_category_id,
+        token=settings.ODOO_TOKEN
+    )
+
+    if response:
+        return {
+            "id": claim_attachment_category_id,
+            "status": "Success"
+        }
+    
