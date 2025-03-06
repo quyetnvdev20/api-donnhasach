@@ -144,7 +144,7 @@ async def get_repair_plan_awaiting_list(
                     "color_code": STATE_COLOR.get(res.get('repair_state'))
                 },
                 "label": {
-                    "name": "Gấp", #TODO chưa biết lấy dữ liệu ở đâu
+                    "name": "Gấp",  # TODO chưa biết lấy dữ liệu ở đâu
                     "code": "LABEL001",
                     "color_code": "#f5222d"
                 }
@@ -285,7 +285,7 @@ async def get_repair_plan_awaiting_detail(
                 "name": res.get('gara_name')
             },
             "inspection_date": res.get('date_noti'),
-            "approval_deadline": None, # TODO chưa biết lấy ở đâu
+            "approval_deadline": None,  # TODO chưa biết lấy ở đâu
             "owner_name": res.get('car_owner_name'),
             "owner_phone": res.get('car_owner_phone'),
             "status": {
@@ -293,9 +293,9 @@ async def get_repair_plan_awaiting_detail(
                 "code": res.get('repair_state'),
                 "color_code": STATE_COLOR.get(res.get('repair_state'))
             },
-            "btn_approve": True if res.get('repair_state') == 'pending' else False, # TODO chưa xử lý phân quyền
-            "btn_reject": True if res.get('repair_state') == 'pending' else False, # TODO chưa xử lý phân quyền
-            "approval_history": [], # TODO chưa xử lý
+            "btn_approve": True if res.get('repair_state') == 'pending' else False,  # TODO chưa xử lý phân quyền
+            "btn_reject": True if res.get('repair_state') == 'pending' else False,  # TODO chưa xử lý phân quyền
+            "approval_history": [],  # TODO chưa xử lý
             "repair_plan_details": repair_plan_details,
             "amount_subtotal": int(res.get('price_total_propose')),
             "amount_discount": int(res.get('total_discount')),
@@ -332,11 +332,13 @@ async def approve_repair_plan(
     Approve a repair plan
     """
     try:
-        return await odoo.call_method_not_record(
+        response = await odoo.call_method(
+            record_ids=[request.repair_id],
             model='insurance.claim.solution.repair',
-            method='action_approve',
-            kwargs=request.model_dump()
+            method='action_approve_api',
+            kwargs={'reason': request.approve_reason}
         )
+        return RepairPlanApproveResponse(id=response)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -356,12 +358,16 @@ async def reject_repair_plan(
     Reject a repair plan
     """
     try:
-        return await odoo.call_method(
+        response = await odoo.call_method(
             record_ids=[request.repair_id],
             model='insurance.claim.solution.repair',
             method='action_reject_api',
             kwargs={'reason': request.reject_reason}
         )
+        if response:
+            return RepairPlanRejectResponse(id=request.repair_id)
+        else:
+            raise Exception(response.get("message"))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
