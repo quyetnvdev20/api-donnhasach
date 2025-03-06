@@ -8,6 +8,7 @@ from ....schemas.repair import RepairPlanApprovalRequest, RepairPlanApprovalResp
     RepairPlanDetailResponse, RepairPlanApproveRequest, RepairPlanApproveResponse, RepairPlanRejectRequest, \
     RepairPlanRejectResponse, RepairCategory
 import logging
+from ....utils.erp_db import PostgresDB
 
 router = APIRouter()
 
@@ -43,6 +44,9 @@ async def submit_repair_plan_approval(
             status_code=status.HTTP_200_OK)
 async def get_repair_plan_awaiting_list(
         state: str,
+        search: Optional[str] = None,
+        offset: int = 0,
+        limit: int = 10,
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ) -> RepairPlanListResponse:
@@ -56,37 +60,83 @@ async def get_repair_plan_awaiting_list(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Unauthorized"
             )
+        query = """
+            select 
+                a.id repair_id,
+                a.state repair_state,
+                to_char(d.date_noti + INTERVAL '7 hours', 'dd/MM/yyyy HH24:MI') as date_noti,
+                a.price_subtotal,
+                b.id as gara_id,
+                rp.name gara_name,
+                c.location_damage,
+                c.name file_name,
+                concat(rcb.name, ' ', rcm.name, ' ', ic.manufacturer_year, ' - ', ic.license_plate) as vehicle_info,
+                rpu.name as submitter,
+                ic.car_owner_name
+            from insurance_claim_solution_repair a
+            left join res_partner_gara b on a.gara_partner_id = b.id
+            left join res_partner rp on b.partner_id = rp.id
+            left join insurance_claim_profile c on a.new_claim_profile_id = c.id
+            left join insurance_claim_receive d on c.insur_claim_id = d.id
+            left join insurance_contract_certification icc on c.certification_id = icc.id
+            left join insurance_contract ic on icc.contract_id = ic.id
+            left join res_car_model rcm on rcm.id = ic.car_model_id
+            left join res_car_brand rcb on rcb.id = ic.car_brand_id
+            left join res_users ru on a.create_uid = ru.id
+            left join res_partner rpu on ru.partner_id = rpu.id
+            where a.state in ('new', 'pending')
+        """
 
-        # Mock data - replace with actual database query later
-        formatted_plans = [
-            {
-                "file_name": "HS202403001",
-                "id": 123,
-                "vehicle_info": "Toyota Camry 2.5Q 2020 - 30A12345",
-                "owner_name": "Nguyễn Văn A",
-                "location_damage": "Đường Bình Kỳ, Ngũ Hành sơn, TP Đà Nẵng",
+        params = []
+
+        if state == 'cho_duyet':
+            state = 'pending'
+
+        query += """ and a.state = $1"""
+        params.append(state)
+
+        if search:
+            query += """ and (a.name ILIKE $2 or a.object_name ILIKE $2)"""
+            params.append(f"%{search}%")
+
+        # Add ordering and pagination
+        query += f"""
+        ORDER BY a.id DESC
+        LIMIT {int(limit)} OFFSET {int(offset)}
+        """
+
+        results = await PostgresDB.execute_query(query, params)
+
+        formatted_plans = []
+
+        for res in results:
+            formatted_plans.append({
+                "file_name": res.get('file_name'),
+                "id": res.get('repair_id'),
+                "vehicle_info": res.get('vehicle_info'),
+                "owner_name": res.get('car_owner_name'),
+                "location_damage": res.get('location_damage'),
                 "repair_garage_location": {
-                    "id": "867",
-                    "name": "Mitsubishi Quảng Nam"
+                    "id": res.get('gara_id'),
+                    "name": res.get('gara_name')
                 },
                 "total_cost": {
-                    "value": 1500000,
+                    "value": int(res.get('price_subtotal')),
                     "color_code": "FF5733"
                 },
-                "submitter": "Nguyễn Văn B",
-                "inspection_date": "01/03/2024",
+                "submitter": res.get('submitter'),
+                "inspection_date": res.get('date_noti'),
                 "status": {
-                    "name": "Chờ duyệt",
-                    "code": "PASC001",
+                    "name": "Chờ duyệt" if state == 'pending' else "Mới",
+                    "code": res.get('repair_state'),
                     "color_code": "F1C40F"
                 },
                 "label": {
-                    "name": "Nhãn A",
+                    "name": "Gấp",
                     "code": "LABEL001",
                     "color_code": "7D3C98"
                 }
-            }
-        ]
+            })
 
         return RepairPlanListResponse(
             data=formatted_plans
@@ -103,7 +153,7 @@ async def get_repair_plan_awaiting_list(
             response_model=RepairPlanDetailResponse,
             status_code=status.HTTP_200_OK)
 async def get_repair_plan_awaiting_detail(
-        repair_id: str,
+        repair_id: int,
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ) -> RepairPlanDetailResponse:
@@ -118,54 +168,129 @@ async def get_repair_plan_awaiting_detail(
                 detail="Unauthorized"
             )
 
+        query = """
+            select 
+                a.id repair_id,
+                a.state repair_state,
+                to_char(a.date_quote,'dd/MM/yyyy') as date_quote,
+                a.price_subtotal,
+                b.id as gara_id,
+                rp.name gara_name,
+                COALESCE(c.location_damage, '') location_damage,
+                c.name file_name,
+                ic.name contract_number,
+                concat(rcb.name, ' ', rcm.name, ' ', ic.manufacturer_year, ' - ', ic.license_plate) as vehicle_info,
+                rpu.name as submitter,
+                ic.car_owner_name,
+                ic.car_owner_phone,
+                a.price_total_propose,
+                a.total_discount,
+                a.price_subtotal,
+                (select sum(price_unit_gara) from insurance_claim_solution_repair_line where solution_repair_id = a.id) as amount_garage
+            from insurance_claim_solution_repair a
+            left join res_partner_gara b on a.gara_partner_id = b.id
+            left join res_partner rp on b.partner_id = rp.id
+            left join insurance_claim_profile c on a.new_claim_profile_id = c.id
+            left join insurance_contract_certification icc on c.certification_id = icc.id
+            left join insurance_contract ic on icc.contract_id = ic.id
+            left join res_car_model rcm on rcm.id = ic.car_model_id
+            left join res_car_brand rcb on rcb.id = ic.car_brand_id
+            left join res_users ru on a.create_uid = ru.id
+            left join res_partner rpu on ru.partner_id = rpu.id
+            where a.id = $1 and a.state in ('new', 'pending')
+        """
+        params = [repair_id]
+        results = await PostgresDB.execute_query(query, params)
+        if not results or not results[0]:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Not Found"
+            )
+        res = results[0]
+
+        query_detail = """
+            select 
+                repair.id as repair_id,
+                line.id,
+                coalesce(line.name, '') as name,
+                category.name as category_name,
+                category.id as category_id,
+                line.price_unit_gara as garage_price,
+                line.discount as discount_percentage,
+                case 
+                    when line.price_paint > 0 then line.price_paint 
+                    when line.price_labor > 0 then line.price_labor
+                    when line.price_replace > 0 then line.price_replace
+                    else 0 end as suggested_price,
+                case 
+                    when line.price_paint > 0 then 'paint'
+                    when line.price_labor > 0 then 'labor'
+                    when line.price_replace > 0 then 'parts'
+                    else '' end as category_type
+            from insurance_claim_solution_repair_line line
+            inner join insurance_claim_solution_repair repair on line.solution_repair_id = repair.id
+            inner join product_product pp ON pp.id = line.product_id
+            inner join product_template pt ON pt.id = pp.product_tmpl_id
+            inner join insurance_claim_list_category category on line.category_id = category.id
+            where repair.id = $1
+            order by line.id
+        """
+
+        results_detail = await PostgresDB.execute_query(query_detail, params)
+        repair_plan_details = []
+
+        category_type_dict = {
+            'paint': ("F1C40F", "Sơn"),
+            'labor': ("F1C40F", "Nhân công"),
+            'parts': ("F1C40F", "Phụ tùng"),
+        }
+
+        for detail in results_detail:
+            repair_plan_details.append({
+                "name": detail.get('name'),
+                "item": {
+                    "name": detail.get('category_name'),
+                    "id": detail.get('category_id'),
+                },
+                "type": {
+                    "name": category_type_dict.get(detail.get('category_type'))[1],
+                    "code": detail.get('category_type'),
+                    "color_code": category_type_dict.get(detail.get('category_type'))[0],
+                },
+                "garage_price": int(detail.get('garage_price')),
+                "suggested_price": int(detail.get('suggested_price')),
+                "discount_percentage": int(detail.get('discount_percentage')),
+            })
+
+
         # Mock data - replace with actual database query later
         repair_plan_detail = {
-            "file_name": "HS202403001",
-            "contract_number": "HD202301234",
-            "vehicle_info": "Toyota Camry 2.5Q 2020 - 30A12345",
+            "file_name": res.get('file_name'),
+            "id": res.get('repair_id'),
+            "contract_number": res.get('contract_number'),
+            "vehicle_info": res.get('vehicle_info'),
             "repair_garage_location": {
-                "id": "867",
-                "name": "Mitsubishi Quảng Nam"
+                "id": res.get('gara_id'),
+                "name": res.get('gara_name')
             },
-            "inspection_date": "01/03/2024",
-            "approval_deadline": "05/03/2024",
-            "owner_name": "Nguyễn Văn A",
-            "owner_phone": "0901234567",
+            "inspection_date": res.get('date_noti'),
+            "approval_deadline": None,
+            "owner_name": res.get('car_owner_name'),
+            "owner_phone": res.get('car_owner_phone'),
             "status": {
-                "name": "Chờ duyệt",
-                "code": "PASC001",
+                "name": "Chờ duyệt" if res.get('repair_state') == 'pending' else "Mới",
+                "code": res.get('repair_state'),
                 "color_code": "F1C40F"
             },
-            "btn_approve": True,
-            "btn_reject": True,
-            "approval_history": [
-                {
-                    "reason": "Chi phí hợp lý",
-                    "approval_time": "01/03/2024"
-                }
-            ],
-            "repair_plan_details": [
-                {
-                    "name": "thay cản trước",
-                    "item": {
-                        "name": "Cản trước",
-                        "id": 246
-                    },
-                    "type": {
-                        "name": "Sơn",
-                        "code": "paint",
-                        "color_code": "ABC123"
-                    },
-                    "garage_price": 1000000,
-                    "suggested_price": 900000,
-                    "discount_percentage": 10
-                }
-            ],
-            "amount_subtotal": 2345687834,
-            "amount_discount": 897500,
-            "amount_untaxed_total": 20602500,
-            "amount_garage": 22500000,
-            "amount_propose": 21500000
+            "btn_approve": True if res.get('repair_state') == 'pending' else False,
+            "btn_reject": True if res.get('repair_state') == 'pending' else False,
+            "approval_history": [],
+            "repair_plan_details": repair_plan_details,
+            "amount_subtotal": int(res.get('price_total_propose')),
+            "amount_discount": int(res.get('total_discount')),
+            "amount_untaxed_total": int(res.get('price_subtotal')),
+            "amount_garage": int(res.get('amount_garage')) if res.get('amount_garage') else 0,
+            "amount_propose": int(res.get('price_total_propose')),
         }
 
         return RepairPlanDetailResponse(
