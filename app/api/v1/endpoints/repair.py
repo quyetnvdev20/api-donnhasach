@@ -62,7 +62,7 @@ async def get_repair_plan_awaiting_list(
         current_user: dict = Depends(get_current_user)
 ) -> RepairPlanListResponse:
     """
-    Get list of repair plans awaiting approval
+    Get list of repair plans awaiting approval with state in ('new', 'wait')
     """
     try:
         # Validate user authentication
@@ -143,7 +143,7 @@ async def get_repair_plan_awaiting_list(
                     "color_code": STATE_COLOR.get(res.get('repair_state'))
                 },
                 "label": {
-                    "name": "Gấp",
+                    "name": "Gấp", #TODO chưa biết lấy dữ liệu ở đâu
                     "code": "LABEL001",
                     "color_code": "#f5222d"
                 }
@@ -284,7 +284,7 @@ async def get_repair_plan_awaiting_detail(
                 "name": res.get('gara_name')
             },
             "inspection_date": res.get('date_noti'),
-            "approval_deadline": None,
+            "approval_deadline": None, # TODO chưa biết lấy ở đâu
             "owner_name": res.get('car_owner_name'),
             "owner_phone": res.get('car_owner_phone'),
             "status": {
@@ -292,9 +292,9 @@ async def get_repair_plan_awaiting_detail(
                 "code": res.get('repair_state'),
                 "color_code": STATE_COLOR.get(res.get('repair_state'))
             },
-            "btn_approve": True if res.get('repair_state') == 'pending' else False,
-            "btn_reject": True if res.get('repair_state') == 'pending' else False,
-            "approval_history": [],
+            "btn_approve": True if res.get('repair_state') == 'pending' else False, # TODO chưa xử lý phân quyền
+            "btn_reject": True if res.get('repair_state') == 'pending' else False, # TODO chưa xử lý phân quyền
+            "approval_history": [], # TODO chưa xử lý
             "repair_plan_details": repair_plan_details,
             "amount_subtotal": int(res.get('price_total_propose')),
             "amount_discount": int(res.get('total_discount')),
