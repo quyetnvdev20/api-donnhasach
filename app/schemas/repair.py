@@ -60,8 +60,8 @@ class RepairPlanApprovalRequest(BaseModel):
     file_number: str
     vehicle_name: str
     repair_garage_location: RepairGarageLocation
-    inspection_date: str
-    approval_deadline: str
+    inspection_date: Optional[str] = None
+    approval_deadline: Optional[str] = None
     status: Status
     label: Label
     repair_plan_details: List[RepairPlanDetailItem]
