@@ -107,7 +107,7 @@ async def get_repair_plan_awaiting_list(
         params.append(state)
 
         if search:
-            query += """ and (a.name ILIKE $2 or a.object_name ILIKE $2)"""
+            query += """ and (a.name ILIKE $2 or c.name ILIKE $2 or a.object_name ILIKE $2)"""
             params.append(f"%{search}%")
 
         # Add ordering and pagination
