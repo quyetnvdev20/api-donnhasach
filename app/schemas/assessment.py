@@ -110,7 +110,7 @@ class Solution(BaseModel):
 
 # Schema for assessment item
 class AssessmentItem(BaseModel):
-    id: int
+    id: Optional[int] = None
     category_id: Category
     state: Status
     solution: Solution = Solution(code='repair', name='Sửa chữa')
