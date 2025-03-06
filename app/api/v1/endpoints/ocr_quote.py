@@ -94,9 +94,12 @@ async def get_ocr_quote(
                             result_data.append({
                                 'name': line.get('description', ''),
                                 'quantity': 1,
-                                'price_unit_gara': price,
-                                'category_id': 1540,
-                                'discount': discount,
+                                'garage_price': price,
+                                'item': {
+                                    'id': 1540,
+                                    'name': 'Cửa sau phải'
+                                },
+                                'discount_percentage': discount,
                             })
                         except (ValueError, TypeError) as e:
                             logger.warning(f"Error parsing line data: {line}, error: {str(e)}")
