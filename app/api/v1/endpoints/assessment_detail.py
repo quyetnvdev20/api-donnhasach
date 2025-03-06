@@ -150,7 +150,7 @@ async def update_vehicle_detail_assessment(
 
         vals_items.append({
             'id': item.id,
-            'category_id': item.category.id,
+            'category_id': item.category_id.id,
             'listImageRemove': item.listImageRemove,
             'status': item.state.id,
             # TODO: hardcode solution code
@@ -173,4 +173,4 @@ async def update_vehicle_detail_assessment(
     if response:
         return UpdateAssessmentItemResponse(assessment_id=assessment_id, status="Success")
     else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update accident notification")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update assessment detail")
