@@ -6,6 +6,7 @@ from .config import settings
 from .services.rabbitmq import publish_event
 from .db_init import init_db
 from .api.v1.endpoints import analysis, notifications, assessment, collection_document, repair, odoo_test, report
+from .utils.redis_client import redis_client
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -48,11 +49,20 @@ async def startup_event():
         # Initialize database tables
         init_db()
         logger.info("Database initialized successfully")
+        
+        # Initialize Redis connection
+        await redis_client.connect()
+        logger.info("Redis connection initialized successfully")
     except Exception as e:
-        logger.error(f"Error initializing database: {str(e)}")
+        logger.error(f"Error during startup: {str(e)}")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Application shutting down")
-    # Clean up resources here
+    
+    # Close Redis connection
+    await redis_client.close()
+    logger.info("Redis connection closed")
+    
+    # Clean up other resources here

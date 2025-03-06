@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     # Insurance API
     INSURANCE_API_URL: str = ""
     
+    # Redis configuration
+    REDIS_URL: str = ""
+    REDIS_DEFAULT_EXPIRY: int = 3600  # 1 hour in seconds
+    
     @property
     def DATABASE_URL(self) -> str:
         return self.POSTGRES_DATABASE_URL

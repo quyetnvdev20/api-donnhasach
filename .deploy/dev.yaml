@@ -15,6 +15,7 @@ tls:
 envFrom:
   configMaps:
     - name: claim-ai-cm
+    - name: claim-ai-redis-cm
     - name: keycloak-cm
 
 resources:
