@@ -8,6 +8,7 @@ from ...deps import get_current_user, api_key_header
 from ....schemas.assessment import DocumentResponse, DocumentUpload, UpdateDocumentResponse
 from ....utils.erp_db import PostgresDB
 from ....utils.odoo import Odoo
+from ....utils.redis_client import redis_client
 import httpx
 import logging
 
@@ -115,12 +116,65 @@ async def get_accident_notification(
         current_user: dict = Depends(get_current_user)
 ):
     """
-    Get accident notification information
+    Get accident notification report
     """
     if not current_user.get("sub"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     
-    # Get receive_id from database
+    # Tạo cache key cho preview URL
+    cache_key = f"accident_notification_preview:{assessment_id}"
+    
+    # Thử lấy preview URL từ Redis
+    cached_preview_url = await redis_client.get(cache_key)
+    
+    if cached_preview_url:
+        logger.info(f"Using cached preview URL for assessment_id: {assessment_id}")
+        image_list = await get_image_list(assessment_id, "accident_ycbt")
+        return {
+            "preview_url": cached_preview_url,
+            "scan_url": image_list
+        }
+    
+    # Nếu không có trong cache, lấy từ API
+    # Get receive_id from assessment_id
+    receive_id = await get_receive_id(assessment_id)
+    if not receive_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found")
+    
+    # Get accident notification template from config
+    accident_notification_template = settings.ACCIDENT_NOTIFICATION_TEMPLATE
+    accident_notification_url = await get_report_url(accident_notification_template, receive_id, current_user.get('access_token'))
+    
+    # Lưu vào Redis không có thời gian timeout (expiry=None)
+    await redis_client.set(cache_key, accident_notification_url, expiry=None)
+    logger.info(f"Cached preview URL for assessment_id: {assessment_id}")
+    
+    image_list = await get_image_list(assessment_id, "accident_ycbt")
+    
+    return {
+        "preview_url": accident_notification_url,
+        "scan_url": image_list
+    }
+
+@router.post("/{assessment_id}/accident_notification/refresh", response_model=DocumentResponse)
+async def refresh_accident_notification_url(
+        assessment_id: int,
+        current_user: dict = Depends(get_current_user)
+):
+    """
+    Refresh accident notification preview URL
+    """
+    if not current_user.get("sub"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    
+    # Tạo cache key cho preview URL
+    cache_key = f"accident_notification_preview:{assessment_id}"
+    
+    # Xóa cache hiện tại nếu có
+    await redis_client.delete(cache_key)
+    logger.info(f"Deleted cached preview URL for assessment_id: {assessment_id}")
+    
+    # Get receive_id from assessment_id
     receive_id = await get_receive_id(assessment_id)
     if not receive_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receive ID not found")
@@ -129,8 +183,12 @@ async def get_accident_notification(
     accident_notification_template = settings.ACCIDENT_NOTIFICATION_TEMPLATE
     accident_notification_url = await get_report_url(accident_notification_template, receive_id, current_user.get('access_token'))
     
+    # Lưu vào Redis không có thời gian timeout (expiry=None)
+    await redis_client.set(cache_key, accident_notification_url, expiry=None)
+    logger.info(f"Cached new preview URL for assessment_id: {assessment_id}")
+    
     image_list = await get_image_list(assessment_id, "accident_ycbt")
-
+    
     return {
         "preview_url": accident_notification_url,
         "scan_url": image_list
@@ -173,6 +231,20 @@ async def get_assessment_report(
     """
     if not current_user.get("sub"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    
+    # Tạo cache key cho preview URL
+    cache_key = f"assessment_report_preview:{assessment_id}"
+    
+    # Thử lấy preview URL từ Redis
+    cached_preview_url = await redis_client.get(cache_key)
+    
+    if cached_preview_url:
+        logger.info(f"Using cached preview URL for assessment_id: {assessment_id}")
+        image_list = await get_image_list(assessment_id, "appraisal_report")
+        return {
+            "preview_url": cached_preview_url,
+            "scan_url": image_list
+        }
 
     # Get accident notification template from config
     assessment_report_template = settings.ASSESSMENT_REPORT_TEMPLATE
@@ -211,3 +283,37 @@ async def update_assessment_report(
         return UpdateDocumentResponse(status="Success")
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update assessment report")
+
+@router.post("/{assessment_id}/assessment_report/refresh", response_model=DocumentResponse)
+async def refresh_assessment_report_url(
+        assessment_id: int,
+        current_user: dict = Depends(get_current_user)
+):
+    """
+    Refresh assessment report preview URL
+    """
+    if not current_user.get("sub"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    
+    # Tạo cache key cho preview URL
+    cache_key = f"assessment_report_preview:{assessment_id}"
+    
+    # Xóa cache hiện tại nếu có
+    await redis_client.delete(cache_key)
+    logger.info(f"Deleted cached preview URL for assessment_id: {assessment_id}")
+    
+    # Get assessment report template from config
+    assessment_report_template = settings.ASSESSMENT_REPORT_TEMPLATE
+    assessment_report_url = await get_report_url(assessment_report_template, assessment_id,
+                                                     current_user.get('access_token'))
+    
+    # Lưu vào Redis không có thời gian timeout (expiry=None)
+    await redis_client.set(cache_key, assessment_report_url, expiry=None)
+    logger.info(f"Cached new preview URL for assessment report, assessment_id: {assessment_id}")
+    
+    image_list = await get_image_list(assessment_id, "appraisal_report")
+
+    return {
+        "preview_url": assessment_report_url,
+        "scan_url": image_list
+    }
