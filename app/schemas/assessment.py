@@ -185,3 +185,14 @@ class UpdateDocumentResponse(BaseModel):
 class UpdateAssessmentItemResponse(BaseModel):
     assessment_id: str = ""
     status: str = ""
+
+class OCRQuoteItem(BaseModel):
+    name: str = ""
+    quantity: int = 1
+    price_unit_gara: float = 0
+    category_id: Optional[int] = None
+    discount: float = 0
+
+class OCRQuoteResponse(BaseModel):
+    url_cvs: str
+    data: List[OCRQuoteItem] = []

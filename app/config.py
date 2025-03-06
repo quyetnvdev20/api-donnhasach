@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     REDIS_URL: str = ""
     REDIS_DEFAULT_EXPIRY: int = 3600  # 1 hour in seconds
     
+    # OCR configuration
+    OCR_SERVICE_URL: str = ""
+    OCR_API_KEY: str = ""
+    OCR_API_SECRET: str = ""
+    
     @property
     def DATABASE_URL(self) -> str:
         return self.POSTGRES_DATABASE_URL
