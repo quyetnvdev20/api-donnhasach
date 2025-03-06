@@ -266,10 +266,14 @@ class Odoo(RequestOdoo):
     async def call_method_post(self, model, record_id, method, token=None, fields=None, kwargs=None):
         if not token:
             token = self.config['ODOO_TOKEN']
-        url = '{0}/api/{1}/method/{2}/{3}?token={4}'.format(self.config['ODOO_URL'], model, record_id, method, token)
-        if fields:
-            url = '{0}&fields={1}'.format(url, fields)
-        return await self.post(url, kwargs)
+        data = {'params': {'kwargs': kwargs, 'token': token}}
+        url = '{0}/api/{1}/{2}/method_post/{3}'.format(self.config['ODOO_URL'], model, record_id,
+                                                  method)
+        # url = '{0}/api/{1}/method_post/{2}/{3}?token={4}'.format(self.config['ODOO_URL'], model, record_id, method, token)
+
+        _logger.info('call_method_post.url={}'.format(url))
+        _logger.info('call_method_post.kwargs={}'.format(kwargs))
+        return await self.post(url=url, data=data)
 
     async def authenticate(self, login, password):
         url = '{0}/api/authenticate?login={1}&password={2}'.format(self.config['ODOO_URL'], login, password)
