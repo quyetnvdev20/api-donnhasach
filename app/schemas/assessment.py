@@ -136,6 +136,7 @@ class ImageDocument(BaseModel):
 class Document(BaseModel):
     type: str = ""
     type_document_id: Optional[int] = None
+    listImageRemove: List[int] = None
     name: Optional[str] = None
     desc: Optional[str] = None
     images: Optional[List[ImageDocument]] = None
@@ -159,8 +160,6 @@ class DocumentCollection(BaseModel):
     state_assign: Optional[str] = None
     appraisal_ho_id: Optional[int] = None
     object: Optional[str] = None
-    
-    # Thông tin document từ format_image_document
     documents: List[Document]
 
 
@@ -169,7 +168,7 @@ class DocumentUpload(BaseModel):
     # type_document_id: int
     # type: str
     scan_url: List[ImageInfo]
-    list_image_remove: List[int] = []
+    list_image_remove: List[int] = None
 
 
 class DocumentResponse(BaseModel):

@@ -144,17 +144,82 @@ async def get_document_collection(
 
     return data
 
+def convert_date_format(date_string):
+    if not date_string:
+        return None
+    try:
+        # Chuyển từ DD/MM/YYYY HH:MM:SS sang YYYY-MM-DD HH:MM:SS
+        dt = datetime.strptime(date_string, '%d/%m/%Y %H:%M:%S')
+        return dt.strftime('%Y-%m-%d %H:%M:%S')
+    except ValueError:
+        # Trường hợp chỉ có ngày không có giờ
+        try:
+            dt = datetime.strptime(date_string, '%d/%m/%Y')
+            return dt.strftime('%Y-%m-%d')
+        except ValueError:
+            # Nếu đã đúng định dạng hoặc không phải ngày, trả về nguyên bản
+            return date_string
 
-@router.put("/{assessment_id}/collect_document", response_model=DocumentCollection)
+
+@router.put("/{assessment_id}/collect_document", response_model=UpdateAssessmentItemResponse)
 async def update_document_collection(
         assessment_id: str,
         document_collection: DocumentCollection,
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
+    
+    if not current_user.get("sub"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     """
     Update document collection information
     """
-    # In a real implementation, you would save the data to the database
-    # For now, we'll just return the input data
-    return document_collection
+
+    vals_items = []
+    for item in document_collection.documents:
+
+        vals_images = []
+        for image in item.images:
+            vals_images.append({
+                'id': image.id,
+                'link': image.link,
+                'location': image.location,
+                'lat': image.lat,
+                'long': image.long,
+                'date_upload': convert_date_format(image.date)
+            })
+
+        vals_items.append({
+            'type_document_id': item.type_document_id,
+            'desc': item.desc,
+            'listImageRemove': item.listImageRemove,
+            'images': vals_images
+        })
+
+    body = {
+        'id': assessment_id,
+        'name_driver': document_collection.name_driver,
+        'phone_driver': document_collection.phone_driver,
+        'cccd_driver': document_collection.cccd,
+        'gender_driver': document_collection.gender_driver,
+        'gplx_effect_date': document_collection.gplx_effect_date,
+        'gplx_expired_date': document_collection.gplx_expired_date,
+        'gplx_level': document_collection.gplx_level,
+        'gplx_no': document_collection.gplx_no,
+        'registry_date': document_collection.registry_date,
+        'registry_expired_date': document_collection.registry_expired_date,
+        'registry_no': document_collection.registry_no,
+        'documents': vals_items,
+    }
+
+    response = await odoo.call_method_not_record(
+        model='insurance.claim.appraisal.detail',
+        method='update_collect_document',
+        token=settings.ODOO_TOKEN,
+        kwargs=body
+    )
+
+    if response:
+        return UpdateAssessmentItemResponse(assessment_id=assessment_id, status="Success")
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update accident notification")
