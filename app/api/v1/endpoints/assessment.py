@@ -430,19 +430,20 @@ async def done_assessment(
 
 
     # Xóa các danh mục ảnh hạng mục giám định
-    response = await odoo.call_method(
-        model='insurance.claim.appraisal.detail',
-        record_ids=[assessment_id],
-        method='done_assessment',
-        token=settings.ODOO_TOKEN
-    )
-    if response:
-        return {
-            "id": 5772,
-            "status": "Success"
-        }
-    else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to done assessment")
+    # response = await odoo.call_method_post(
+    #     model='insurance.claim.appraisal.detail',
+    #     record_id=assessment_id,
+    #     method='done_assessment',
+    #     token=settings.ODOO_TOKEN,
+    #     kwargs={}
+    # )
+    # if response:
+    return {
+        "id": 5772,
+        "status": "Success"
+    }
+    # else:
+    #     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to done assessment")
     
 #Xóa các danh mục ảnh hạng mục giám định
 @router.delete("/{claim_attachment_category_id}")
