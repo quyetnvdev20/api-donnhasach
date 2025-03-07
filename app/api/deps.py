@@ -1,4 +1,5 @@
 import httpx
+from app.schemas.user import UserObject
 from app.utils.redis_client import redis_client as redis_client_instance
 from app.utils.erp_db import PostgresDB
 from fastapi import Depends, HTTPException, status
@@ -7,6 +8,7 @@ from ..config import settings, odoo
 import requests
 from typing import Optional
 import logging
+
 
 # Thay thế HTTPBearer bằng APIKeyHeader
 api_key_header = APIKeyHeader(name="Authorization", auto_error=True)
@@ -54,11 +56,16 @@ async def get_current_user(token: str = Depends(api_key_header)) -> dict:
     user_perms = await get_user_permission(odoo_user.get("token"))
     token_data.update({
         **odoo_user,
+        'access_token': token,
         'erp_id': odoo_user.get('id'),
-        'perms': user_perms
+        'perms': user_perms,
+        'odoo_token': odoo_user.get('token'),
+        'uid': token_data.get('sub')
     })
 
-    return token_data
+    user_object = UserObject(**token_data)
+
+    return user_object
 
 async def ensure_odoo_user(sub: str) -> dict:
     cache_key = f"odoo_user_{sub}"
