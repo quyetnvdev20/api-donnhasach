@@ -6,7 +6,7 @@ from ....config import settings, odoo
 from ....database import get_db
 from ....schemas.repair import RepairPlanApprovalRequest, RepairPlanApprovalResponse, RepairPlanListResponse, \
     RepairPlanDetailResponse, RepairPlanApproveRequest, RepairPlanApproveResponse, RepairPlanRejectRequest, \
-    RepairPlanRejectResponse, RepairCategory
+    RepairPlanRejectResponse, RepairCategory, StandardCategoryList
 import logging
 from ....utils.erp_db import PostgresDB
 
@@ -421,6 +421,61 @@ async def get_repair_categories(
         ]
 
         return categories
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.get("/standard_categories",
+            response_model=StandardCategoryList,
+            status_code=status.HTTP_200_OK)
+async def get_standard_categories(
+        detail_id: int,
+        search: Optional[str] = None,
+        offset: int = 0,
+        limit: int = 10,
+        db: Session = Depends(get_db),
+        current_user: dict = Depends(get_current_user)
+) -> StandardCategoryList:
+    """
+    Get standard categories
+    """
+    try:
+        # Validate user authentication
+        if not current_user.get("sub"):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Unauthorized"
+            )
+
+        query = '''
+            select 
+                a.id,
+                a.code,
+                a.name,
+                a.description
+            from insurance_claim_list_category a
+            inner join insurance_claim_attachment_category b on a.id = b.category_id
+            where b.detail_category_id = $1
+        '''
+
+        params = [detail_id]
+
+        if search:
+            query += """ and (a.name ILIKE $2)"""
+            params.append(f"%{search}%")
+
+        # Add ordering and pagination
+        query += f"""
+        ORDER BY a.id DESC
+        LIMIT {int(limit)} OFFSET {int(offset)}
+        """
+
+        results = await PostgresDB.execute_query(query, params)
+        return StandardCategoryList(data=results)
 
     except Exception as e:
         raise HTTPException(
