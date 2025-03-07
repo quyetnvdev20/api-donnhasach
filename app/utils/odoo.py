@@ -97,8 +97,10 @@ class RequestOdoo():
             result = json.loads(res.get('result'), strict=False)
             if 'error' in result:
                 res_data = result.get('error')
-                if res_data == 'Invalid User Token':
+                if result.get('exception_type') == 'Invalid User Token':
                     raise UnauthorizedError("Invalid User Token")
+                if result.get('exception_type') == 'AccessError':
+                    raise UnauthorizedError("Bạn không có quyền thực hiện hành động này")
                 raise UserError(res_data)
             if 'success' in result:
                 res_data = result.get('success')
