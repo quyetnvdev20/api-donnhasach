@@ -58,6 +58,7 @@ class RepairPlanDetailItem(BaseModel):
 
 
 class RepairPlanApprovalRequest(BaseModel):
+    quote_photo_url: Optional[str] = None
     vehicle_name: str = None
     repair_garage_location: RepairGarageLocation = None
     inspection_date: Optional[str] = None
@@ -149,3 +150,12 @@ class StandardCategory(BaseModel):
 
 class StandardCategoryList(BaseModel):
     data: List[StandardCategory]
+
+
+class RepairCategoryAppraisal(BaseModel):
+    id: Optional[int]
+    name: str = None
+    code: str = None
+
+class RepairCategoryResponse(BaseModel):
+    data: List[RepairCategoryAppraisal] = []
