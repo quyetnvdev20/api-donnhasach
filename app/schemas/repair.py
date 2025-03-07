@@ -33,6 +33,7 @@ class RepairPlanDetail(BaseModel):
 
 class RepairItem(BaseModel):
     name: Optional[str] = None
+    code: Optional[str] = None
     id: Optional[int] = None
 
 
