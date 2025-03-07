@@ -11,6 +11,7 @@ import asyncio
 import json
 import re
 from ....utils.erp_db import PostgresDB
+from ....utils.odoo import UserError
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +179,9 @@ async def get_ocr_quote(
                 except (ValueError, TypeError) as e:
                     logger.warning(f"Error parsing line data: {line}, error: {str(e)}")
                     continue
+
+    if not result_data or not len(result_data):
+        raise UserError("Không tìm thấy dữ liệu")   
             
     return OCRQuoteResponse(
         url_cvs=image_url,
