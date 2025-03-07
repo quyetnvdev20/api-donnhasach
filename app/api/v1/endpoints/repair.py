@@ -298,8 +298,8 @@ async def get_repair_plan_awaiting_detail(
                 "code": res.get('repair_state'),
                 "color_code": STATE_COLOR.get(res.get('repair_state'))[0] if STATE_COLOR.get(res.get('repair_state')) else "#faad14"
             },
-            "btn_approve": True if res.get('repair_state') == 'pending' else False,  # TODO chưa xử lý phân quyền
-            "btn_reject": True if res.get('repair_state') == 'pending' else False,  # TODO chưa xử lý phân quyền
+            "btn_approve": True if res.get('repair_state') not in ('new', 'approved', 'cancel') else False,  # TODO chưa xử lý phân quyền
+            "btn_reject": True if res.get('repair_state') not in ('new', 'approved', 'cancel') else False,  # TODO chưa xử lý phân quyền
             "approval_history": [],  # TODO chưa xử lý
             "repair_plan_details": repair_plan_details,
             "amount_subtotal": int(res.get('price_total_propose')),
