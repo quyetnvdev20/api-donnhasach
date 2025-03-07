@@ -265,7 +265,7 @@ async def get_assessment_report(
     # Thử lấy preview URL từ Redis và danh sách hình ảnh cùng lúc
     cached_preview_url, image_list = await asyncio.gather(
         redis_client.get(cache_key), 
-        get_image_list(assessment_id, "assessment_report")
+        get_image_list(assessment_id, "appraisal_report")
     )
     
     # Kiểm tra URL trong cache có khả dụng không
