@@ -32,8 +32,8 @@ class RepairPlanDetail(BaseModel):
 
 
 class RepairItem(BaseModel):
-    name: str
-    id: int
+    name: Optional[str] = None
+    id: Optional[int] = None
 
 
 class RepairType(BaseModel):
@@ -49,21 +49,20 @@ class RepairGarageLocation(BaseModel):
 
 class RepairPlanDetailItem(BaseModel):
     name: str
-    item: RepairItem
-    type: RepairType
-    garage_price: float
-    suggested_price: float
-    discount_percentage: float
+    item: RepairItem = None
+    type: RepairType = None
+    garage_price: float = None
+    suggested_price: float = None
+    discount_percentage: float = None
 
 
 class RepairPlanApprovalRequest(BaseModel):
-    # file_number: str = None
-    vehicle_name: str
-    repair_garage_location: RepairGarageLocation
+    vehicle_name: str = None
+    repair_garage_location: RepairGarageLocation = None
     inspection_date: Optional[str] = None
     approval_deadline: Optional[str] = None
-    status: Status
-    label: Label
+    status: Status = None
+    label: Label = None
     repair_plan_details: List[RepairPlanDetailItem]
 
 
