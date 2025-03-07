@@ -87,7 +87,7 @@ async def ensure_odoo_user(sub: str) -> dict:
         await redis_client_instance.set(cache_key, user)
         return user
 
-async def get_user_permission(token: str) -> dict | None:
+async def get_user_permission(token: str) -> dict:
     cache_key = f"user_permission_{token}"
     if await redis_client_instance.exists(cache_key):
         cached_permission = await redis_client_instance.get(cache_key)
