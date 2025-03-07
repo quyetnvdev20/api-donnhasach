@@ -66,25 +66,19 @@ async def get_id_document_type(document_type: str):
     result = await PostgresDB.execute_query(sql_query, (document_type,))
     return result[0]['id']
 
-async def get_report_url(report_name: str, id: str, authorization: str):
-    # TODO: Cần refactor lại, hàm này call về api insurance -> refactor call orm odoo
+async def get_report_url(report_name: str, id: str):
     request_body = {
-        "data": [
+        'data': [
             f"/report/pdf/{report_name}/{id}",
             "qweb-pdf"
         ]
     }
-    header = {
-        "Authorization": authorization
-    }
-    async with httpx.AsyncClient() as client:
-        response = await client.post(f"{settings.INSURANCE_API_URL}/claim/report/{id}", json=request_body, headers=header)
-        if response.status_code == 200:
-            url = response.json().get("data")
-            if await is_url_valid(url):
-                return url
-            else:
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get report")
+    res = await odoo.call_method_not_record(model='ir.actions.report',
+                                        method='report_download_mobile',
+                                        token=settings.ODOO_TOKEN,
+                                        kwargs=request_body)
+
+    return res
 
 async def format_build_body(assessment_id: int, document_upload: DocumentUpload, document_type: str):
     scan_urls = []
@@ -161,7 +155,9 @@ async def get_accident_notification(
     
     # Get accident notification template from config
     accident_notification_template = settings.ACCIDENT_NOTIFICATION_TEMPLATE
-    accident_notification_url = await get_report_url(accident_notification_template, receive_id, current_user.get('access_token'))
+    accident_notification_url = await get_report_url(accident_notification_template, receive_id)
+
+    print('111111', accident_notification_url)
     
     # Kiểm tra URL mới có khả dụng không trước khi lưu vào Redis
     if accident_notification_url and await is_url_valid(accident_notification_url):
@@ -206,7 +202,7 @@ async def refresh_accident_notification_url(
     
     # Get accident notification template from config
     accident_notification_template = settings.ACCIDENT_NOTIFICATION_TEMPLATE
-    accident_notification_url = await get_report_url(accident_notification_template, receive_id, current_user.get('access_token'))
+    accident_notification_url = await get_report_url(accident_notification_template, receive_id)
     
     # Lấy danh sách hình ảnh
     image_list = await get_image_list(assessment_id, "accident_ycbt")
@@ -288,8 +284,7 @@ async def get_assessment_report(
     
     # Get assessment report template from config
     assessment_report_template = settings.ASSESSMENT_REPORT_TEMPLATE
-    assessment_report_url = await get_report_url(assessment_report_template, assessment_id,
-                                                     current_user.get('access_token'))
+    assessment_report_url = await get_report_url(assessment_report_template, assessment_id)
     
     # Kiểm tra URL mới có khả dụng không trước khi lưu vào Redis
     if assessment_report_url and await is_url_valid(assessment_report_url):
@@ -354,8 +349,7 @@ async def refresh_assessment_report_url(
     
     # Get assessment report template from config
     assessment_report_template = settings.ASSESSMENT_REPORT_TEMPLATE
-    assessment_report_url = await get_report_url(assessment_report_template, assessment_id,
-                                                     current_user.get('access_token'))
+    assessment_report_url = await get_report_url(assessment_report_template, assessment_id)
     
     # Lấy danh sách hình ảnh
     image_list = await get_image_list(assessment_id, "assessment_report")

@@ -170,7 +170,6 @@ async def get_assessment_list(
 async def get_assessment_detail(
         assessment_id: str,
         headers: Annotated[CommonHeaders, Header()],
-        db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
     """
