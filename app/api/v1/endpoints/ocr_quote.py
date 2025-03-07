@@ -41,7 +41,7 @@ async def get_ocr_quote_data(image_url: str):
         }
         
         # Sử dụng httpx.AsyncClient với timeout dài hơn
-        timeout = httpx.Timeout(60.0, connect=30.0)  # 60 giây cho toàn bộ request, 30 giây cho kết nối
+        timeout = httpx.Timeout(90.0, connect=60.0)  # 60 giây cho toàn bộ request, 30 giây cho kết nối
         
         async with httpx.AsyncClient(timeout=timeout) as client:
             logger.info(f"Sending OCR request to: {api_url} with params: {params}")
