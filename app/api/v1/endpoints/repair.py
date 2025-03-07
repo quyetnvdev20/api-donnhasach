@@ -341,7 +341,7 @@ async def approve_repair_plan(
         response = await odoo.call_method_post(
             record_id=request.repair_id,
             model='insurance.claim.solution.repair',
-            method='action_approve_api',
+            method='action_approve_pass_workflow',
             token=current_user.get('token'),
             kwargs={'reason': request.approve_reason}
         )
