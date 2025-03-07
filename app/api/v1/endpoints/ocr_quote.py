@@ -169,39 +169,35 @@ async def get_ocr_quote(
         
         # Xử lý hàng loạt các tên hạng mục để phân loại
         if item_names:
-            try:
-                # Gọi API OpenAI một lần duy nhất để phân loại tất cả các hạng mục
-                category_types = await process_items_batch_with_gpt(item_names)
-                logger.info(f"Processed {len(category_types)} items with GPT")
+            # Gọi API OpenAI một lần duy nhất để phân loại tất cả các hạng mục
+            category_types = await process_items_batch_with_gpt(item_names)
+            logger.info(f"Processed {len(category_types)} items with GPT")
+            
+            # Tạo kết quả cuối cùng
+            for data in line_data:
+                name = data['name']
+                price = data['price']
+                discount = data['discount']
                 
-                # Tạo kết quả cuối cùng
-                for data in line_data:
-                    name = data['name']
-                    price = data['price']
-                    discount = data['discount']
-                    
-                    # Lấy kết quả phân loại từ batch processing
-                    category_type = category_types.get(name, {"code": "parts", "name": "Phụ tùng"})
-                    
-                    category = {
-                        'code': None,
-                        'name': None
-                    }
-                    if data_mapping.get(name):
-                        category['code'] = clean_numeric_value(data_mapping.get(name).get('category_code'))
-                        category['name'] = clean_numeric_value(data_mapping.get(name).get('category_name'))
-                    
-                    result_data.append({
-                        'name': name,
-                        'quantity': 1,
-                        'garage_price': price,
-                        'item': category,
-                        'discount_percentage': discount,
-                        'type': category_type
-                    })
-            except Exception as e:
-                logger.error(f"Error in batch processing: {str(e)}")
-                # Fallback to individual processing if batch fails
+                # Lấy kết quả phân loại từ batch processing
+                category_type = category_types.get(name, {"code": "parts", "name": "Phụ tùng"})
+                
+                category = {
+                    'code': None,
+                    'name': None
+                }
+                if data_mapping.get(name):
+                    category['code'] = clean_numeric_value(data_mapping.get(name).get('category_code'))
+                    category['name'] = clean_numeric_value(data_mapping.get(name).get('category_name'))
+                
+                result_data.append({
+                    'name': name,
+                    'quantity': 1,
+                    'garage_price': price,
+                    'item': category,
+                    'discount_percentage': discount,
+                    'type': category_type
+                })
 
     if not result_data or not len(result_data):
         raise UserError("Không tìm thấy dữ liệu")   
@@ -267,13 +263,13 @@ Trả ra output dạng json: {{'code': Mã phương án, 'name': Tên phương �
                 processed_result[name] = category
             else:
                 # Fallback nếu định dạng không đúng
-                processed_result[name] = {"code": "parts", "name": "Phụ tùng"}
+                processed_result[name] = {"code": "parts", "name": "Phụ tùng", "color_code": "#0958d9"}
         
         return processed_result
     except Exception as e:
         logger.error(f"Error in batch processing with GPT: {str(e)}")
         # Trả về dictionary rỗng trong trường hợp lỗi
-        return {name: {"code": "parts", "name": "Phụ tùng"} for name in item_names}
+        return {name: {"code": "parts", "name": "Phụ tùng", "color_code": "#0958d9"} for name in item_names}
 
 async def process_item_with_gpt(item_name: str) -> dict:
     # try:
