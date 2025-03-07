@@ -22,7 +22,7 @@ class UserError(HTTPException):
     def __init__(self, detail="User Error", description=None):
         if description:
             detail = f"{detail}: {description}"
-        super().__init__(status_code=400, detail=detail)
+        super().__init__(status_code=422, detail=detail)
 
 # TimeoutError đã có sẵn trong Python
 # Sử dụng TimeoutError của Python thay vì import từ fastapi.exceptions
@@ -66,7 +66,7 @@ class RequestOdoo():
             res_error = res_data['error']
             if res_error == 'Invalid User Token':
                 raise UnauthorizedError("Invalid User Token")
-            raise HTTPException(status_code=500, detail=res_error)
+            raise HTTPException(status_code=422, detail=res_error)
         if 'success' in res_data:
             return res_data['success']
         return res_data
@@ -95,10 +95,10 @@ class RequestOdoo():
         if 'result' in res:
             result = json.loads(res.get('result'), strict=False)
             if 'error' in result:
-                res_data = result.get('error').encode('utf-8')
+                res_data = result.get('error')
                 if res_data == 'Invalid User Token':
                     raise UnauthorizedError("Invalid User Token")
-                raise HTTPException(status_code=500, detail=res_data)
+                raise HTTPException(status_code=422, detail=res_data)
             if 'success' in result:
                 res_data = result.get('success')
                 return res_data

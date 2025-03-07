@@ -319,16 +319,14 @@ async def done_assessment(
         model='insurance.claim.appraisal.detail',
         record_id=assessment_id,
         method='done_assessment',
-        token=settings.ODOO_TOKEN,
+        token=current_user.odoo_token,
         kwargs={}
     )
-    if response:
-        return {
-            "id": int(response.get('repair_plan_id')),
-            "status": "Success"
-        }
-    else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to done assessment")
+
+    return {
+        "id": int(response.get('repair_plan_id')),
+        "status": "Success"
+    }
     
 #Xóa các danh mục ảnh hạng mục giám định
 @router.delete("/{claim_attachment_category_id}")
@@ -352,7 +350,7 @@ async def delete_claim_attachment_category(
         response = await odoo.delete_method(
             model='insurance.claim.attachment.category',
             record_id=claim_attachment_category_id,
-            token=settings.ODOO_TOKEN
+            token=current_user.odoo_token
         )
 
         if response:
