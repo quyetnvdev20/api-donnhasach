@@ -138,3 +138,11 @@ class RepairCategory(BaseModel):
     code: str
     name: str
     color_code: str
+
+class RepairCategoryAppraisal(BaseModel):
+    id: Optional[int]
+    name: str = None
+    code: str = None
+
+class RepairCategoryResponse(BaseModel):
+    data: List[RepairCategoryAppraisal] = []
