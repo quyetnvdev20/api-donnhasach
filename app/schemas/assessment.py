@@ -191,13 +191,18 @@ class OCRCategory(BaseModel):
     code: Optional[str] = None
     name: Optional[str] = None
 
+class CategoryType(BaseModel):
+    code: Optional[str] = None
+    name: Optional[str] = None
+    color_code: Optional[str] = None
+
 class OCRQuoteItem(BaseModel):
     name: str = ""
     quantity: int = 1
     garage_price: float = 0
     item: OCRCategory
     discount_percentage: float = 0
-
+    type: CategoryType = None
 class OCRQuoteResponse(BaseModel):
     url_cvs: str
     data: List[OCRQuoteItem] = []
