@@ -58,6 +58,7 @@ class RepairPlanDetailItem(BaseModel):
 
 
 class RepairPlanApprovalRequest(BaseModel):
+    quote_photo_url: Optional[str] = None
     vehicle_name: str = None
     repair_garage_location: RepairGarageLocation = None
     inspection_date: Optional[str] = None
