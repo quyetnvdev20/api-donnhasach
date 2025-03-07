@@ -41,6 +41,7 @@ async def submit_repair_plan_approval(
             record_id=repair_id,
             model='insurance.claim.solution.repair',
             method='submit_repair_plan_approval',
+            token=current_user.get('token'),
             kwargs=repair_plan.model_dump()
         )
         if response.get("status_code") == status.HTTP_200_OK:
@@ -341,6 +342,7 @@ async def approve_repair_plan(
             record_id=request.repair_id,
             model='insurance.claim.solution.repair',
             method='action_approve_api',
+            token=current_user.get('token'),
             kwargs={'reason': request.approve_reason}
         )
         return RepairPlanApproveResponse(id=response)
@@ -367,6 +369,7 @@ async def reject_repair_plan(
             record_id=request.repair_id,
             model='insurance.claim.solution.repair',
             method='action_reject_api',
+            token=current_user.get('token'),
             kwargs={'reason': request.reject_reason}
         )
         if response:
