@@ -34,7 +34,7 @@ async def get_assessment_detail_status(assessment_id: int) -> Dict[str, Any]:
     if has_documents:
         return {"name": "completed"}
     else:
-        return {"name": "not_start"}
+        return {"name": "in_progress"}
 
 
 async def get_collection_document_status(assessment_id: int) -> Dict[str, Any]:
@@ -69,7 +69,7 @@ async def get_collection_document_status(assessment_id: int) -> Dict[str, Any]:
     if has_documents:
         return {"name": "completed"}
     else:
-        return {"name": "not_start"}
+        return {"name": "in_progress"}
 
 
 async def get_accident_notification_status(assessment_id: int) -> Dict[str, Any]:
@@ -98,7 +98,7 @@ async def get_accident_notification_status(assessment_id: int) -> Dict[str, Any]
     if has_documents:
         return {"name": "completed"}
     else:
-        return {"name": "not_start"}
+        return {"name": "in_progress"}
 
 
 async def get_assessment_report_status(assessment_id: int) -> Dict[str, Any]:
@@ -127,4 +127,4 @@ async def get_assessment_report_status(assessment_id: int) -> Dict[str, Any]:
     if has_documents:
         return {"name": "completed"}
     else:
-        return {"name": "not_start"}
+        return {"name": "in_progress"}
