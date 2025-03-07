@@ -13,6 +13,8 @@ import json
 import httpx
 import logging
 from app.config import settings, odoo
+import asyncio
+from .assessment_task_status import get_assessment_detail_status, get_collection_document_status, get_accident_notification_status, get_assessment_report_status
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -168,7 +170,7 @@ async def get_assessment_list(
 
 @router.get("/{assessment_id}", response_model=AssessmentDetail)
 async def get_assessment_detail(
-        assessment_id: str,
+        assessment_id: int,
         headers: Annotated[CommonHeaders, Header()],
         current_user: dict = Depends(get_current_user)
 ):
@@ -225,14 +227,30 @@ async def get_assessment_detail(
 --             and first_certificate.id is not null
         """
 
-    params = [int(assessment_id), time_zone.key]
+    params = [assessment_id, time_zone.key]
 
-    assessment_detail = await PostgresDB.execute_query(query, params)
+    assessment_detail, detail_status, collection_status, accident_notification_status, assessment_report_status = await asyncio.gather(
+        PostgresDB.execute_query(query, params),
+        get_assessment_detail_status(assessment_id),
+        get_collection_document_status(assessment_id),
+        get_accident_notification_status(assessment_id),
+        get_assessment_report_status(assessment_id)
+    )
+    
     if assessment_detail:
         assessment_detail = assessment_detail[0]
+        
+        assessment_progress = 0
+        if detail_status.get("name") == "completed":
+            assessment_progress += 25
+        if collection_status.get("name") == "completed":
+            assessment_progress += 25
+        if accident_notification_status.get("name") == "completed":
+            assessment_progress += 25
+        if assessment_report_status.get("name") == "completed":
+            assessment_progress += 25
 
-        # todo: fix hardcode
-        assessment_detail['assessment_progress'] = 0
+        assessment_detail['assessment_progress'] = assessment_progress
         assessment_detail['status_color'] = color.get(assessment_detail['status'],
                                                       '#757575')  # Default to gray if status not found
         assessment_detail['tasks'] = [{
@@ -243,7 +261,7 @@ async def get_assessment_detail(
             "icon": "https://example.com",
             "status": {
                 "bg_color": "#00000",
-                "name": "completed",
+                "name": detail_status.get("name"),
             }
         },
             {
@@ -254,7 +272,7 @@ async def get_assessment_detail(
                 "icon": "https://example.com",
                 "status": {
                     "bg_color": "#00000",
-                    "name": "completed",
+                    "name": collection_status.get("name"),
                 }
             },
             {
@@ -265,7 +283,7 @@ async def get_assessment_detail(
                 "icon": "https://example.com",
                 "status": {
                     "bg_color": "#00000",
-                    "name": "completed",
+                    "name": accident_notification_status.get("name"),
                 }
             },
             {
@@ -276,7 +294,7 @@ async def get_assessment_detail(
                 "icon": "https://example.com",
                 "status": {
                     "bg_color": "#00000",
-                    "name": "completed",
+                    "name": assessment_report_status.get("name"),
                 }
             }
         ]
