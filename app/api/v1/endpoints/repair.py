@@ -101,16 +101,18 @@ async def get_repair_plan_awaiting_list(
             left join res_car_brand rcb on rcb.id = ic.car_brand_id
             left join res_users ru on a.create_uid = ru.id
             left join res_partner rpu on ru.partner_id = rpu.id
-            where a.state in ('new', 'pending')
+            where 1 = 1
         """
 
         params = []
 
-        if state == 'cho_duyet':
-            state = 'pending'
+        state_tuple = (state, '')
 
-        query += """ and a.state = $1"""
-        params.append(state)
+        if state == 'cho_duyet':
+            state_tuple = ('pending', 'gdcn_approve', 'btv_approve', 'pp_approve', 'ho_approve', 'pgd_approve', 'gd_approve', 'bdh_approve')
+
+        query += """ and a.state = ANY($1)"""
+        params.append(state_tuple)
 
         if search:
             query += """ and (a.name ILIKE $2 or c.name ILIKE $2 or a.object_name ILIKE $2)"""
