@@ -186,11 +186,16 @@ class UpdateAssessmentItemResponse(BaseModel):
     assessment_id: str = ""
     status: str = ""
 
+class OCRCategory(BaseModel):
+    id: Optional[int] = None
+    code: Optional[str] = None
+    name: Optional[str] = None
+
 class OCRQuoteItem(BaseModel):
     name: str = ""
     quantity: int = 1
     garage_price: float = 0
-    item: Category
+    item: OCRCategory
     discount_percentage: float = 0
 
 class OCRQuoteResponse(BaseModel):

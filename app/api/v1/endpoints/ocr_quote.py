@@ -161,11 +161,11 @@ async def get_ocr_quote(
 
 
                     category = {
-                        'id': None,
+                        'code': None,
                         'name': None
                     }
                     if data_mapping.get(name):
-                        category['id'] = clean_numeric_value(data_mapping.get(name).get('category_id'))
+                        category['code'] = clean_numeric_value(data_mapping.get(name).get('category_code'))
                         category['name'] = clean_numeric_value(data_mapping.get(name).get('category_name'))
                     
                     result_data.append({
