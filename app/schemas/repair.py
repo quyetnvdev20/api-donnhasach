@@ -141,17 +141,6 @@ class RepairCategory(BaseModel):
     color_code: str
 
 
-class StandardCategory(BaseModel):
-    code: str
-    name: str
-    description: Optional[str] = None
-    id: int
-
-
-class StandardCategoryList(BaseModel):
-    data: List[StandardCategory]
-
-
 class RepairCategoryAppraisal(BaseModel):
     id: Optional[int]
     name: str = None
