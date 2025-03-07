@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     # Odoo configuration
     ODOO_URL: str
     ODOO_TOKEN: str
+    ODOO_OAUTH_PROVIDER_ID: int = 4
     
     # Report configuration
     ACCIDENT_NOTIFICATION_TEMPLATE: str = ""
