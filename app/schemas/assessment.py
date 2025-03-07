@@ -34,7 +34,7 @@ class Task(BaseModel):
     path: str
     desc: str
     icon: str
-    # status: TaskStatus = None
+    status: TaskStatus = None
 
 
 class AssessmentDetail(BaseModel):
@@ -51,7 +51,7 @@ class AssessmentDetail(BaseModel):
     appraisal_date: Optional[str] = None
     complete_time: Optional[str] = None
     damage_desc: Optional[str] = None
-    # assessment_progress: int = None
+    assessment_progress: int = None
     note: Optional[str] = None
     tasks: List[Task]
     status_color: Optional[str] = "#212121"

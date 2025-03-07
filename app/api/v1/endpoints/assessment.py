@@ -232,7 +232,7 @@ async def get_assessment_detail(
         assessment_detail = assessment_detail[0]
 
         # todo: fix hardcode
-        # assessment_detail['assessment_progress'] = 100
+        assessment_detail['assessment_progress'] = 0
         assessment_detail['status_color'] = color.get(assessment_detail['status'],
                                                       '#757575')  # Default to gray if status not found
         assessment_detail['tasks'] = [{
@@ -241,10 +241,10 @@ async def get_assessment_detail(
             "path": "/detail",
             "desc": "Kiểm tra trực tiếp các hạng mục và mực độ tổn thất",
             "icon": "https://example.com",
-            # "status": {
-            #     "bg_color": "#00000",
-            #     "name": "completed",
-            # }
+            "status": {
+                "bg_color": "#00000",
+                "name": "completed",
+            }
         },
             {
                 "seq": 2,
@@ -252,10 +252,10 @@ async def get_assessment_detail(
                 "path": "/collect_document",
                 "desc": "Chụp và trích xuất thông tin từ giấy tờ cần thiết",
                 "icon": "https://example.com",
-                # "status": {
-                #     "bg_color": "#00000",
-                #     "name": "completed",
-                # }
+                "status": {
+                    "bg_color": "#00000",
+                    "name": "completed",
+                }
             },
             {
                 "seq": 3,
@@ -263,10 +263,10 @@ async def get_assessment_detail(
                 "path": "/accident_notification",
                 "desc": "Chia sẻ, in và upload bản kí tươi",
                 "icon": "https://example.com",
-                # "status": {
-                #     "bg_color": "#00000",
-                #     "name": "completed",
-                # }
+                "status": {
+                    "bg_color": "#00000",
+                    "name": "completed",
+                }
             },
             {
                 "seq": 4,
@@ -274,10 +274,10 @@ async def get_assessment_detail(
                 "path": "/assessment_report",
                 "desc": "Chia sẻ, in và upload bản kí tươi",
                 "icon": "https://example.com",
-                # "status": {
-                #     "bg_color": "#00000",
-                #     "name": "completed",
-                # }
+                "status": {
+                    "bg_color": "#00000",
+                    "name": "completed",
+                }
             }
         ]
     else:
