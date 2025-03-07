@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import logging
 
 from .config import settings
@@ -39,6 +40,12 @@ app.include_router(master_data.router, prefix="/repairs", tags=["master_data_rep
 app.include_router(ocr_quote.router, prefix="/repairs", tags=["repairs_ocr"])
 app.include_router(odoo_test.router, prefix="/odoo", tags=["odoo"])
 
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"message": exc.detail}
+    )
 
 @app.get("/health")
 async def health_check():

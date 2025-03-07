@@ -8,6 +8,7 @@ import httpx
 import json
 import asyncio
 from fastapi.exceptions import RequestValidationError, HTTPException
+from fastapi.responses import JSONResponse
 
 # Tạo custom exception classes
 class UnauthorizedError(HTTPException):
@@ -66,7 +67,7 @@ class RequestOdoo():
             res_error = res_data['error']
             if res_error == 'Invalid User Token':
                 raise UnauthorizedError("Invalid User Token")
-            raise HTTPException(status_code=422, detail=res_error)
+            raise UserError(res_error)
         if 'success' in res_data:
             return res_data['success']
         return res_data
@@ -98,7 +99,7 @@ class RequestOdoo():
                 res_data = result.get('error')
                 if res_data == 'Invalid User Token':
                     raise UnauthorizedError("Invalid User Token")
-                raise HTTPException(status_code=422, detail=res_data)
+                raise UserError(res_data)
             if 'success' in result:
                 res_data = result.get('success')
                 return res_data
@@ -174,7 +175,10 @@ class Odoo(RequestOdoo):
             res_data = str(res['error'])
             if 'Invalid User Token' in res_data:
                 raise UnauthorizedError("Invalid User Token")
-            raise HTTPException(status_code=500, detail=res_data)
+            return JSONResponse(
+                status_code=500,
+                content={"message": res_data}
+            )
         return res
 
     async def search_ids(self, model, token=None, domain=[], offset=0, limit=None, order=None):
@@ -209,7 +213,10 @@ class Odoo(RequestOdoo):
             res_data = str(res['error'])
             if 'Invalid User Token' in res_data:
                 raise UnauthorizedError("Invalid User Token")
-            raise HTTPException(status_code=500, detail=res_data)
+            return JSONResponse(
+                status_code=500,
+                content={"message": res_data}
+            )
         return res
 
     async def create_method(self, model, vals, token=None):
