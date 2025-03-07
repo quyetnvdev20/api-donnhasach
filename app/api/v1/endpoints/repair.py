@@ -79,7 +79,7 @@ async def get_repair_plan_awaiting_list(
             select 
                 a.id repair_id,
                 a.state repair_state,
-                to_char(d.date_noti + INTERVAL '7 hours', 'dd/MM/yyyy HH24:MI') as date_noti,
+                to_char(e.date + INTERVAL '7 hours', 'dd/MM/yyyy HH24:MI') as inspection_date,
                 a.price_subtotal,
                 b.id as gara_id,
                 rp.name gara_name,
@@ -89,6 +89,7 @@ async def get_repair_plan_awaiting_list(
                 rpu.name as submitter,
                 ic.car_owner_name
             from insurance_claim_solution_repair a
+            left join insurance_claim_appraisal_detail e on a.detailed_appraisal_id = e.id
             left join res_partner_gara b on a.gara_partner_id = b.id
             left join res_partner rp on b.partner_id = rp.id
             left join insurance_claim_profile c on a.new_claim_profile_id = c.id
@@ -140,7 +141,7 @@ async def get_repair_plan_awaiting_list(
                     "color_code": "#52C41A"
                 },
                 "submitter": res.get('submitter'),
-                "inspection_date": res.get('date_noti'),
+                "inspection_date": res.get('inspection_date'),
                 "status": {
                     "name": STATE_COLOR.get(res.get('repair_state'))[1] if STATE_COLOR.get(res.get('repair_state')) else "Chờ duyệt",
                     "code": res.get('repair_state'),
@@ -191,6 +192,7 @@ async def get_repair_plan_awaiting_detail(
                 b.id as gara_id,
                 rp.name gara_name,
                 COALESCE(c.location_damage, '') location_damage,
+                to_char(e.date + INTERVAL '7 hours', 'dd/MM/yyyy HH24:MI') as inspection_date,
                 c.name file_name,
                 ic.name contract_number,
                 concat(rcb.name, ' ', rcm.name, ' ', ic.manufacturer_year, ' - ', ic.license_plate) as vehicle_info,
@@ -202,6 +204,7 @@ async def get_repair_plan_awaiting_detail(
                 a.price_subtotal,
                 (select sum(price_unit_gara) from insurance_claim_solution_repair_line where solution_repair_id = a.id) as amount_garage
             from insurance_claim_solution_repair a
+            left join insurance_claim_appraisal_detail e on a.detailed_appraisal_id = e.id
             left join res_partner_gara b on a.gara_partner_id = b.id
             left join res_partner rp on b.partner_id = rp.id
             left join insurance_claim_profile c on a.new_claim_profile_id = c.id
@@ -286,7 +289,7 @@ async def get_repair_plan_awaiting_detail(
                 "id": res.get('gara_id'),
                 "name": res.get('gara_name')
             },
-            "inspection_date": res.get('date_noti'),
+            "inspection_date": res.get('inspection_date'),
             "approval_deadline": None,  # TODO chưa biết lấy ở đâu
             "owner_name": res.get('car_owner_name'),
             "owner_phone": res.get('car_owner_phone'),
