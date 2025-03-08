@@ -9,7 +9,7 @@ from ....schemas.assessment import AssessmentListItem, VehicleDetailAssessment, 
     DocumentResponse, DocumentUpload, DocumentType, UpdateAssessmentItemResponse
 from ....schemas.common import CommonHeaders
 from ....utils.erp_db import PostgresDB
-import json
+import json, random
 import httpx
 import logging
 from app.config import settings, odoo
@@ -160,8 +160,8 @@ async def get_assessment_list(
 
         # Add random values for current_distance and assessment_progress
         result['urgency_level'] = True
-        result['current_distance'] = 2.5
-        result['assessment_progress'] = 1
+        result['current_distance'] = (round(random.uniform(1, 20), 1)) #TOOD: remove random
+        result['assessment_progress'] = random.choice([25, 50, 75, 100]) #TOOD: remove random
 
         enhanced_results.append(result)
 
