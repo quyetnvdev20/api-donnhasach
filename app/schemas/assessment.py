@@ -7,7 +7,7 @@ from datetime import datetime
 class AssessmentListItem(BaseModel):
     id: int
     name: str
-    license_plate: str
+    license_plate: str = None
     vehicle: Optional[str]
     customer_name: Optional[str]
     assessment_address: Optional[str]
