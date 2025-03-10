@@ -91,21 +91,21 @@ class RepairPlanListResponse(BaseModel):
 
 
 class ApprovalHistory(BaseModel):
-    reason: str
-    approval_time: str
+    reason: Optional[str] = None
+    approval_time: Optional[str] = None
 
 
 class RepairPlanAwaitingDetail(BaseModel):
-    file_name: str
-    contract_number: str
-    vehicle_info: str
+    file_name: Optional[str] = None
+    contract_number: Optional[str] = None
+    vehicle_info: Optional[str] = None
     repair_garage_location: RepairGarageLocation
-    inspection_date: str
-    approval_deadline: str
-    owner_name: str
-    owner_phone: str
+    inspection_date: Optional[str] = None
+    approval_deadline: Optional[str] = None
+    owner_name: Optional[str] = None
+    owner_phone: Optional[str] = None
     status: Status
-    approval_history: List[ApprovalHistory]
+    approval_history: List[ApprovalHistory] = None
     repair_plan_details: List[RepairPlanDetailItem]
     amount_subtotal: float
     amount_discount: float
@@ -113,8 +113,7 @@ class RepairPlanAwaitingDetail(BaseModel):
 
 
 class RepairPlanDetailResponse(BaseModel):
-    # data: RepairPlanAwaitingDetail
-    data: dict
+    data: RepairPlanAwaitingDetail
 
 
 class RepairPlanApproveRequest(BaseModel):
