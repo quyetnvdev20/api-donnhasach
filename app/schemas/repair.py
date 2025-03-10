@@ -91,8 +91,8 @@ class RepairPlanListResponse(BaseModel):
 
 
 class ApprovalHistory(BaseModel):
-    reason: str
-    approval_time: str
+    reason: Optional[str] = None
+    approval_time: Optional[str] = None
 
 
 class RepairPlanAwaitingDetail(BaseModel):
