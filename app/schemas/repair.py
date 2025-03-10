@@ -38,9 +38,9 @@ class RepairItem(BaseModel):
 
 
 class RepairType(BaseModel):
-    name: str
-    code: str
-    color_code: str
+    name: Optional[str] = None
+    code: Optional[str] = None
+    color_code: Optional[str] = None
 
 
 class RepairGarageLocation(BaseModel):
