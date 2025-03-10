@@ -205,7 +205,8 @@ async def get_repair_plan_awaiting_detail(
                 a.price_total_propose,
                 a.total_discount,
                 a.price_subtotal,
-                (select sum(price_unit_gara) from insurance_claim_solution_repair_line where solution_repair_id = a.id) as amount_garage
+                (select sum(price_unit_gara) from insurance_claim_solution_repair_line where solution_repair_id = a.id) as amount_garage,
+                a.new_claim_profile_id as claim_profile_id
             from insurance_claim_solution_repair a
             left join insurance_claim_appraisal_detail e on a.detailed_appraisal_id = e.id
             left join res_partner_gara b on a.gara_partner_id = b.id
@@ -314,7 +315,8 @@ async def get_repair_plan_awaiting_detail(
                 "name": "Gấp",  # TODO chưa biết lấy dữ liệu ở đâu
                 "code": "LABEL001",
                 "color_code": "#f5222d"
-            }
+            },
+            "claim_profile_id": int(res.get('claim_profile_id'))
         }
 
         return RepairPlanDetailResponse(

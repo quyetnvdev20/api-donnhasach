@@ -239,7 +239,8 @@ async def get_assessment_detail(
                 TO_CHAR(icr.date_damage AT TIME ZONE 'UTC' AT TIME ZONE $2, 'DD/MM/YYYY - HH24:MI') AS accident_date,
                 TO_CHAR(gd_chi_tiet.date AT TIME ZONE 'UTC' AT TIME ZONE $2, 'DD/MM/YYYY - HH24:MI') AS appraisal_date,
                 TO_CHAR((icr.date_damage + INTERVAL '3 hours') AT TIME ZONE 'UTC' AT TIME ZONE $2, 'DD/MM/YYYY - HH24:MI') AS complete_time,
-                icr.note AS note
+                icr.note AS note,
+                gd_chi_tiet.new_claim_profile_id AS claim_profile_id
             FROM insurance_claim_appraisal_detail gd_chi_tiet
             LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
             LEFT JOIN res_partner_gara rpg ON rpg.id = gd_chi_tiet.gara_partner_id
