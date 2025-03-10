@@ -57,6 +57,7 @@ class AssessmentDetail(BaseModel):
     tasks: List[Task]
     status_color: Optional[str] = "#212121"
     claim_profile_id: Optional[int] = None
+    insur_claim_id: Optional[int] = None
 
 
 # Models for Vehicle Detail Assessment
