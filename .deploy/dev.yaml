@@ -12,6 +12,8 @@ tls:
       - '*.baohiemtasco.vn'
     secretName: baohiemtasco-vn-tls-sectigo-wildcard
 
+replicas: 5
+
 envFrom:
   configMaps:
     - name: claim-ai-cm
