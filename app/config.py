@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     OCR_SERVICE_URL: str = ""
     OCR_API_KEY: str = ""
     OCR_API_SECRET: str = ""
+
+    # Google Maps API
+    GOOGLE_MAPS_API_KEY: str = ""
     
     @property
     def DATABASE_URL(self) -> str:

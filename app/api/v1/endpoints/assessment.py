@@ -9,6 +9,7 @@ from ....schemas.assessment import AssessmentListItem, VehicleDetailAssessment, 
     DocumentResponse, DocumentUpload, DocumentType, UpdateAssessmentItemResponse
 from ....schemas.common import CommonHeaders
 from ....utils.erp_db import PostgresDB
+from ....utils.distance_calculator import calculate_distance_from_coords_to_address_with_cache, format_distance, calculate_distances_batch_from_coords
 import json, random
 import httpx
 import logging
@@ -75,6 +76,13 @@ async def get_assessment_list(
     Get list of assessments that need to be processed
     """
     time_zone = headers.time_zone
+    # TODO: Remove this after testing Latitude and Longitude Tasco
+    latitude = headers.latitude or 21.015853129655014
+    longitude = headers.longitude or 105.78303779624088
+    
+    # Kiểm tra xem có tọa độ người dùng không
+    has_user_location = latitude is not None and longitude is not None
+    
     query = f"""
         SELECT
             gd_chi_tiet.id AS id,
@@ -89,6 +97,9 @@ async def get_assessment_list(
                 NULLIF(district.name, ''),
                 NULLIF(province.name, '')
             ) AS location,
+            (select rp.street
+            from res_partner rp
+            where rpg.partner_id = rp.id) AS gara_address,
             rpg.display_name AS assessment_address,
             TO_CHAR(icr.date_damage AT TIME ZONE 'UTC' AT TIME ZONE $1, 'DD/MM/YYYY - HH24:MI') AS notification_time,
             TO_CHAR((icr.date_damage + INTERVAL '3 hours') AT TIME ZONE 'UTC' AT TIME ZONE $1, 'DD/MM/YYYY - HH24:MI') AS complete_time,
@@ -141,31 +152,60 @@ async def get_assessment_list(
 
     # Add ordering and pagination
     query += f"""
-    ORDER BY gd_chi_tiet.id DESC
-    LIMIT {limit} OFFSET {offset}
+        ORDER BY gd_chi_tiet.id DESC
+        LIMIT {limit} OFFSET {offset}
     """
 
     results = await PostgresDB.execute_query(query, params)
-
-    # Add status_color based on status
-    enhanced_results = []
+    
+    # Tạo danh sách kết quả
+    assessment_list = []
+    
+    # Nếu có tọa độ người dùng, tính khoảng cách hàng loạt
+    distances = {}
+    if has_user_location:
+        try:
+            # Lấy danh sách địa chỉ gara từ kết quả
+            gara_addresses = [result.get('gara_address', '') for result in results]
+            
+            # Tính khoảng cách hàng loạt
+            distances = await calculate_distances_batch_from_coords(
+                float(latitude), float(longitude), gara_addresses
+            )
+        except Exception as e:
+            logger.error(f"Lỗi khi tính khoảng cách hàng loạt: {str(e)}")
+    
+    # Xử lý kết quả
     for result in results:
-        # Convert result to dict if it's not already
-        if not isinstance(result, dict):
-            result = dict(result)
-
-        # Add status_color based on the status
-        status = result.get('status')
-        result['status_color'] = color.get(status, '#757575')  # Default to gray if status not found
-
-        # Add random values for current_distance and assessment_progress
-        result['urgency_level'] = True
-        result['current_distance'] = (round(random.uniform(1, 20), 1)) #TOOD: remove random
-        result['assessment_progress'] = random.choice([25, 50, 75, 100]) #TOOD: remove random
-
-        enhanced_results.append(result)
-
-    return enhanced_results
+        # Lấy địa chỉ gara
+        gara_address = result.get('gara_address', '')
+        
+        # Lấy khoảng cách từ kết quả tính hàng loạt
+        distance = distances.get(gara_address, 0.0)
+        
+        # Tạo đối tượng AssessmentListItem
+        assessment_item = {
+            "id": result["id"],
+            "name": result["name"],
+            "license_plate": result["license_plate"] or "",
+            "vehicle": result["vehicle"] or "",
+            "gara_address": result["gara_address"] or "",
+            "customer_name": result["customer_name"] or "",
+            "assessment_address": result["assessment_address"] or "",
+            "location": result.get('location', ''),
+            "current_distance": distance,  # Khoảng cách từ vị trí người dùng đến gara
+            "notification_time": result["notification_time"] or "",
+            "complete_time": result["complete_time"] or "",
+            "urgency_level": False,
+            "assessment_progress": 0,
+            "note": result["note"] or "",
+            "status": result["status"] or "",
+            "status_color": "#212121"
+        }
+        
+        assessment_list.append(assessment_item)
+    
+    return assessment_list
 
 
 @router.get("/{assessment_id}", response_model=AssessmentDetail)
