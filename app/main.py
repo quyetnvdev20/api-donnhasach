@@ -1,6 +1,8 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 import logging
 
 from .config import settings
@@ -8,6 +10,7 @@ from .services.rabbitmq import publish_event
 from .db_init import init_db
 from .api.v1.endpoints import analysis, notifications, assessment, assessment_detail, collection_document, repair, master_data, ocr_quote, odoo_test, report
 from .utils.redis_client import redis_client
+from .exceptions.handlers import validation_exception_handler
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +30,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add exception handlers
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(ValidationError, validation_exception_handler)
 
 # Include routers
 app.include_router(analysis.router, prefix="/claims", tags=["analysis"])
