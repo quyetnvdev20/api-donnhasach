@@ -94,7 +94,7 @@ async def get_repair_plan_awaiting_list(
 
     params = []
 
-    if state == 'to_to':
+    if state == 'to_do':
         state_sql = 'new'
         query += """ and a.state = $1"""
         params.append(state_sql)
