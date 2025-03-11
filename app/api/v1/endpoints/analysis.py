@@ -123,6 +123,11 @@ async def process_image_analysis(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Image already exists"
         )
+        
+    # read base64 image from url
+    async with httpx.AsyncClient() as client:
+        image = await client.get(request.image_url)
+    base64_image = base64.b64encode(image.content).decode('utf-8')
     
     # Create new image record
     new_image = Image(
@@ -133,6 +138,7 @@ async def process_image_analysis(
         device_token=request.device_token,
         keycloak_user_id=current_user.get("sub"),
         auto_analysis=request.auto_analysis,
+        image_base64=base64_image,
         status=ClaimImageStatus.PROCESSING.value
     )
     db.add(new_image)
@@ -157,8 +163,8 @@ async def process_image_analysis(
             return new_image
         
         # Process image using httpx
-        list_image_url = [image.image_url for image in db.query(Image).filter(Image.analysis_id == new_image.analysis_id).all()]
-        response = await process_images_list_with_gpt(list_image_url)
+        list_image_base64 = [image.image_base64 for image in db.query(Image).filter(Image.analysis_id == new_image.analysis_id).all()]
+        response = await process_images_list_with_gpt(list_image_base64)
         
         # Update image with results
         new_image.status = ClaimImageStatus.SUCCESS.value
@@ -306,14 +312,12 @@ Luôn luôn lựa chọn bộ phận và tổn thất chính xác nhất từ da
         raise e
     
     
-async def process_images_list_with_gpt(images_list: list) -> list:
+async def process_images_list_with_gpt(images_base64: list) -> list:
     try:
         #convert image_url to base64
         list_base64_image = []
-        for image_url in images_list:
-            async with httpx.AsyncClient() as client:
-                image = await client.get(image_url)
-            list_base64_image.append(base64.b64encode(image.content).decode('utf-8'))
+        for image_base64 in images_base64:
+            list_base64_image.append(image_base64)
 
         prompt = f"""Bạn là một chuyên gia giám định xe ô tô hàng đầu thế giới. 
 Những hình ảnh sau đây là những hình ảnh để thể hiện một tổn thất của 1 bộ phận của xe ô tô.
