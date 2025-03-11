@@ -125,14 +125,14 @@ async def process_image_analysis(
             detail="Image already exists"
         )
         
-    # read base64 image from url
-    async with httpx.AsyncClient() as client:
-        image = await client.get(request.image_url)
-    base64_image = base64.b64encode(image.content).decode('utf-8')
-    
-    # Store base64 image in Redis with key pattern: image_base64:{analysis_id}:{image_id}
-    redis_key = f"image_base64:{request.analysis_id or request.image_id}:{request.image_id}"
-    await redis_client.set(redis_key, base64_image, expiry=3600)  # Set expiry to 1 hour
+    # # read base64 image from url
+    # async with httpx.AsyncClient() as client:
+    #     image = await client.get(request.image_url)
+    # base64_image = base64.b64encode(image.content).decode('utf-8')
+    #
+    # # Store base64 image in Redis with key pattern: image_base64:{analysis_id}:{image_id}
+    # redis_key = f"image_base64:{request.analysis_id or request.image_id}:{request.image_id}"
+    # await redis_client.set(redis_key, base64_image, expiry=3600)  # Set expiry to 1 hour
     
     # Create new image record without storing base64
     new_image = Image(
@@ -151,32 +151,34 @@ async def process_image_analysis(
 
     try:
         # if analysis has more than 3 images then use process_images_list_with_gpt
-        analysis_image = db.query(Image).filter(Image.analysis_id == new_image.analysis_id,
-                                                Image.status == ClaimImageStatus.SUCCESS.value).count()
-        if analysis_image < 2:
-            new_image.status = ClaimImageStatus.SUCCESS.value
-            db.commit()
-            db.refresh(new_image)
-            
-            # Send notification
-            await send_analysis_notification(new_image, 
-                                            f'tic_claim_{str(new_image.keycloak_user_id)}',
-                                            "Image Analysis Complete",
-                                            "Your image has been successfully analyzed.")
-            
-            return new_image
+        # analysis_image = db.query(Image).filter(Image.analysis_id == new_image.analysis_id,
+        #                                         Image.status == ClaimImageStatus.SUCCESS.value).count()
+        # if analysis_image < 2:
+        #     new_image.status = ClaimImageStatus.SUCCESS.value
+        #     db.commit()
+        #     db.refresh(new_image)
+        #
+        #     # Send notification
+        #     await send_analysis_notification(new_image,
+        #                                     f'tic_claim_{str(new_image.keycloak_user_id)}',
+        #                                     "Image Analysis Complete",
+        #                                     "Your image has been successfully analyzed.")
+        #
+        #     return new_image
+        #
+        # # Get all base64 images for this analysis from Redis
+        # redis_pattern = f"image_base64:{new_image.analysis_id}:*"
+        # redis_keys = await redis_client.keys(redis_pattern)
+        # list_image_base64 = []
+        # for key in redis_keys:
+        #     base64_data = await redis_client.get(key)
+        #     if base64_data:
+        #         list_image_base64.append(base64_data)
+        #
+        # # Process images using GPT
+        # response = await process_images_list_with_gpt(list_image_base64)
         
-        # Get all base64 images for this analysis from Redis
-        redis_pattern = f"image_base64:{new_image.analysis_id}:*"
-        redis_keys = await redis_client.keys(redis_pattern)
-        list_image_base64 = []
-        for key in redis_keys:
-            base64_data = await redis_client.get(key)
-            if base64_data:
-                list_image_base64.append(base64_data)
-        
-        # Process images using GPT
-        response = await process_images_list_with_gpt(list_image_base64)
+        response = await process_image_with_gpt(request.image_url)
         
         # Update image with results
         new_image.status = ClaimImageStatus.SUCCESS.value

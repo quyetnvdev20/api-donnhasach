@@ -117,7 +117,7 @@ async def get_assessment_report_status(assessment_id: int) -> Dict[str, Any]:
             FROM insurance_claim_attachment att
             JOIN insurance_claim_attachment_category cat ON att.category_id = cat.id
             JOIN insurance_type_document doc ON cat.type_document_id = doc.id
-            WHERE doc.type_document = 'assessment_report'
+            WHERE doc.type_document = 'appraisal_report'
             and cat.detail_profile_attachment_id = $1
         ) AS has_assessment_report_documents;
     """
