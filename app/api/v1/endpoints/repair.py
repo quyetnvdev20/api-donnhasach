@@ -54,7 +54,7 @@ async def submit_repair_plan_approval(
             response_model=RepairPlanListResponse,
             status_code=status.HTTP_200_OK)
 async def get_repair_plan_awaiting_list(
-        state: str,
+        state: str = 'all',
         search: Optional[str] = None,
         offset: int = 0,
         limit: int = 10,
@@ -94,15 +94,21 @@ async def get_repair_plan_awaiting_list(
 
     params = []
 
-    state_tuple = (state, '')
-
-    if state == 'cho_duyet':
-        state_tuple = (
-        'pending', 'gdcn_approve', 'btv_approve', 'pp_approve', 'ho_approve', 'pgd_approve', 'gd_approve',
-        'bdh_approve')
-
-    query += """ and a.state = ANY($1)"""
-    params.append(state_tuple)
+    if state == 'to_to':
+        state_sql = 'new'
+        query += """ and a.state = $1"""
+        params.append(state_sql)
+    elif state == 'waiting_approval':
+        query += """ and a.state not in ($1, $2, $3)"""
+        params.extend(['new', 'approved', 'rejected'])
+    elif state == 'approved':
+        state_sql = 'approved'
+        query += """ and a.state = $1"""
+        params.append(state_sql)
+    elif state == 'rejected':
+        state_sql = 'rejected'
+        query += """ and a.state = $1"""
+        params.append(state_sql)
 
     if search:
         query += """ and (a.name ILIKE $2 or c.name ILIKE $2 or a.object_name ILIKE $2)"""
