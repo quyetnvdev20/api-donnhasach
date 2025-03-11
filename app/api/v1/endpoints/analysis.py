@@ -111,13 +111,6 @@ async def process_image_analysis(
     """
     Process image analysis directly without using RabbitMQ
     """
-    # Check authorization
-    if not current_user.get("sub"):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unauthorized"
-        )
-    
     # Check for existing image
     existing_image = db.query(Image).filter(
         Image.analysis_id == str(request.analysis_id or request.image_id),
@@ -154,6 +147,13 @@ async def process_image_analysis(
             new_image.status = ClaimImageStatus.SUCCESS.value
             db.commit()
             db.refresh(new_image)
+            
+            # Send notification
+            await send_analysis_notification(new_image, 
+                                            f'tic_claim_{str(new_image.keycloak_user_id)}',
+                                            "Image Analysis Complete",
+                                            "Your image has been successfully analyzed.")
+            
             return new_image
         
         # Process image using httpx
@@ -217,21 +217,10 @@ async def process_image_analysis(
             db.commit()
 
         # Send notification
-        notification_data = {
-            "analysis_id": new_image.analysis_id,
-            "assessment_id": new_image.assessment_id,
-            "image_id": str(new_image.id),
-            "image_url": str(new_image.image_url),
-            "auto_analysis": str(new_image.auto_analysis),
-            "results": json.dumps(mapped_results)
-        }
-
-        await FirebaseNotificationService.send_notification_to_topic(
-            topic=f'tic_claim_{str(new_image.keycloak_user_id)}',
-            title="Image Analysis Complete",
-            body="Your image has been successfully analyzed.",
-            data=notification_data
-        )
+        await send_analysis_notification(new_image, 
+                                        f'tic_claim_{str(new_image.keycloak_user_id)}',
+                                        "Image Analysis Complete",
+                                        "Your image has been successfully analyzed.")
 
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}")
@@ -239,21 +228,11 @@ async def process_image_analysis(
         new_image.error_message = str(e)
         db.commit()
 
-        # Send failure notification
-        await FirebaseNotificationService.send_notification_to_topic(
-            topic=f'tic_claim_{str(new_image.keycloak_user_id)}',
-            title="Image Analysis Failed",
-            body="There was an error analyzing your image.",
-            data={
-                "analysis_id": new_image.analysis_id,
-                "assessment_id": new_image.assessment_id,
-                "image_id": str(new_image.id),
-                "image_url": str(new_image.image_url),
-                "auto_analysis": str(new_image.auto_analysis),
-                "results": json.dumps([])
-            }
-        )
-        
+        # Send failure notification        
+        await send_analysis_notification(new_image, 
+                                        f'tic_claim_{str(new_image.keycloak_user_id)}',
+                                        "Image Analysis Failed",
+                                        "There was an error analyzing your image.")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
@@ -398,3 +377,27 @@ Chỉ lựa chọn 1 bộ phận và 1 tổn thất.
 
     except Exception as e:
         raise e
+
+async def send_analysis_notification(image: Image, topic: str, title: str, body: str):
+    """
+    Gửi thông báo khi phân tích ảnh hoàn tất
+    Args:
+        image: Image object chứa thông tin ảnh đã phân tích
+        mapped_results: Kết quả phân tích đã được map
+    """
+    
+    notification_data = {
+        "analysis_id": image.analysis_id,
+        "assessment_id": image.assessment_id,
+        "image_id": str(image.id),
+        "image_url": str(image.image_url),
+        "auto_analysis": str(image.auto_analysis),
+        "results": json.dumps(image.results)
+    }
+
+    await FirebaseNotificationService.send_notification_to_topic(
+        topic=topic,
+        title=title,
+        body=body,
+        data=notification_data
+    )

@@ -26,3 +26,4 @@ class Image(Base):
 
     device_token = Column(String)
     results = Column(String)
+    image_base64 = Column(String)
