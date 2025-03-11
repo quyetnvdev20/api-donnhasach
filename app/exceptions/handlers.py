@@ -44,7 +44,7 @@ async def validation_exception_handler(request: Request, exc: Union[RequestValid
         error_messages.append(f"Trường {field_name} {error_msg}")
     
     return JSONResponse(
-        status_code=422,
+        status_code=400,
         content={
             "detail": "Dữ liệu không hợp lệ",
             "errors": error_messages

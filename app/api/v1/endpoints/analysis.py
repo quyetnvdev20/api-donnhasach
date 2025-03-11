@@ -147,9 +147,19 @@ async def process_image_analysis(
     db.refresh(new_image)
 
     try:
+        # if analysis has more than 3 images then use process_images_list_with_gpt
+        analysis_image = db.query(Image).filter(Image.analysis_id == new_image.analysis_id,
+                                                Image.status == ClaimImageStatus.SUCCESS.value).count()
+        if analysis_image < 2:
+            new_image.status = ClaimImageStatus.SUCCESS.value
+            db.commit()
+            db.refresh(new_image)
+            return new_image
+        
         # Process image using httpx
-        response = await process_image_with_gpt(new_image.image_url)
-
+        list_image_url = [image.image_url for image in db.query(Image).filter(Image.analysis_id == new_image.analysis_id).all()]
+        response = await process_images_list_with_gpt(list_image_url)
+        
         # Update image with results
         new_image.status = ClaimImageStatus.SUCCESS.value
         new_image.list_json_data = response
@@ -303,6 +313,79 @@ Luôn luôn lựa chọn bộ phận và tổn thất chính xác nhất từ da
                 }
             ],
             response_format={"type": "json_object"}
+        )
+        response_content = response.choices[0].message.content
+        output = json.loads(response_content)["damage_info"]
+        output_final = []
+        for key, value in output.items():
+            output_final.append({
+                LIST_NAME_DICT[str(key)]: LIST_DAMAGE_DICT[str(value)]
+            })
+        return output_final
+
+    except Exception as e:
+        raise e
+    
+    
+async def process_images_list_with_gpt(images_list: list) -> list:
+    try:
+        #convert image_url to base64
+        list_base64_image = []
+        for image_url in images_list:
+            async with httpx.AsyncClient() as client:
+                image = await client.get(image_url)
+            list_base64_image.append(base64.b64encode(image.content).decode('utf-8'))
+
+        prompt = f"""Bạn là một chuyên gia giám định xe ô tô hàng đầu thế giới. 
+Những hình ảnh sau đây là những hình ảnh để thể hiện một tổn thất của 1 bộ phận của xe ô tô.
+Các hình ảnh sẽ được chụp từ nhiều góc độ khác nhau để bạn có thể quan sát được toàn bộ bộ phận đó.
+Hãy phân tích chính xác xem những hình ảnh đó thể hiện tổn thất của bộ phận nào và tổn thất đó là tổn thất gì.
+
+Luôn luôn lựa chọn bộ phận và tổn thất chính xác nhất từ danh sách bộ phận và danh sách tổn thất bên dưới. **Không được tự ý suy diễn hoặc tạo ra thông tin không có trong danh sách.**  
+Chỉ lựa chọn 1 bộ phận và 1 tổn thất.
+
+**Lưu ý quan trọng:**
+**Không được nhầm lẫn giữa bên trái và bên phải của xe.**  
+**Luôn xác định trái/phải dựa trên góc nhìn khi đứng từ phía sau xe.**  
+
+**Nguyên tắc quan trọng khi xác định bộ phận trái/phải:**  
+1. **Tưởng tượng bạn đang đứng phía sau xe, nhìn về phía trước.**  
+2. **Bộ phận bên trái là những bộ phận nằm về phía tay trái của bạn.**  
+3. **Bộ phận bên phải là những bộ phận nằm về phía tay phải của bạn.**  
+4. Không xác định trái/phải theo hình ảnh mà bạn đang thấy nếu không xét đến quy tắc trên.  
+
+**Danh sách bộ phận của xe ô tô (ID - Tên bộ phận):**  
+{LIST_NAME_DICT}  
+
+**Danh sách tổn thất có thể có của xe ô tô (ID - Tên tổn thất):**  
+{LIST_DAMAGE_DICT}  
+
+**Output yêu cầu:**  
+- Trả về dữ liệu dưới dạng JSON. 
+- Key là 'damage_info', value là 1 dict có key là id của bộ phận, value là id của tổn thất. ID để dạng string.
+- Không trả ra bất kỳ thông tin nào khác.
+"""
+        client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        response = await client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": prompt
+                    },
+                    *[
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{img_base64}"},
+                        } for img_base64 in list_base64_image
+                    ]
+                ]
+            }
+        ],
+        response_format={"type": "json_object"}
         )
         response_content = response.choices[0].message.content
         output = json.loads(response_content)["damage_info"]
