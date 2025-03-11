@@ -6,7 +6,7 @@ from datetime import datetime
 from ....database import get_db
 from ...deps import get_current_user
 from ....schemas.assessment import AssessmentListItem, VehicleDetailAssessment, AssessmentDetail, DocumentCollection, \
-    DocumentResponse, DocumentUpload, DocumentType, UpdateAssessmentItemResponse
+    DocumentResponse, DocumentUpload, DocumentType, UpdateAssessmentItemResponse, AssessmentStatus
 from ....schemas.common import CommonHeaders
 from ....utils.erp_db import PostgresDB
 from ....utils.distance_calculator import calculate_distance_from_coords_to_address_with_cache, format_distance, calculate_distances_batch_from_coords
@@ -66,6 +66,7 @@ async def get_document_type(
 @router.get("", response_model=List[AssessmentListItem])
 async def get_assessment_list(
         headers: Annotated[CommonHeaders, Header()],
+        status: Optional[AssessmentStatus] = None,
         search: Optional[str] = None,
         offset: int = 0,
         limit: int = 20,
@@ -101,8 +102,8 @@ async def get_assessment_list(
             from res_partner rp
             where rpg.partner_id = rp.id) AS gara_address,
             rpg.display_name AS assessment_address,
-            TO_CHAR(icr.date_damage AT TIME ZONE 'UTC' AT TIME ZONE $1, 'DD/MM/YYYY - HH24:MI') AS notification_time,
-            TO_CHAR((icr.date_damage + INTERVAL '3 hours') AT TIME ZONE 'UTC' AT TIME ZONE $1, 'DD/MM/YYYY - HH24:MI') AS complete_time,
+            TO_CHAR(icr.date_damage AT TIME ZONE 'UTC' AT TIME ZONE %(time_zone)s, 'DD/MM/YYYY - HH24:MI') AS notification_time,
+            TO_CHAR((icr.date_damage + INTERVAL '3 hours') AT TIME ZONE 'UTC' AT TIME ZONE %(time_zone)s, 'DD/MM/YYYY - HH24:MI') AS complete_time,
             icr.note AS note
         FROM insurance_claim_appraisal_detail gd_chi_tiet
         LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
@@ -131,24 +132,29 @@ async def get_assessment_list(
         1=1
     """
 
-    params = [time_zone.key]  # Add time_zone as the first parameter
+    # Use named parameters
+    params = {"time_zone": time_zone.key}
+
+    if status:
+        query += " AND gd_chi_tiet.state = %(status)s "
+        params["status"] = status.value
 
     if search:
         query += """
             AND (
-                gd_chi_tiet.name ILIKE $2
-                OR rc.license_plate ILIKE $2
-                OR rcb.name ILIKE $2
-                OR gd_chi_tiet.name_driver ILIKE $2
+                gd_chi_tiet.name ILIKE %(search)s
+                OR rc.license_plate ILIKE %(search)s
+                OR rcb.name ILIKE %(search)s
+                OR gd_chi_tiet.name_driver ILIKE %(search)s
                 OR CONCAT_WS(', ', 
                     NULLIF(icr.location_damage, ''),
                     NULLIF(ward.name, ''),
                     NULLIF(district.name, ''),
                     NULLIF(province.name, '')
-                ) ILIKE $2
+                ) ILIKE %(search)s
             )
         """
-        params.append(f"%{search}%")
+        params["search"] = f"%{search}%"
 
     # Add ordering and pagination
     query += f"""

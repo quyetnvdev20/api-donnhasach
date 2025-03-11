@@ -45,15 +45,27 @@ class PostgresDB:
         return cls._pool
 
     @classmethod
-    async def execute_query(cls, query: str, params: list = None) -> list:
+    async def execute_query(cls, query: str, params: Any = None) -> list:
         """Execute a query and return results"""
         pool = await cls.get_pool()
         try:
             async with pool.acquire() as connection:
-                if params:
-                    results = await connection.fetch(query, *params)
-                else:
+                if params is None:
                     results = await connection.fetch(query)
+                elif isinstance(params, dict):
+                    # Convert named parameters from %(name)s to positional $1, $2, etc.
+                    param_names = list(params.keys())
+                    param_values = [params[name] for name in param_names]
+                    
+                    # Replace %(name)s with $1, $2, etc.
+                    for i, name in enumerate(param_names, 1):
+                        query = query.replace(f"%({name})s", f"${i}")
+                    
+                    # Execute with positional parameters
+                    results = await connection.fetch(query, *param_values)
+                else:
+                    # Handle list parameters
+                    results = await connection.fetch(query, *params)
                 return [dict(row) for row in results]
         except Exception as e:
             logger.error(f"Error executing query: {str(e)}")

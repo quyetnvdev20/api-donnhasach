@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from datetime import datetime
@@ -21,6 +22,12 @@ class AssessmentListItem(BaseModel):
     note: Optional[str] = None
     status: Optional[str]
     status_color: Optional[str] = "#212121"
+
+
+class AssessmentStatus(Enum):
+    WAIT = 'wait'
+    DONE = 'done'
+    CANCEL = 'cancel'
 
 
 # Models for Assessment Detail
