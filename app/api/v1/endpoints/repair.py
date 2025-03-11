@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from ...deps import get_current_user
@@ -62,8 +62,13 @@ async def get_repair_plan_awaiting_list(
         current_user: dict = Depends(get_current_user)
 ) -> RepairPlanListResponse:
     """
-    Get list of repair plans awaiting approval with state in ('new', 'wait')
+    Get list of repair plans awaiting approval filtered by states
+    Possible states: comma-separated string of 'to_do', 'waiting_approval', 'approved', 'rejected', 'all'
+    Example: 'to_do,approved' will return records with state 'new' OR 'approved'
     """
+    # Parse comma-separated state string into a list
+    state_list = [s.strip() for s in state.split(',') if s.strip()]
+    
     query = """
         select 
             a.id repair_id,
@@ -93,25 +98,38 @@ async def get_repair_plan_awaiting_list(
     """
 
     params = []
+    state_conditions = []
 
-    if state == 'to_do':
-        state_sql = 'new'
-        query += """ and a.state = $1"""
-        params.append(state_sql)
-    elif state == 'waiting_approval':
-        query += """ and a.state not in ($1, $2, $3)"""
-        params.extend(['new', 'approved', 'rejected'])
-    elif state == 'approved':
-        state_sql = 'approved'
-        query += """ and a.state = $1"""
-        params.append(state_sql)
-    elif state == 'rejected':
-        state_sql = 'rejected'
-        query += """ and a.state = $1"""
-        params.append(state_sql)
+    # If 'all' is in the list, we don't need to filter by state
+    if 'all' not in state_list:
+        param_index = 1
+        
+        if 'to_do' in state_list:
+            state_conditions.append(f"a.state = ${param_index}")
+            params.append('new')
+            param_index += 1
+            
+        if 'waiting_approval' in state_list:
+            state_conditions.append(f"a.state NOT IN (${param_index}, ${param_index+1}, ${param_index+2})")
+            params.extend(['new', 'approved', 'rejected'])
+            param_index += 3
+            
+        if 'approved' in state_list:
+            state_conditions.append(f"a.state = ${param_index}")
+            params.append('approved')
+            param_index += 1
+            
+        if 'rejected' in state_list:
+            state_conditions.append(f"a.state = ${param_index}")
+            params.append('rejected')
+            param_index += 1
+        
+        if state_conditions:
+            query += " AND (" + " OR ".join(state_conditions) + ")"
 
     if search:
-        query += """ and (a.name ILIKE $2 or c.name ILIKE $2 or a.object_name ILIKE $2)"""
+        search_param_index = len(params) + 1
+        query += f""" AND (a.name ILIKE ${search_param_index} OR c.name ILIKE ${search_param_index} OR a.object_name ILIKE ${search_param_index})"""
         params.append(f"%{search}%")
 
     # Add ordering and pagination
