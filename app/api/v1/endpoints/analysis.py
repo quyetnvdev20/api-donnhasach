@@ -390,13 +390,19 @@ async def send_analysis_notification(image: Image, topic: str, title: str, body:
         mapped_results: Kết quả phân tích đã được map
     """
     
+    results = image.results
+    if results:
+        results = json.loads(results)
+    else:
+        results = []
+    
     notification_data = {
         "analysis_id": image.analysis_id,
         "assessment_id": image.assessment_id,
         "image_id": str(image.id),
         "image_url": str(image.image_url),
         "auto_analysis": str(image.auto_analysis),
-        "results": json.dumps(image.results)
+        "results": results
     }
 
     await FirebaseNotificationService.send_notification_to_topic(
