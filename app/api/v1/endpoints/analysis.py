@@ -402,7 +402,7 @@ async def send_analysis_notification(image: Image, topic: str, title: str, body:
         "image_id": str(image.id),
         "image_url": str(image.image_url),
         "auto_analysis": str(image.auto_analysis),
-        "results": results
+        "results": json.dumps(results)
     }
 
     await FirebaseNotificationService.send_notification_to_topic(
