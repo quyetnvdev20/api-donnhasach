@@ -96,20 +96,27 @@ class ApprovalHistory(BaseModel):
 
 
 class RepairPlanAwaitingDetail(BaseModel):
+    id: int
     file_name: Optional[str] = None
     contract_number: Optional[str] = None
     vehicle_info: Optional[str] = None
     repair_garage_location: RepairGarageLocation
+    label: Label
     inspection_date: Optional[str] = None
     approval_deadline: Optional[str] = None
     owner_name: Optional[str] = None
     owner_phone: Optional[str] = None
+    insur_claim_id: Optional[int] = None
     status: Status
     approval_history: List[ApprovalHistory] = None
     repair_plan_details: List[RepairPlanDetailItem]
     amount_subtotal: float
     amount_discount: float
     amount_untaxed_total: float
+    amount_garage: float
+    amount_propose: float
+    btn_approve: bool
+    btn_reject: bool
 
 
 class RepairPlanDetailResponse(BaseModel):
