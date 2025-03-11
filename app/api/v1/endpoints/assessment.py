@@ -66,7 +66,7 @@ async def get_document_type(
 @router.get("", response_model=List[AssessmentListItem])
 async def get_assessment_list(
         headers: Annotated[CommonHeaders, Header()],
-        status: Optional[AssessmentStatus] = None,
+        status: Optional[str] = None,
         search: Optional[str] = None,
         offset: int = 0,
         limit: int = 20,
@@ -136,8 +136,8 @@ async def get_assessment_list(
     params = {"time_zone": time_zone.key}
 
     if status:
-        query += " AND gd_chi_tiet.state = %(status)s "
-        params["status"] = status.value
+        query += " AND gd_chi_tiet.state = ANY(%(status)s) "
+        params["status"] = [s.strip() for s in status.split(',')]
 
     if search:
         query += """
