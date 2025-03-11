@@ -18,6 +18,7 @@ import uuid
 import logging
 from datetime import datetime
 from app.config import ClaimImageStatus, settings
+from app.utils.redis_client import redis_client
 
 
 with open(f'{settings.ROOT_DIR}/app/data/list_name_dict.json', 'r', encoding='utf-8') as f:
@@ -129,7 +130,11 @@ async def process_image_analysis(
         image = await client.get(request.image_url)
     base64_image = base64.b64encode(image.content).decode('utf-8')
     
-    # Create new image record
+    # Store base64 image in Redis with key pattern: image_base64:{analysis_id}:{image_id}
+    redis_key = f"image_base64:{request.analysis_id or request.image_id}:{request.image_id}"
+    await redis_client.set(redis_key, base64_image, expiry=3600)  # Set expiry to 1 hour
+    
+    # Create new image record without storing base64
     new_image = Image(
         analysis_id=str(request.analysis_id or request.image_id),
         assessment_id=str(assessment_id),
@@ -138,7 +143,6 @@ async def process_image_analysis(
         device_token=request.device_token,
         keycloak_user_id=current_user.get("sub"),
         auto_analysis=request.auto_analysis,
-        image_base64=base64_image,
         status=ClaimImageStatus.PROCESSING.value
     )
     db.add(new_image)
@@ -162,8 +166,16 @@ async def process_image_analysis(
             
             return new_image
         
-        # Process image using httpx
-        list_image_base64 = [image.image_base64 for image in db.query(Image).filter(Image.analysis_id == new_image.analysis_id).all()]
+        # Get all base64 images for this analysis from Redis
+        redis_pattern = f"image_base64:{new_image.analysis_id}:*"
+        redis_keys = await redis_client.keys(redis_pattern)
+        list_image_base64 = []
+        for key in redis_keys:
+            base64_data = await redis_client.get(key)
+            if base64_data:
+                list_image_base64.append(base64_data)
+        
+        # Process images using GPT
         response = await process_images_list_with_gpt(list_image_base64)
         
         # Update image with results
