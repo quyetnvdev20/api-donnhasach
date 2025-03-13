@@ -237,11 +237,12 @@ class Odoo(RequestOdoo):
     async def update_method(self, model, record_id, vals, token=None):
         if not token:
             token = self.config['ODOO_TOKEN']
-        url = '{0}/api/{1}/update/{2}?token={3}'.format(self.config['ODOO_URL'], model, record_id, token)
+        url = '{0}/api/{1}/update/{2}'.format(self.config['ODOO_URL'], model, record_id)
+        data = {'params': {'update_vals': vals, 'token': token}}
         try:
             _logger.info('update_method.url={}'.format(url))
-            _logger.info('update_method.vals={}'.format(vals))
-            return await self.post(url, vals)
+            _logger.info('update_method.vals={}'.format(data))
+            return await self.post(url=url, data=data)
         except Exception as ex:
             _logger.error('update_method.Exception.url={}'.format(url))
             _logger.error('update_method.Exception.ex={}'.format(ex))
