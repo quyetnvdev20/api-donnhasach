@@ -154,6 +154,14 @@ class Document(BaseModel):
     desc: Optional[str] = None
     images: Optional[List[ImageDocument]] = None
 
+
+class SceneAttachment(Document):
+    type: Optional[str] = ""
+
+class SceneAttachmentResponse(BaseModel):
+    assessment_id: int = ""
+    status: str = ""
+
 class DocumentCollection(BaseModel):
     # Thông tin từ get_data_collect_document
     id: Optional[int] = None
