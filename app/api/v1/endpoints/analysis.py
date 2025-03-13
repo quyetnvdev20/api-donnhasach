@@ -316,10 +316,51 @@ Luôn luôn lựa chọn bộ phận và tổn thất chính xác nhất từ da
         response_content = response.choices[0].message.content
         output = json.loads(response_content)["damage_info"]
         output_final = []
+        
+        # Process the output to handle left/right components
         for key, value in output.items():
+            # Add the original component
             output_final.append({
                 LIST_NAME_DICT[str(key)]: LIST_DAMAGE_DICT[str(value)]
             })
+            
+            # Check if this is a left component ("trái") and add the corresponding right component ("phải")
+            component_name = LIST_NAME_DICT[str(key)]
+            if "trái" in component_name.lower():
+                # Find the corresponding right component by replacing "trái" with "phải"
+                right_component_name = component_name.lower().replace("trái", "phải")
+                
+                # Find the ID for the right component
+                right_component_id = None
+                for id, name in LIST_NAME_DICT.items():
+                    if name.lower() == right_component_name:
+                        right_component_id = id
+                        break
+                
+                # If found, add the right component with the same damage value
+                if right_component_id:
+                    output_final.append({
+                        LIST_NAME_DICT[str(right_component_id)]: LIST_DAMAGE_DICT[str(value)]
+                    })
+            
+            # Also check for right components and add corresponding left components
+            elif "phải" in component_name.lower():
+                # Find the corresponding left component by replacing "phải" with "trái"
+                left_component_name = component_name.lower().replace("phải", "trái")
+                
+                # Find the ID for the left component
+                left_component_id = None
+                for id, name in LIST_NAME_DICT.items():
+                    if name.lower() == left_component_name:
+                        left_component_id = id
+                        break
+                
+                # If found, add the left component with the same damage value
+                if left_component_id:
+                    output_final.append({
+                        LIST_NAME_DICT[str(left_component_id)]: LIST_DAMAGE_DICT[str(value)]
+                    })
+                    
         return output_final
 
     except Exception as e:
