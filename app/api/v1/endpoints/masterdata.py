@@ -1,8 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body
-from ....schemas.master_data import GarageListResponse
+from ....schemas.masterdata import GarageListResponse, BranchListResponse, AppraiserListResponse
 from ....utils.erp_db import PostgresDB
 from typing import Optional
 import logging
+from ...deps import get_current_user
+from ....config import settings, odoo
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -75,4 +78,121 @@ async def get_garage_list(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error getting garage list: {str(e)}"
+        )
+    
+
+@router.get("/branches", response_model=BranchListResponse)
+async def get_branch_list(
+    search: Optional[str] = None,
+    offset: int = 0,
+    limit: int = 10,
+):
+    """
+    Lấy danh sách chi nhánh
+    
+    Parameters:
+    - search: Từ khóa tìm kiếm theo tên hoặc mã chi nhánh
+    - offset: Vị trí bắt đầu
+    - limit: Số lượng bản ghi trả về
+    
+    Returns:
+    - Danh sách chi nhánh
+    """
+    try:
+        # Truy vấn để lấy danh sách chi nhánh
+        query = """
+        SELECT 
+            rb.id, 
+            rb.name, 
+            rb.code
+        FROM 
+            res_branch rb
+        WHERE 
+            1=1
+        """
+        
+        params = []
+        
+        if search:
+            query += " AND (LOWER(rb.name) LIKE $1"
+            params.append(f"%{search.lower()}%")
+        
+        # Thêm sắp xếp và phân trang
+        query += """
+        ORDER BY rb.name
+        LIMIT ${}
+        OFFSET ${}
+        """.format(len(params) + 1, len(params) + 2)
+        
+        params.extend([limit, offset])
+        
+        result = await PostgresDB.execute_query(query, params)
+        
+        if not result:
+            return {"data": []}
+        
+        # Chuyển đổi kết quả thành danh sách BranchItem
+        branch_items = []
+        for item in result:
+            branch_items.append({
+                "id": item.get('id'),
+                "name": item.get('name'),
+                "code": item.get('code'),
+            })
+        
+        return {"data": branch_items}
+    
+    except Exception as e:
+        logger.error(f"Error getting branch list: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting branch list: {str(e)}"
+        )
+    
+
+@router.get("/appraisers", response_model=AppraiserListResponse)
+async def get_appraisers(
+    branch_id: Optional[int] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Lấy danh sách giám định viên
+    
+    Parameters:
+    - search: Từ khóa tìm kiếm theo tên giám định viên
+    - branch_id: ID của chi nhánh
+    - offset: Vị trí bắt đầu
+    - limit: Số lượng bản ghi trả về
+    
+    Returns:
+    - Danh sách giám định viên
+    """
+    try:
+        # Gọi API của Odoo để lấy danh sách giám định viên
+
+        response = await odoo.call_method_not_record(
+            model='res.users',
+            method='get_claim_staff_user_api',
+            token=current_user.odoo_token,
+            kwargs={'branch_id': branch_id}
+        )
+
+        if not response:
+            return {"data": []}
+        
+        # Chuyển đổi kết quả thành danh sách AppraiserItem
+        appraiser_items = []
+        for item in response:
+            appraiser_items.append({
+                "id": item.get('id'),
+                "name": item.get('name')
+            })
+        
+        return {"data": appraiser_items}
+    
+    except Exception as e:
+        logger.error(f"Error getting appraisers list: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting appraisers list: {str(e)}"
         )

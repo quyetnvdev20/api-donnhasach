@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from ....schemas.repair import RepairCategoryResponse
-from ....schemas.master_data import GarageListResponse
 from ....utils.erp_db import PostgresDB
 from typing import Optional
 import logging
