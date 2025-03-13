@@ -8,7 +8,7 @@ import logging
 from .config import settings
 from .services.rabbitmq import publish_event
 from .db_init import init_db
-from .api.v1.endpoints import analysis, notifications, assessment, assessment_detail, collection_document, repair, master_data, ocr_quote, odoo_test, report
+from .api.v1.endpoints import analysis, notifications, masterdata, assessment, assessment_detail, collection_document, repair, repair_masterdata, ocr_quote, odoo_test, report
 from .utils.redis_client import redis_client
 from .exceptions.handlers import validation_exception_handler
 
@@ -38,12 +38,13 @@ app.add_exception_handler(ValidationError, validation_exception_handler)
 # Include routers
 app.include_router(analysis.router, prefix="/claims", tags=["analysis"])
 app.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
+app.include_router(masterdata.router, prefix="/masterdata", tags=["masterdata"])
 app.include_router(assessment.router, prefix="/assessment", tags=["assessments"])
 app.include_router(assessment_detail.router, prefix="/assessment", tags=["assessments_detail"])
 app.include_router(collection_document.router, prefix="/assessment", tags=["documents"])
 app.include_router(report.router, prefix="/assessment", tags=["reports"])
 app.include_router(repair.router, prefix="/repairs", tags=["repairs"])
-app.include_router(master_data.router, prefix="/repairs", tags=["master_data_repairs"])
+app.include_router(repair_masterdata.router, prefix="/repairs", tags=["repair_masterdata"])
 app.include_router(ocr_quote.router, prefix="/repairs", tags=["repairs_ocr"])
 app.include_router(odoo_test.router, prefix="/odoo", tags=["odoo"])
 

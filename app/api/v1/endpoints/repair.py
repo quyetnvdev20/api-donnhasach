@@ -19,6 +19,7 @@ STATE_COLOR = {
     "new": ("#84d9d8", "Mới"),
     "pending": ("#faad14", "Chờ duyệt"),
     "approved": ("#52c41a", "Đã duyệt"),
+    "rejected": ("#f5222d", "Từ chối")
 }
 
 CATEGORIES_COLOR = {
@@ -109,16 +110,6 @@ async def get_repair_plan_awaiting_list(
             params.append('new')
             param_index += 1
             
-        if 'waiting_approval' in state_list:
-            state_conditions.append(f"a.state NOT IN (${param_index}, ${param_index+1}, ${param_index+2})")
-            params.extend(['new', 'approved', 'rejected'])
-            param_index += 3
-            
-        if 'approved' in state_list:
-            state_conditions.append(f"a.state = ${param_index}")
-            params.append('approved')
-            param_index += 1
-            
         if 'rejected' in state_list:
             state_conditions.append(f"a.state = ${param_index}")
             params.append('rejected')
@@ -126,6 +117,8 @@ async def get_repair_plan_awaiting_list(
         
         if state_conditions:
             query += " AND (" + " OR ".join(state_conditions) + ")"
+    else:
+        query += " AND (a.state IN ('new', 'rejected'))"
 
     if search:
         search_param_index = len(params) + 1

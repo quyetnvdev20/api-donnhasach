@@ -409,4 +409,30 @@ async def delete_claim_attachment_category(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     
-    
+#Cập nhật gara sửa chữa
+@router.put("/{assessment_id}/update_garage")
+async def update_garage(
+        assessment_id: int,
+        garage_id: int,
+        current_user: dict = Depends(get_current_user)
+):
+    """
+    Cập nhật gara sửa chữa
+    """
+    try:
+        
+        # Cập nhật gara sửa chữa
+        response = await odoo.call_method_post(
+            model='insurance.claim.appraisal.detail',
+            record_id=assessment_id,
+            method='update_garage',
+            token=current_user.odoo_token,
+            kwargs={'garage_id': garage_id}
+        )
+        
+        return {
+            "id": response,
+            "status": "Success"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
