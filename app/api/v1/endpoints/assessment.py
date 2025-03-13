@@ -44,7 +44,7 @@ async def get_document_type(
             type_document,
             description
         FROM insurance_type_document
-        WHERE active IS TRUE
+        WHERE is_display IS TRUE
         ORDER BY priority_level
         LIMIT 100
     """
