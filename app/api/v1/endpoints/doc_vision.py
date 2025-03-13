@@ -46,6 +46,7 @@ async def get_document_type():
             type_document
         FROM insurance_type_document
         WHERE active IS TRUE
+        AND type_document in ('driving_license', 'vehicle_registration', 'insurance_certificate', 'vehicle_registration_photo')
         ORDER BY priority_level
         LIMIT 100
     """
