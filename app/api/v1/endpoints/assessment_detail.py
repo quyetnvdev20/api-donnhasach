@@ -306,7 +306,7 @@ async def get_image_document(assessment_id: int):
                      left join insurance_type_document itc on icac.type_document_id = itc.id
                      left join insurance_claim_attachment ica on icac.id = ica.category_id        
         where itc.active = true
-        and icac.detail_profile_attachment_id = $1
+        and icac.detail_scene_attachment_id = $1
     """
     result = await PostgresDB.execute_query(sql_query, (assessment_id,))
     return result
