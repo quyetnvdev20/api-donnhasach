@@ -155,6 +155,7 @@ class Document(BaseModel):
     name: Optional[str] = None
     desc: Optional[str] = None
     images: Optional[List[ImageDocument]] = None
+    id: Optional[int] = None
 
 
 class SceneAttachment(BaseModel):

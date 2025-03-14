@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from ...deps import get_current_user
-from ....schemas.assessment import VehicleDetailAssessment, UpdateAssessmentItemResponse, SceneAttachment, SceneAttachmentResponse
+from ....schemas.assessment import VehicleDetailAssessment, UpdateAssessmentItemResponse, SceneAttachment, \
+    SceneAttachmentResponse
 from ....utils.erp_db import PostgresDB
 import json
 import logging
@@ -190,26 +191,38 @@ async def update_scene_attachment(
     vals_items = []
 
     for scene_attachment in scene_attachment_dict.documents:
+        vals_scene = {
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "type_document_id": scene_attachment.type_document_id,
+        }
+
+        attachment_vals = []
+
         if scene_attachment.listImageRemove:
-            vals_items.append((2, id, False) for id in scene_attachment.listImageRemove)
+            attachment_vals.append((2, id, False) for id in scene_attachment.listImageRemove)
 
         for image in scene_attachment.images:
-            vals = (0, 0, {
-                "attachment_ids": [
-                    [0, 0, {
-                        "date_upload": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "latitude": image.lat,
-                        "link": image.link,
-                        "link_preview": image.link,
-                        "location": image.location,
-                        "longitude": image.long,
-                        "note": image.description
-                    }]],
-                # "date": image.date if image.date else datetime.now().strftime("%Y-%m-%d"),
-                "date": datetime.now().strftime("%Y-%m-%d"),
-                "type_document_id": scene_attachment.type_document_id,
+            if image.id:
+                continue
+
+            attachment = (0, 0, {
+                "date_upload": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "latitude": image.lat,
+                "link": image.link,
+                "link_preview": image.link,
+                "location": image.location,
+                "longitude": image.long,
+                "note": image.description
             })
-            vals_items.append(vals)
+            attachment_vals.append(attachment)
+
+        if attachment_vals:
+            vals_scene.update({'attachment_ids': attachment_vals})
+
+        if scene_attachment.id:
+            vals_items.append((1, scene_attachment.id, vals_scene))
+        else:
+            vals_items.append((0, 0, vals_scene))
 
     vals = {
         'scene_attachment_ids': vals_items
@@ -264,12 +277,13 @@ async def format_image_document(document_type, image_document):
                 'desc': document_type.get('description'),
                 'type': document_type.get('code'),
                 'images': [],
+                'id': None
             }
         })
 
-
     if image_document:
         for i in image_document:
+            dic_image[i.get('type_document_id')]['id'] = i.get('icac_id') or None
             if not i.get('type_document_id') or not dic_image.get(i.get('type_document_id')) or not i.get('link'):
                 continue
             dic_image[i.get('type_document_id')]['images'].append({
@@ -295,6 +309,7 @@ async def get_image_document(assessment_id: int):
                    icac.name,
                    ica.link_preview as link,
                    icac.type_document_id,
+                   icac.id as icac_id,
                    to_char(icac.date, 'dd/mm/YYYY') as date,
                    itc.type_document,
                    itc.name                         as itc_name,
