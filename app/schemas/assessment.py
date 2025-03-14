@@ -62,6 +62,7 @@ class AssessmentDetail(BaseModel):
     damage_desc: Optional[str] = None
     assessment_progress: int = None
     note: Optional[str] = None
+    assigned_to: Optional[str] = None
     tasks: List[Task]
     status_color: Optional[str] = "#212121"
     claim_profile_id: Optional[int] = None

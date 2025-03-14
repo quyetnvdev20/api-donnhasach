@@ -250,13 +250,16 @@ async def get_assessment_detail(
                 TO_CHAR((icr.date_damage + INTERVAL '3 hours') AT TIME ZONE 'UTC' AT TIME ZONE $2, 'DD/MM/YYYY - HH24:MI') AS complete_time,
                 icr.note AS note,
                 gd_chi_tiet.new_claim_profile_id AS claim_profile_id,
-                gd_chi_tiet.insur_claim_id as insur_claim_id
+                gd_chi_tiet.insur_claim_id as insur_claim_id,
+                crp.name AS assigned_to
             FROM insurance_claim_appraisal_detail gd_chi_tiet
             LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
             LEFT JOIN res_partner_gara rpg ON rpg.id = gd_chi_tiet.gara_partner_id
             LEFT JOIN res_partner contact ON contact.id = icr.person_contact_id
             LEFT JOIN res_car rc ON rc.id = gd_chi_tiet.car_id
             LEFT JOIN res_car_brand rcb ON rcb.id = rc.car_brand_id
+            LEFT JOIN res_users cru on cru.id = gd_chi_tiet.user_id
+            LEFT JOIN res_partner crp on crp.id = cru.partner_id
 --             LEFT JOIN LATERAL (
 --                 SELECT * FROM insurance_claim_damage icd 
 --                 WHERE icd.insur_claim_id = icr.id
