@@ -51,6 +51,28 @@ async def submit_repair_plan_approval(
         raise Exception(response.get("message"))
 
 
+@router.put("/{repair_id}/write-and-approve-repair-plan",
+            response_model=RepairPlanApprovalResponse,
+            status_code=status.HTTP_200_OK)
+async def write_and_approve_repair_plan(
+        repair_id: int,
+        repair_plan: RepairPlanApprovalRequest,
+        db: Session = Depends(get_db),
+        current_user: dict = Depends(get_current_user)
+) -> dict[str, int]:
+    response = await odoo.call_method_post(
+        record_id=repair_id,
+        model='insurance.claim.solution.repair',
+        method='action_write_and_approve_repair_plan',
+        token=current_user.odoo_token,
+        kwargs=repair_plan.model_dump()
+    )
+    if response.get("status_code") == status.HTTP_200_OK:
+        return {'id': response.get("data")}
+    else:
+        raise Exception(response.get("message"))
+
+
 @router.get("/repair-plan-awaiting-list",
             response_model=RepairPlanListResponse,
             status_code=status.HTTP_200_OK)
