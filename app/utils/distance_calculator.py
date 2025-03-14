@@ -321,7 +321,7 @@ async def calculate_distances_batch_from_coords(lat: float, lng: float, addresse
         addresses: Danh sách các địa chỉ cần tính khoảng cách
         
     Returns:
-        Dictionary với key là địa chỉ và value là khoảng cách
+        Dictionary với key là địa chỉ và value là một dict chứa khoảng cách (km) và thời gian di chuyển bằng xe máy (phút)
     """
     result = {}
     
@@ -334,7 +334,7 @@ async def calculate_distances_batch_from_coords(lat: float, lng: float, addresse
     # Kiểm tra cache trước
     for address in addresses:
         if not address:
-            result[address] = 0.0
+            result[address] = {"distance": 0.0, "travel_time_minutes": 0}
             continue
             
         # Chuẩn hóa địa chỉ
@@ -343,7 +343,10 @@ async def calculate_distances_batch_from_coords(lat: float, lng: float, addresse
         
         # Nếu đã có trong cache, lấy từ cache
         if cache_key in _distance_cache:
-            result[address] = _distance_cache[cache_key]
+            distance = _distance_cache[cache_key]
+            # Tính thời gian di chuyển bằng xe máy (phút) với tốc độ trung bình 30 km/h
+            travel_time_minutes = round((distance / 30) * 60)
+            result[address] = {"distance": distance, "travel_time_minutes": travel_time_minutes}
         else:
             # Nếu chưa có trong cache, thêm vào danh sách cần tính
             addresses_to_geocode.append((address, address_normalized))
@@ -365,11 +368,14 @@ async def calculate_distances_batch_from_coords(lat: float, lng: float, addresse
                     coords[0], coords[1]
                 )
                 distance = round(distance, 2)
+                # Tính thời gian di chuyển bằng xe máy (phút) với tốc độ trung bình 30 km/h
+                travel_time_minutes = round((distance / 30) * 60)
             else:
                 distance = 0.0
+                travel_time_minutes = 0
                 
             # Lưu vào kết quả và cache
-            result[address] = distance
+            result[address] = {"distance": distance, "travel_time_minutes": travel_time_minutes}
             cache_key = (coords_key, address_normalized)
             _distance_cache[cache_key] = distance
     

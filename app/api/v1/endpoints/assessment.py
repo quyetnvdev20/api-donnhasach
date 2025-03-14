@@ -186,8 +186,10 @@ async def get_assessment_list(
         # Lấy địa chỉ gara
         gara_address = result.get('gara_address', '')
         
-        # Lấy khoảng cách từ kết quả tính hàng loạt
-        distance = distances.get(gara_address, 0.0)
+        # Lấy khoảng cách và thời gian di chuyển từ kết quả tính hàng loạt
+        distance_info = distances.get(gara_address, {"distance": 0.0, "travel_time_minutes": 0})
+        distance = distance_info["distance"]
+        travel_time_minutes = distance_info["travel_time_minutes"]
         
         # Tạo đối tượng AssessmentListItem
         assessment_item = {
@@ -200,6 +202,7 @@ async def get_assessment_list(
             "assessment_address": result["assessment_address"] or "",
             "location": result.get('location', ''),
             "current_distance": distance,  # Khoảng cách từ vị trí người dùng đến gara
+            # "travel_time_minutes": travel_time_minutes,  # Thời gian di chuyển bằng xe máy (phút)
             "notification_time": result["notification_time"] or "",
             "complete_time": result["complete_time"] or "",
             "urgency_level": False,

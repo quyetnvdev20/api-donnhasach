@@ -13,6 +13,7 @@ class AssessmentListItem(BaseModel):
     customer_name: Optional[str]
     assessment_address: Optional[str]
     gara_address: Optional[str]
+    # travel_time_minutes: Optional[int]
     location: Optional[str]
     current_distance: float
     notification_time: Optional[str]
