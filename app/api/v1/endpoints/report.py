@@ -55,7 +55,10 @@ async def get_image_list(assessment_id: int, document_type: str):
         and icac.detail_profile_attachment_id = $2
     """
     result = await PostgresDB.execute_query(sql_query, (document_type, assessment_id))
-    return result
+    # Check if result exists and has valid links
+    if result and result[0].get('link'):
+        return result
+    return []
 
 async def get_id_document_type(document_type: str):
     sql_query = """
@@ -138,7 +141,6 @@ async def get_accident_notification(
     
     # Thử lấy preview URL từ Redis
     cached_preview_url, list_image = await asyncio.gather(redis_client.get(cache_key), get_image_list(assessment_id, "accident_ycbt"))
-    
     # Kiểm tra URL trong cache có khả dụng không
     if cached_preview_url and await is_url_valid(cached_preview_url):
         logger.info(f"Using cached preview URL for assessment_id: {assessment_id}")

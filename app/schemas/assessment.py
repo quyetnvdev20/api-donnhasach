@@ -78,7 +78,7 @@ class DamageInfo(BaseModel):
 # Schema for image information
 class ImageInfo(BaseModel):
     id: Optional[int] = None
-    link: str
+    link: str = None
     location: Optional[str] = None
     lat: Optional[float] = None
     long: Optional[float] = None
@@ -197,7 +197,7 @@ class DocumentUpload(BaseModel):
 
 class DocumentResponse(BaseModel):
     preview_url: str = ""
-    scan_url: List[ImageInfo]
+    scan_url: List[ImageInfo] = None
 
 
 class UpdateDocumentResponse(BaseModel):
