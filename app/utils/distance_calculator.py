@@ -381,7 +381,7 @@ async def calculate_distances_batch_from_coords(lat: float, lng: float, addresse
     
     return result 
 
-async def find_nearby_garages(lat: float, lng: float, garage_list: list, radius_km: float = 20.0) -> dict:
+async def find_nearby_garages(lat: float, lng: float, garage_list: list, radius_km: float = 20.0, batch_size: int = 50, max_results: int = 100) -> dict:
     """
     Tìm các gara sửa chữa trong phạm vi bán kính cho trước từ vị trí người dùng
     
@@ -391,6 +391,8 @@ async def find_nearby_garages(lat: float, lng: float, garage_list: list, radius_
         garage_list: Danh sách các gara cần kiểm tra, mỗi phần tử là một dict chứa thông tin gara
                     với ít nhất trường 'id' và 'address'
         radius_km: Bán kính tìm kiếm tính bằng km (mặc định là 20km)
+        batch_size: Số lượng gara xử lý trong mỗi batch (mặc định là 50)
+        max_results: Số lượng kết quả tối đa trả về (mặc định là 100)
         
     Returns:
         Dictionary với key là id của gara và value là thông tin gara bao gồm:
@@ -398,60 +400,63 @@ async def find_nearby_garages(lat: float, lng: float, garage_list: list, radius_
         - address: Địa chỉ gara
         - distance: Khoảng cách từ vị trí người dùng đến gara (km)
         - travel_time_minutes: Thời gian di chuyển bằng xe máy (phút)
-        - coordinates: Tọa độ của gara (lat, lng)
     """
     result = {}
     
     # Tạo key cho tọa độ người dùng
     coords_key = f"{lat:.6f},{lng:.6f}"
     
-    # Danh sách các địa chỉ gara cần geocode (không có trong cache)
-    garages_to_geocode = []
+    # Lọc ra các gara có địa chỉ hợp lệ và chia thành các batch
+    valid_garages = [(garage.get('id'), garage.get('address', '').strip(), garage.get('name', '').strip())
+                     for garage in garage_list if garage.get('address', '') and garage.get('name', '')]
     
-    # Kiểm tra cache trước
-    for garage in garage_list:
-        garage_id = garage.get('id')
-        address = garage.get('address', '')
-        
-        if not address:
-            continue
-            
-        # Chuẩn hóa địa chỉ
-        address_normalized = address.strip().lower()
+    # Kiểm tra cache trước và tách thành hai danh sách: đã có trong cache và chưa có trong cache
+    cached_garages = []
+    uncached_garages = []
+    
+    for garage_id, address, name in valid_garages:
+        address_normalized = address.lower()
         cache_key = (coords_key, address_normalized)
         
-        # Nếu đã có trong cache, lấy từ cache
         if cache_key in _distance_cache:
             distance = _distance_cache[cache_key]
-            
-            # Chỉ thêm vào kết quả nếu nằm trong bán kính
+            # Chỉ thêm vào danh sách nếu nằm trong bán kính
             if distance <= radius_km:
-                # Tính thời gian di chuyển bằng xe máy (phút) với tốc độ trung bình 30 km/h
-                travel_time_minutes = round((distance / 30) * 60)
-                
-                # Lấy tọa độ của gara từ cache nếu có
-                garage_coords = _geocode_cache.get(address_normalized)
-                
-                result[garage_id] = {
-                    "id": garage_id,
-                    "address": address,
-                    "distance": distance,
-                    "travel_time_minutes": travel_time_minutes,
-                    "coordinates": garage_coords
-                }
+                cached_garages.append((garage_id, address, address_normalized, distance, name))
         else:
-            # Nếu chưa có trong cache, thêm vào danh sách cần geocode
-            garages_to_geocode.append((garage_id, address, address_normalized))
+            uncached_garages.append((garage_id, address, address_normalized, name))
     
-    # Nếu có gara cần geocode
-    if garages_to_geocode:
-        # Geocode tất cả các địa chỉ gara cùng một lúc
-        geocode_tasks = [geocode_address(addr) for _, addr, _ in garages_to_geocode]
+    # Xử lý các gara đã có trong cache trước
+    for garage_id, address, address_normalized, distance, name in cached_garages:
+        # Tính thời gian di chuyển
+        travel_time_minutes = round((distance / 30) * 60)
+        
+        # Lấy tọa độ của gara từ cache nếu có
+        garage_coords = _geocode_cache.get(address_normalized)
+        
+        result[garage_id] = {
+            "id": garage_id,
+            "address": address,
+            "name": name,
+            "distance": distance,
+            "travel_time_minutes": travel_time_minutes,
+        }
+        
+        # Nếu đã đủ số lượng kết quả tối đa, dừng xử lý
+        if len(result) >= max_results:
+            return dict(sorted(result.items(), key=lambda item: item[1]['distance']))
+    
+    # Xử lý các gara chưa có trong cache theo batch
+    for i in range(0, len(uncached_garages), batch_size):
+        batch = uncached_garages[i:i+batch_size]
+        
+        # Geocode tất cả các địa chỉ trong batch cùng một lúc
+        geocode_tasks = [geocode_address(addr) for _, addr, _, _ in batch]
         geocode_results = await asyncio.gather(*geocode_tasks)
         
-        # Tính khoảng cách cho từng gara
-        for i, (garage_id, address, address_normalized) in enumerate(garages_to_geocode):
-            coords = geocode_results[i]
+        # Tính khoảng cách cho từng gara trong batch
+        for j, (garage_id, address, address_normalized, name) in enumerate(batch):
+            coords = geocode_results[j]
             
             if coords:
                 # Tính khoảng cách
@@ -473,10 +478,14 @@ async def find_nearby_garages(lat: float, lng: float, garage_list: list, radius_
                     result[garage_id] = {
                         "id": garage_id,
                         "address": address,
+                        "name": name,
                         "distance": distance,
                         "travel_time_minutes": travel_time_minutes,
-                        "coordinates": coords
                     }
+                    
+                    # Nếu đã đủ số lượng kết quả tối đa, dừng xử lý
+                    if len(result) >= max_results:
+                        return dict(sorted(result.items(), key=lambda item: item[1]['distance']))
     
     # Sắp xếp kết quả theo khoảng cách tăng dần
     sorted_result = dict(sorted(result.items(), key=lambda item: item[1]['distance']))

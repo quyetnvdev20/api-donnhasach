@@ -1,21 +1,27 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Header
 from ....schemas.masterdata import GarageListResponse, BranchListResponse, AppraiserListResponse
 from ....utils.erp_db import PostgresDB
-from typing import Optional
+from typing import Optional, Annotated
 import logging
 from ...deps import get_current_user
 from ....config import settings, odoo
-
+from ....utils.distance_calculator import find_nearby_garages
+from ....schemas.common import CommonHeaders
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
 @router.get("/garages", response_model=GarageListResponse)
 async def get_garage_list(
+    headers: Annotated[CommonHeaders, Header()],
     search: Optional[str] = None,
     offset: int = 0,
-    limit: int = 10,
+    limit: int = 10
 ):
+    
+    # TODO: Remove this after testing Latitude and Longitude Tasco
+    latitude = headers.latitude or 21.015853129655014
+    longitude = headers.longitude or 105.78303779624088
     """
     Lấy danh sách gara
     
@@ -39,7 +45,7 @@ async def get_garage_list(
         LEFT JOIN 
             res_partner rp ON rp.id = rpg.partner_id
         WHERE 
-            1=1
+            rp.active = true
         """
         
         params = []
@@ -47,30 +53,61 @@ async def get_garage_list(
         if search:
             query += " AND (LOWER(rpg.display_name) LIKE $1)"
             params.append(f"%{search.lower()}%")
-        
-        # Thêm sắp xếp và phân trang
-        query += """
-        ORDER BY rpg.display_name
-        LIMIT ${}
-        OFFSET ${}
-        """.format(len(params) + 1, len(params) + 2)
-        
-        params.extend([limit, offset])
-        
+
         result = await PostgresDB.execute_query(query, params)
         
         if not result:
             return {"data": []}
         
         # Chuyển đổi kết quả thành danh sách GarageItem
-        garage_items = []
+
+        # Tạo danh sách gara cần kiểm tra
+        garage_items_check = []
         for item in result:
+            garage_items_check.append({
+                'id': item.get('id'),
+                'address': item.get('street', ''),
+                'name': item.get('name', '')
+            })
+
+        # Tính khoảng cách hàng loạt
+        distances = await find_nearby_garages(
+            float(latitude), float(longitude), garage_items_check
+        )
+
+        if not distances:
+            # Thêm sắp xếp và phân trang
+            query += """
+                    ORDER BY rpg.display_name
+                    LIMIT ${}
+                    OFFSET ${}
+                    """.format(len(params) + 1, len(params) + 2)
+
+            params.extend([limit, offset])
+            result = await PostgresDB.execute_query(query, params)
+            if not result:
+                return {"data": []}
+
+            garage_items = []
+            for item in result:
+                garage_items.append({
+                    "id": item.get('id'),
+                    "name": item.get('name'),
+                    "address": item.get('street'),
+                })
+
+            return {"data": garage_items}
+
+        garage_items = []
+        for item in distances.values():
             garage_items.append({
                 "id": item.get('id'),
                 "name": item.get('name'),
-                "street": item.get('street'),
+                "street": item.get('address'),
+                "distance": distances.get(item.get('id')).get('distance'),
+                "travel_time_minutes": distances.get(item.get('id')).get('travel_time_minutes')
             })
-        
+
         return {"data": garage_items}
     
     except Exception as e:

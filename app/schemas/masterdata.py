@@ -7,6 +7,8 @@ class GarageItem(BaseModel):
     id: int
     name: str
     street: Optional[str] = None
+    distance: float = None
+    travel_time_minutes: int = None
 
 
 class GarageListResponse(BaseModel):
