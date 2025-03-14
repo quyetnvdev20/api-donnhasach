@@ -380,3 +380,153 @@ async def calculate_distances_batch_from_coords(lat: float, lng: float, addresse
             _distance_cache[cache_key] = distance
     
     return result 
+
+async def find_nearby_garages(lat: float, lng: float, garage_list: list, radius_km: float = 20.0) -> dict:
+    """
+    Tìm các gara sửa chữa trong phạm vi bán kính cho trước từ vị trí người dùng
+    
+    Args:
+        lat: Vĩ độ của người dùng
+        lng: Kinh độ của người dùng
+        garage_list: Danh sách các gara cần kiểm tra, mỗi phần tử là một dict chứa thông tin gara
+                    với ít nhất trường 'id' và 'address'
+        radius_km: Bán kính tìm kiếm tính bằng km (mặc định là 20km)
+        
+    Returns:
+        Dictionary với key là id của gara và value là thông tin gara bao gồm:
+        - id: ID của gara
+        - address: Địa chỉ gara
+        - distance: Khoảng cách từ vị trí người dùng đến gara (km)
+        - travel_time_minutes: Thời gian di chuyển bằng xe máy (phút)
+        - coordinates: Tọa độ của gara (lat, lng)
+    """
+    result = {}
+    
+    # Tạo key cho tọa độ người dùng
+    coords_key = f"{lat:.6f},{lng:.6f}"
+    
+    # Danh sách các địa chỉ gara cần geocode (không có trong cache)
+    garages_to_geocode = []
+    
+    # Kiểm tra cache trước
+    for garage in garage_list:
+        garage_id = garage.get('id')
+        address = garage.get('address', '')
+        
+        if not address:
+            continue
+            
+        # Chuẩn hóa địa chỉ
+        address_normalized = address.strip().lower()
+        cache_key = (coords_key, address_normalized)
+        
+        # Nếu đã có trong cache, lấy từ cache
+        if cache_key in _distance_cache:
+            distance = _distance_cache[cache_key]
+            
+            # Chỉ thêm vào kết quả nếu nằm trong bán kính
+            if distance <= radius_km:
+                # Tính thời gian di chuyển bằng xe máy (phút) với tốc độ trung bình 30 km/h
+                travel_time_minutes = round((distance / 30) * 60)
+                
+                # Lấy tọa độ của gara từ cache nếu có
+                garage_coords = _geocode_cache.get(address_normalized)
+                
+                result[garage_id] = {
+                    "id": garage_id,
+                    "address": address,
+                    "distance": distance,
+                    "travel_time_minutes": travel_time_minutes,
+                    "coordinates": garage_coords
+                }
+        else:
+            # Nếu chưa có trong cache, thêm vào danh sách cần geocode
+            garages_to_geocode.append((garage_id, address, address_normalized))
+    
+    # Nếu có gara cần geocode
+    if garages_to_geocode:
+        # Geocode tất cả các địa chỉ gara cùng một lúc
+        geocode_tasks = [geocode_address(addr) for _, addr, _ in garages_to_geocode]
+        geocode_results = await asyncio.gather(*geocode_tasks)
+        
+        # Tính khoảng cách cho từng gara
+        for i, (garage_id, address, address_normalized) in enumerate(garages_to_geocode):
+            coords = geocode_results[i]
+            
+            if coords:
+                # Tính khoảng cách
+                distance = calculate_distance_haversine(
+                    lat, lng,
+                    coords[0], coords[1]
+                )
+                distance = round(distance, 2)
+                
+                # Lưu vào cache
+                cache_key = (coords_key, address_normalized)
+                _distance_cache[cache_key] = distance
+                
+                # Chỉ thêm vào kết quả nếu nằm trong bán kính
+                if distance <= radius_km:
+                    # Tính thời gian di chuyển bằng xe máy (phút) với tốc độ trung bình 30 km/h
+                    travel_time_minutes = round((distance / 30) * 60)
+                    
+                    result[garage_id] = {
+                        "id": garage_id,
+                        "address": address,
+                        "distance": distance,
+                        "travel_time_minutes": travel_time_minutes,
+                        "coordinates": coords
+                    }
+    
+    # Sắp xếp kết quả theo khoảng cách tăng dần
+    sorted_result = dict(sorted(result.items(), key=lambda item: item[1]['distance']))
+    
+    return sorted_result
+
+async def find_nearby_garages_by_addresses(lat: float, lng: float, garage_addresses: list, radius_km: float = 20.0) -> dict:
+    """
+    Tìm các gara sửa chữa trong phạm vi bán kính cho trước từ vị trí người dùng dựa trên danh sách địa chỉ
+    
+    Args:
+        lat: Vĩ độ của người dùng
+        lng: Kinh độ của người dùng
+        garage_addresses: Danh sách các địa chỉ gara cần kiểm tra
+        radius_km: Bán kính tìm kiếm tính bằng km (mặc định là 20km)
+        
+    Returns:
+        Dictionary với key là địa chỉ gara và value là thông tin gara bao gồm:
+        - address: Địa chỉ gara
+        - distance: Khoảng cách từ vị trí người dùng đến gara (km)
+        - travel_time_minutes: Thời gian di chuyển bằng xe máy (phút)
+        - coordinates: Tọa độ của gara (lat, lng)
+        - is_within_radius: True nếu nằm trong bán kính, False nếu không
+    """
+    # Tính khoảng cách đến tất cả các địa chỉ gara
+    distances = await calculate_distances_batch_from_coords(lat, lng, garage_addresses)
+    
+    result = {}
+    
+    # Lọc và định dạng kết quả
+    for address, distance_info in distances.items():
+        if not address:
+            continue
+            
+        distance = distance_info["distance"]
+        travel_time_minutes = distance_info["travel_time_minutes"]
+        
+        # Lấy tọa độ của gara từ cache nếu có
+        address_normalized = address.strip().lower()
+        garage_coords = _geocode_cache.get(address_normalized)
+        
+        result[address] = {
+            "address": address,
+            "distance": distance,
+            "travel_time_minutes": travel_time_minutes,
+            "coordinates": garage_coords,
+            "is_within_radius": distance <= radius_km
+        }
+    
+    # Sắp xếp kết quả theo khoảng cách tăng dần
+    sorted_result = dict(sorted(result.items(), key=lambda item: item[1]['distance']))
+    
+    return sorted_result 
