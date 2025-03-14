@@ -6,11 +6,17 @@ from typing import Tuple, Optional, Dict
 from ..config import settings
 from functools import lru_cache
 import asyncio
+import time
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
 # Cache cho các tọa độ đã được geocode
 _geocode_cache = {}
+
+# Cache cho các tọa độ đã được geocode với thời gian hết hạn (1 tháng)
+# Format: {address_normalized: {"coords": (lat, lng), "expires_at": timestamp}}
+_geocode_cache_with_expiry = {}
 
 # Cache cho các khoảng cách đã được tính
 _distance_cache = {}
@@ -31,7 +37,18 @@ async def geocode_address(address: str) -> Optional[Tuple[float, float]]:
     # Chuẩn hóa địa chỉ để sử dụng làm key trong cache
     normalized_address = address.strip().lower()
     
-    # Kiểm tra cache
+    # Kiểm tra cache có thời hạn trước
+    current_time = time.time()
+    if normalized_address in _geocode_cache_with_expiry:
+        cache_entry = _geocode_cache_with_expiry[normalized_address]
+        # Kiểm tra xem cache có còn hiệu lực không
+        if cache_entry["expires_at"] > current_time:
+            return cache_entry["coords"]
+        else:
+            # Xóa cache đã hết hạn
+            del _geocode_cache_with_expiry[normalized_address]
+    
+    # Kiểm tra cache thông thường
     if normalized_address in _geocode_cache:
         return _geocode_cache[normalized_address]
         
@@ -48,8 +65,15 @@ async def geocode_address(address: str) -> Optional[Tuple[float, float]]:
                 location = data["results"][0]["geometry"]["location"]
                 coords = (location["lat"], location["lng"])
                 
-                # Lưu vào cache
+                # Lưu vào cache thông thường
                 _geocode_cache[normalized_address] = coords
+                
+                # Lưu vào cache có thời hạn (1 tháng)
+                expires_at = current_time + (30 * 24 * 60 * 60)  # 30 days in seconds
+                _geocode_cache_with_expiry[normalized_address] = {
+                    "coords": coords,
+                    "expires_at": expires_at
+                }
                 
                 return coords
             else:
@@ -261,6 +285,12 @@ def save_cache_to_file(file_path: str = "distance_cache.json"):
             if value is not None:
                 geocode_cache_serializable[key] = value
         
+        # Chuyển đổi cache có thời hạn
+        geocode_cache_with_expiry_serializable = {}
+        for key, value in _geocode_cache_with_expiry.items():
+            if value["coords"] is not None:
+                geocode_cache_with_expiry_serializable[key] = value
+        
         # Chuyển đổi tuple key thành string để có thể serialize
         distance_cache_serializable = {}
         for key, value in _distance_cache.items():
@@ -268,6 +298,7 @@ def save_cache_to_file(file_path: str = "distance_cache.json"):
         
         cache_data = {
             "geocode_cache": geocode_cache_serializable,
+            "geocode_cache_with_expiry": geocode_cache_with_expiry_serializable,
             "distance_cache": distance_cache_serializable
         }
         
@@ -287,6 +318,10 @@ def load_cache_from_file(file_path: str = "distance_cache.json"):
         # Khôi phục geocode cache
         if "geocode_cache" in cache_data:
             _geocode_cache.update(cache_data["geocode_cache"])
+        
+        # Khôi phục geocode cache có thời hạn
+        if "geocode_cache_with_expiry" in cache_data:
+            _geocode_cache_with_expiry.update(cache_data["geocode_cache_with_expiry"])
         
         # Khôi phục distance cache, chuyển đổi string key thành tuple
         if "distance_cache" in cache_data:
@@ -398,90 +433,193 @@ async def find_nearby_garages(lat: float, lng: float, garage_list: list, radius_
         Dictionary với key là id của gara và value là thông tin gara bao gồm:
         - id: ID của gara
         - address: Địa chỉ gara
+        - name: Tên gara
         - distance: Khoảng cách từ vị trí người dùng đến gara (km)
         - travel_time_minutes: Thời gian di chuyển bằng xe máy (phút)
+        - coordinates: Tọa độ của gara (lat, lng)
     """
+    start_time = time.time()
     result = {}
+    current_time = time.time()
+    cache_hits = 0
+    cache_misses = 0
     
-    # Tạo key cho tọa độ người dùng
-    coords_key = f"{lat:.6f},{lng:.6f}"
-    
-    # Lọc ra các gara có địa chỉ hợp lệ và chia thành các batch
-    valid_garages = [(garage.get('id'), garage.get('address', '').strip(), garage.get('name', '').strip())
-                     for garage in garage_list if garage.get('address', '') and garage.get('name', '')]
-    
-    # Kiểm tra cache trước và tách thành hai danh sách: đã có trong cache và chưa có trong cache
-    cached_garages = []
-    uncached_garages = []
-    
-    for garage_id, address, name in valid_garages:
-        address_normalized = address.lower()
-        cache_key = (coords_key, address_normalized)
+    try:
+        # Validate input parameters
+        if not isinstance(garage_list, list):
+            logger.error("garage_list must be a list")
+            return {}
+            
+        if not (isinstance(lat, (int, float)) and isinstance(lng, (int, float))):
+            logger.error("lat and lng must be numeric values")
+            return {}
+            
+        # Tạo key cho tọa độ người dùng
+        coords_key = f"{lat:.6f},{lng:.6f}"
         
-        if cache_key in _distance_cache:
-            distance = _distance_cache[cache_key]
-            # Chỉ thêm vào danh sách nếu nằm trong bán kính
-            if distance <= radius_km:
-                cached_garages.append((garage_id, address, address_normalized, distance, name))
-        else:
-            uncached_garages.append((garage_id, address, address_normalized, name))
-    
-    # Xử lý các gara đã có trong cache trước
-    for garage_id, address, address_normalized, distance, name in cached_garages:
-        # Tính thời gian di chuyển
-        travel_time_minutes = round((distance / 30) * 60)
+        # Lọc ra các gara có địa chỉ hợp lệ
+        valid_garages = []
+        for garage in garage_list:
+            if not isinstance(garage, dict):
+                continue
+                
+            garage_id = garage.get('id')
+            address = garage.get('address', '').strip() if garage.get('address') else ''
+            name = garage.get('name', '').strip() if garage.get('name') else ''
+            
+            if garage_id and address and name:
+                valid_garages.append((garage_id, address, name))
         
-        result[garage_id] = {
-            "id": garage_id,
-            "address": address,
-            "name": name,
-            "distance": distance,
-            "travel_time_minutes": travel_time_minutes,
-        }
+        logger.debug(f"Found {len(valid_garages)} valid garages out of {len(garage_list)} total")
         
-        # Nếu đã đủ số lượng kết quả tối đa, dừng xử lý
-        if len(result) >= max_results:
-            return dict(sorted(result.items(), key=lambda item: item[1]['distance']))
-
+        # Kiểm tra cache trước và tách thành hai danh sách: đã có trong cache và chưa có trong cache
+        cached_garages = []
+        uncached_garages = []
         
-    # Geocode tất cả các địa chỉ trong batch cùng một lúc
-    geocode_tasks = [geocode_address(addr) for _, addr, _, _ in uncached_garages]
-    geocode_results = await asyncio.gather(*geocode_tasks)
-
-    # Tính khoảng cách cho từng gara trong batch
-    for j, (garage_id, address, address_normalized, name) in enumerate(uncached_garages):
-        coords = geocode_results[j]
-
-        if coords:
-            # Tính khoảng cách
-            distance = calculate_distance_haversine(
-                lat, lng,
-                coords[0], coords[1]
-            )
-            distance = round(distance, 2)
-
-            # Lưu vào cache
+        for garage_id, address, name in valid_garages:
+            address_normalized = address.lower()
             cache_key = (coords_key, address_normalized)
-            _distance_cache[cache_key] = distance
+            
+            # Kiểm tra xem đã có tọa độ của gara trong cache có thời hạn chưa
+            garage_coords = None
+            if address_normalized in _geocode_cache_with_expiry:
+                cache_entry = _geocode_cache_with_expiry[address_normalized]
+                if cache_entry["expires_at"] > current_time:
+                    garage_coords = cache_entry["coords"]
+            
+            # Nếu không có trong cache có thời hạn, kiểm tra cache thông thường
+            if garage_coords is None and address_normalized in _geocode_cache:
+                garage_coords = _geocode_cache[address_normalized]
+                # Nếu tìm thấy trong cache thông thường, cập nhật vào cache có thời hạn
+                if garage_coords is not None:
+                    expires_at = current_time + (30 * 24 * 60 * 60)  # 30 days in seconds
+                    _geocode_cache_with_expiry[address_normalized] = {
+                        "coords": garage_coords,
+                        "expires_at": expires_at
+                    }
+            
+            if cache_key in _distance_cache:
+                distance = _distance_cache[cache_key]
+                # Chỉ thêm vào danh sách nếu nằm trong bán kính
+                if distance <= radius_km:
+                    cached_garages.append((garage_id, address, address_normalized, distance, name, garage_coords))
+                    cache_hits += 1
+            else:
+                uncached_garages.append((garage_id, address, address_normalized, name))
+                cache_misses += 1
+        
+        logger.debug(f"Cache hits: {cache_hits}, Cache misses: {cache_misses}")
+        
+        # Xử lý các gara đã có trong cache trước
+        for garage_id, address, address_normalized, distance, name, coords in cached_garages:
+            # Tính thời gian di chuyển
+            travel_time_minutes = round((distance / 30) * 60)
+            
+            result[garage_id] = {
+                "id": garage_id,
+                "address": address,
+                "name": name,
+                "distance": distance,
+                "travel_time_minutes": travel_time_minutes,
+                "coordinates": coords
+            }
+            
+            # Nếu đã đủ số lượng kết quả tối đa, dừng xử lý
+            if len(result) >= max_results:
+                logger.debug(f"Reached max_results ({max_results}) from cached garages")
+                return dict(sorted(result.items(), key=lambda item: item[1]['distance']))
+        
+        # Xử lý các gara chưa có trong cache theo batch
+        if uncached_garages:
+            # Chia thành các batch để xử lý
+            for i in range(0, len(uncached_garages), batch_size):
+                batch = uncached_garages[i:i+batch_size]
+                
+                # Geocode tất cả các địa chỉ trong batch cùng một lúc
+                geocode_tasks = []
+                for _, addr, _, _ in batch:
+                    geocode_tasks.append(geocode_address(addr))
+                
+                # Sử dụng timeout để tránh treo quá lâu
+                try:
+                    geocode_results = await asyncio.gather(*geocode_tasks, return_exceptions=True)
+                except Exception as e:
+                    logger.error(f"Error during geocoding batch: {str(e)}")
+                    continue
+                
+                # Tính khoảng cách cho từng gara trong batch
+                for j, (garage_id, address, address_normalized, name) in enumerate(batch):
+                    if j >= len(geocode_results):
+                        continue
+                        
+                    coords_result = geocode_results[j]
+                    
+                    # Kiểm tra nếu có lỗi trong kết quả
+                    if isinstance(coords_result, Exception):
+                        logger.warning(f"Error geocoding address '{address}': {str(coords_result)}")
+                        continue
+                    
+                    coords = coords_result
+                    if coords:
+                        # Lưu tọa độ vào cache có thời hạn (1 tháng)
+                        expires_at = current_time + (30 * 24 * 60 * 60)  # 30 days in seconds
+                        _geocode_cache_with_expiry[address_normalized] = {
+                            "coords": coords,
+                            "expires_at": expires_at
+                        }
+                        
+                        # Tính khoảng cách
+                        try:
+                            distance = calculate_distance_haversine(
+                                lat, lng,
+                                coords[0], coords[1]
+                            )
+                            distance = round(distance, 2)
+                        except Exception as e:
+                            logger.error(f"Error calculating distance for '{address}': {str(e)}")
+                            continue
 
-            # Chỉ thêm vào kết quả nếu nằm trong bán kính
-            if distance <= radius_km:
-                # Tính thời gian di chuyển bằng xe máy (phút) với tốc độ trung bình 30 km/h
-                travel_time_minutes = round((distance / 30) * 60)
+                        # Lưu vào cache
+                        cache_key = (coords_key, address_normalized)
+                        _distance_cache[cache_key] = distance
 
-                result[garage_id] = {
-                    "id": garage_id,
-                    "address": address,
-                    "name": name,
-                    "distance": distance,
-                    "travel_time_minutes": travel_time_minutes,
-                }
-    
-    # Sắp xếp kết quả theo khoảng cách tăng dần
-    sorted_result = dict(sorted(result.items(), key=lambda item: item[1]['distance']))
-    if len(sorted_result) > max_results:
-        return sorted_result[:max_results]
-    return sorted_result
+                        # Chỉ thêm vào kết quả nếu nằm trong bán kính
+                        if distance <= radius_km:
+                            # Tính thời gian di chuyển bằng xe máy (phút) với tốc độ trung bình 30 km/h
+                            travel_time_minutes = round((distance / 30) * 60)
+
+                            result[garage_id] = {
+                                "id": garage_id,
+                                "address": address,
+                                "name": name,
+                                "distance": distance,
+                                "travel_time_minutes": travel_time_minutes,
+                                "coordinates": coords
+                            }
+                            
+                            # Nếu đã đủ số lượng kết quả tối đa, dừng xử lý
+                            if len(result) >= max_results:
+                                logger.debug(f"Reached max_results ({max_results}) during batch processing")
+                                # Sắp xếp kết quả theo khoảng cách tăng dần
+                                return dict(sorted(result.items(), key=lambda item: item[1]['distance']))
+        
+        # Sắp xếp kết quả theo khoảng cách tăng dần
+        sorted_result = dict(sorted(result.items(), key=lambda item: item[1]['distance']))
+        
+        # Giới hạn số lượng kết quả
+        if len(sorted_result) > max_results:
+            # Chuyển thành list để cắt và sau đó chuyển lại thành dict
+            sorted_items = list(sorted_result.items())[:max_results]
+            return dict(sorted_items)
+        
+        return sorted_result
+    except Exception as e:
+        logger.error(f"Error in find_nearby_garages: {str(e)}")
+        return result
+    finally:
+        end_time = time.time()
+        execution_time = end_time - start_time
+        logger.debug(f"find_nearby_garages executed in {execution_time:.2f} seconds. Found {len(result)} garages within {radius_km}km radius. Cache hits: {cache_hits}, misses: {cache_misses}")
 
 async def find_nearby_garages_by_addresses(lat: float, lng: float, garage_addresses: list, radius_km: float = 20.0) -> dict:
     """
