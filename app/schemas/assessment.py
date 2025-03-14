@@ -155,8 +155,8 @@ class Document(BaseModel):
     images: Optional[List[ImageDocument]] = None
 
 
-class SceneAttachment(Document):
-    type: Optional[str] = ""
+class SceneAttachment(BaseModel):
+    documents: List[Document]
 
 class SceneAttachmentResponse(BaseModel):
     assessment_id: int = ""

@@ -181,7 +181,7 @@ async def update_vehicle_detail_assessment(
 @router.put("/{assessment_id}/scene_attachment", response_model=SceneAttachmentResponse)
 async def update_scene_attachment(
         assessment_id: int,
-        scene_attachment: SceneAttachment,
+        scene_attachment_dict: SceneAttachment,
         current_user: dict = Depends(get_current_user)
 ):
     """
@@ -189,26 +189,27 @@ async def update_scene_attachment(
     """
     vals_items = []
 
-    if scene_attachment.listImageRemove:
-        vals_items.append((2, id, False) for id in scene_attachment.listImageRemove)
+    for scene_attachment in scene_attachment_dict.documents:
+        if scene_attachment.listImageRemove:
+            vals_items.append((2, id, False) for id in scene_attachment.listImageRemove)
 
-    for image in scene_attachment.images:
-        vals = (0, 0, {
-            "attachment_ids": [
-                [0, 0, {
-                    "date_upload": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "latitude": image.lat,
-                    "link": image.link,
-                    "link_preview": image.link,
-                    "location": image.location,
-                    "longitude": image.long,
-                    "note": image.description
-                }]],
-            # "date": image.date if image.date else datetime.now().strftime("%Y-%m-%d"),
-            "date": datetime.now().strftime("%Y-%m-%d"),
-            "type_document_id": scene_attachment.type_document_id,
-        })
-        vals_items.append(vals)
+        for image in scene_attachment.images:
+            vals = (0, 0, {
+                "attachment_ids": [
+                    [0, 0, {
+                        "date_upload": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "latitude": image.lat,
+                        "link": image.link,
+                        "link_preview": image.link,
+                        "location": image.location,
+                        "longitude": image.long,
+                        "note": image.description
+                    }]],
+                # "date": image.date if image.date else datetime.now().strftime("%Y-%m-%d"),
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "type_document_id": scene_attachment.type_document_id,
+            })
+            vals_items.append(vals)
 
     vals = {
         'scene_attachment_ids': vals_items
