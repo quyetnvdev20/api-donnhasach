@@ -30,7 +30,7 @@ async def doc_vision(request: DocVisionRequest, current_user: dict = Depends(get
     formatted_response = {
         "type": response_dict.get("code", {}),
         "name": response_dict.get("name", {}),
-        "type_document_id": response_dict.get("id", {}),
+        "type_document_id": response_dict.get("id"),
         "content": response_dict.get("content", {}),
         "image_url": request.image_url
     }
@@ -66,7 +66,6 @@ async def get_document_type():
 
 async def process_image_with_gpt(image_url: str, document_type: dict, document_id: dict):
     try:
-        print(document_type)
         async with httpx.AsyncClient() as client:
             image = await client.get(image_url)
             base64_image = base64.b64encode(image.content).decode('utf-8')
@@ -74,8 +73,8 @@ async def process_image_with_gpt(image_url: str, document_type: dict, document_i
         prompt = f"""Bạn là một chuyên gia nhận diện các loại tài liệu cá nhân của người dân Việt Nam.
 Hãy nhận diện loại tài liệu cá nhân trong hình ảnh sau đây.
 Tài liệu cá nhân có thể là, lấy dữ liệu từ danh sách bên dưới:
-{document_type}
-{document_id}
+document_type: {document_type}
+document_id: {document_id}
 
 Nếu loại tài liệu là "Giấy phép lái xe" thì đọc thêm dữ liệu trong ảnh được mô tả như sau:
 birth_date: ngày sinh
@@ -92,8 +91,11 @@ registration_expired_date: ngày hết hạn
 
 **Output yêu cầu:**
 - Trả về dữ liệu dưới dạng JSON 1 object.
-- JSON bao gồm: code của tài liệu, id của tài liệu cá nhân và name của tài liệu cá nhân. ID để dạng string.
-- Nếu thuộc 2 loại Giấy phép lái xe và Đăng kiểm xe thì thêm trường content vào JSON.
+- JSON bao gồm: 
+** 1. "code": code của tài liệu được lấy từ danh sách document_type ** 
+** 2. "id": id của tài liệu cá nhân được lấy từ danh sách document_id **
+** 3. "name": name của tài liệu cá nhân được lấy từ danh sách document_type **
+- Nếu thuộc 2 loại Giấy phép lái xe và Đăng kiểm xe thì thêm trường "content" vào JSON.
 - Không trả ra bất kỳ thông tin nào khác.
 """
         client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
