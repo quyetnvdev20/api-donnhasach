@@ -184,7 +184,7 @@ async def get_repair_plan_awaiting_list(
             "label": {
                 "name": None,  # TODO chưa biết lấy dữ liệu ở đâu
                 "code": "LABEL001",
-                "color_code": "#f5222d"
+                "color_code": None
             }
         })
 
