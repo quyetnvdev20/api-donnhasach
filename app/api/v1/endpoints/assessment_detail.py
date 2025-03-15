@@ -137,6 +137,11 @@ async def update_vehicle_detail_assessment(
     """
     Update vehicle detail assessment information
     """
+    
+    if not vehicle_detail.items:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, 
+                            detail="Vui lòng xác định các hạng mục")
+    
     vals_items = []
 
     for item in vehicle_detail.items:
