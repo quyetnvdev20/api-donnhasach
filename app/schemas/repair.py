@@ -4,9 +4,9 @@ from datetime import datetime
 
 
 class Label(BaseModel):
-    name: str
-    code: str
-    color_code: str
+    name: Optional[str] = None
+    code: Optional[str] = None
+    color_code: Optional[str] = None
 
 
 class Status(BaseModel):
