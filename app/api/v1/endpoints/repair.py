@@ -182,7 +182,7 @@ async def get_repair_plan_awaiting_list(
                     res.get('repair_state')) else "#faad14"
             },
             "label": {
-                "name": "Gấp",  # TODO chưa biết lấy dữ liệu ở đâu
+                "name": "",  # TODO chưa biết lấy dữ liệu ở đâu
                 "code": "LABEL001",
                 "color_code": "#f5222d"
             }
@@ -284,7 +284,7 @@ async def get_repair_plan_awaiting_detail(
         "amount_garage": int(res.get('amount_garage')) if res.get('amount_garage') else 0,
         "amount_propose": int(res.get('price_total_propose')),
         "label": {
-            "name": "Gấp",  # TODO chưa biết lấy dữ liệu ở đâu
+            "name": "",  # TODO chưa biết lấy dữ liệu ở đâu
             "code": "LABEL001",
             "color_code": "#f5222d"
         },
