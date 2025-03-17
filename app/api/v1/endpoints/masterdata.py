@@ -47,6 +47,8 @@ async def get_garage_list(
             res_partner rp ON rp.id = rpg.partner_id
         WHERE 
             rp.active = true
+            limit 1000
+            order by rpg.id desc
         """
         
         params = []
