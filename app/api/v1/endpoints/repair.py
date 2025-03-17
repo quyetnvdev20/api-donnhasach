@@ -19,7 +19,7 @@ STATE_COLOR = {
     "new": ("#84d9d8", "Mới"),
     "pending": ("#faad14", "Chờ duyệt"),
     "approved": ("#52c41a", "Đã duyệt"),
-    "rejected": ("#f5222d", "Từ chối")
+    "rejected": ("#f5222d", "Trả lại")
 }
 
 CATEGORIES_COLOR = {
