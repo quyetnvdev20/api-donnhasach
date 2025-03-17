@@ -49,6 +49,7 @@ class RepairGarageLocation(BaseModel):
 
 
 class RepairPlanDetailItem(BaseModel):
+    id: Optional[int] = None
     name: str
     item: RepairItem = None
     type: RepairType = None
