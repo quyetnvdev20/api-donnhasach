@@ -213,7 +213,7 @@ async def update_scene_attachment(
             attachment = (0, 0, {
                 "date_upload": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "latitude": image.lat,
-                "link": image.link,
+                "link": image.link + '?image_process=resize,w_100,h_100',
                 "link_preview": image.link,
                 "location": image.location,
                 "longitude": image.long,
