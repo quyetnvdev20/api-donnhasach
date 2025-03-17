@@ -421,6 +421,7 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
     for detail in results_detail:
         repair_plan_details.append({
             "name": detail.get('name'),
+            "id": detail.get('id'),
             "item": {
                 "name": detail.get('category_name'),
                 "id": detail.get('category_id'),
