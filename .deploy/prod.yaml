@@ -2,7 +2,7 @@ targetPort: 8000 # port of pod container
 ingress:
   enable: true
   host: api-insurance.baohiemtasco.vn
-  path: /acg-xm(/|$)(.*)
+  path: /claim-ai(/|$)(.*)
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$2
 
@@ -12,9 +12,12 @@ tls:
       - '*.baohiemtasco.vn'
     secretName: baohiemtasco-vn-tls-sectigo-wildcard
 
+replicas: 5
+
 envFrom:
   configMaps:
-    - name: xm-common-cm
+    - name: claim-ai-cm
+    - name: claim-ai-redis-cm
     - name: keycloak-cm
 
 resources:
@@ -25,39 +28,5 @@ resources:
     cpu: "400m"
     memory: "1Gi"
 
-celeries:
-  - name: acg-xm-image-processor
-    replicas: 3
-    runCommand: python -m app.workers.image_processor
-    resources:
-      requests:
-        cpu: 50m
-        memory: 512Mi
-      limits:
-        cpu: 500m
-        memory: 1Gi
 
-  - name: acg-xm-policy-creator
-    replicas: 1
-    runCommand: python -m app.workers.policy_creator
-    resources:
-      requests:
-        cpu: 50m
-        memory: 512Mi
-      limits:
-        cpu: 500m
-        memory: 1Gi 
-
-  # - name: acg-xm-session-processor
-  #   replicas: 1
-  #   runCommand: python -m app.workers.session_processor
-  #   resources:
-  #     requests: 
-  #       cpu: 50m
-  #       memory: 512Mi
-  #     limits:
-  #       cpu: 500m
-  #       memory: 1Gi
-
-# depCommand: ./run.sh
 

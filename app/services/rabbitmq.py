@@ -5,12 +5,12 @@ import json
 async def get_rabbitmq_connection():
     return await aio_pika.connect_robust(settings.RABBITMQ_URL)
 
-async def publish_event(event_type: str, payload: dict):
+async def publish_event(exchange_name: str, routing_key: str, payload: dict):
     connection = await get_rabbitmq_connection()
     channel = await connection.channel()
     
     exchange = await channel.declare_exchange(
-        "acg.xm.direct",
+        exchange_name,
         aio_pika.ExchangeType.DIRECT
     )
     
@@ -21,7 +21,7 @@ async def publish_event(event_type: str, payload: dict):
     
     await exchange.publish(
         message,
-        routing_key=event_type
+        routing_key=routing_key
     )
-    
+        
     await connection.close() 

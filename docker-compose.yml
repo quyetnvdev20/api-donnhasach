@@ -21,49 +21,6 @@ services:
              alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
-  image_processor:
-    build: 
-      context: .
-      dockerfile: Dockerfile
-    env_file:
-      - .env
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      db:
-        condition: service_healthy
-    volumes:
-      - .:/app
-    command: python -m app.workers.image_processor
-
-  policy_creator:
-    build: 
-      context: .
-      dockerfile: Dockerfile
-    env_file:
-      - .env
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      db:
-        condition: service_healthy
-    volumes:
-      - .:/app
-    command: python -m app.workers.policy_creator
-
-  session-processor:
-    build: .
-    command: python -m app.workers.session_processor
-    volumes:
-      - .:/app
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - RABBITMQ_URL=${RABBITMQ_URL}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-    depends_on:
-      - db
-      - rabbitmq
 
   db:
     image: postgres:14

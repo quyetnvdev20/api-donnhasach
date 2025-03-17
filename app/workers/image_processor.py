@@ -1,492 +1,272 @@
 import asyncio
+import aiohttp
 import aio_pika
 import json
-import cv2, numpy as np
 from sqlalchemy.orm import Session
 from ..database import SessionLocal
 from ..models.image import Image
-from ..models.insurance_detail import InsuranceDetail
-from ..config import settings
+from ..config import settings, ClaimImageStatus
 import logging
+from logging.handlers import RotatingFileHandler
+from logging import Formatter
 import requests
-from openai import AsyncOpenAI
-from datetime import datetime
 from tenacity import retry, stop_after_attempt, wait_exponential
-import google.generativeai as genai
-from PIL import Image as PIL_Image
-from io import BytesIO
-from app.core.settings import ImageStatus, SessionStatus
-from ..models.session import Session as SessionModel
-from dateutil.relativedelta import relativedelta
-from minio import Minio
-import uuid
+from ..services.firebase import FirebaseNotificationService
+from ..utils.erp_db import PostgresDB
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Thiết lập logger
+logger = logging.getLogger('worker')
+file_handler = RotatingFileHandler('worker.log', backupCount=1)
+handler = logging.StreamHandler()
+file_handler.setFormatter(Formatter(
+    '%(asctime)s %(levelname)s : %(message)s '
+    '[in %(module)s: %(pathname)s:%(lineno)d]'
+))
+handler.setFormatter(Formatter(
+    '%(asctime)s %(levelname)s: %(message)s '
+    '[in %(module)s: %(pathname)s:%(lineno)d]'
+))
+logger.addHandler(file_handler)
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
 
+# Remove default logging config to avoid duplicate logs
+logging.getLogger().handlers = []
 
 LIST_FIELD_REQUIRED = [
     'serial_number',
     'premium_amount'
 ]
 
-async def process_image(image_url: str) -> dict:
-    """
-    Sử dụng OpenAI Vision API để trích xuất thông tin từ ảnh giấy bảo hiểm
-    """
-    client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+# Create semaphore for limiting concurrent processing
+CONCURRENT_WORKERS = settings.CONCURRENT_WORKERS
 
-    prompt = """
-    Hãy trích xuất chính xác các thông tin sau từ hình ảnh được cung cấp và trả về dưới dạng JSON:
-    {   "serial_number": "Số Serial (Ví dụ: AA00358056/25)",
-        "owner_name": "Chủ xe",
-        "number_seats": "Số người được bảo hiểm (Số)",
-        "liability_amount": "Mức trách nhiệm bảo hiểm (Số)",
-        "accident_premium": "Phí bảo hiểm tai nạn (Số)",
-        "address": "Địa chỉ",
-        "plate_number": "Biển kiểm soát",
-        "phone_number": "Điện thoại",
-        "chassis_number": "Số khung",
-        "engine_number": "Số máy",
-        "vehicle_type": "Loại xe",
-        "insurance_start_date": "Thời gian bắt đầu (DD/MM/YYYY HH:mm:00)",
-        "insurance_end_date": "Thời gian kết thúc (DD/MM/YYYY HH:mm:00)"
-        "premium_amount": "TỔNG PHÍ (Số)",
-        "policy_issued_datetime": "Cấp hồi (DD/MM/YYYY HH:mm:00)"
+class ImageProcessor:
+    def __init__(self):
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+        self.semaphore = asyncio.Semaphore(CONCURRENT_WORKERS)
+
+    async def mapping_assessment_item(self, json_data_list: list):
+        """
+        Map assessment items from json_data to database IDs
+
+        Args:
+            json_data_list (list): List of dictionaries containing category and state mappings
+        """
+        transformed_items = []
+
+        # Transform the input data
+        for data_dict in json_data_list:
+            for category, state in data_dict.items():
+                transformed_items.append({
+                    "damage_name": state,
+                    "item_name": category
+                })
+
+        if not transformed_items:
+            return []
+
+        # Build the WHERE clause with proper parameter placeholders
+        placeholders = []
+        values = []
+        for i, item in enumerate(transformed_items):
+            placeholders.append(f"(iclc.name = ${2 * i + 1} AND isc.name = ${2 * i + 2})")
+            values.extend([item["item_name"], item["damage_name"]])
+
+        query = f"""
+            SELECT 
+                iclc.id AS category_id,
+                isc.id AS state_id,
+                iclc.name AS category_name,
+                isc.name AS state_name
+            FROM insurance_claim_list_category iclc
+            JOIN insurance_state_category isc ON 1=1
+            WHERE {' OR '.join(placeholders)};
+        """
+
+        results = await PostgresDB.execute_query(query, values)
+        print(results)
+
+        if not results:
+            return []
+
+        # Map results using dict comprehension
+        result_map = {
+            (row["category_name"], row["state_name"]): {
+                "damage_id": row["state_id"],
+                "item_id": row["category_id"]
+            } for row in results
         }
-        Lưu ý:
-        - Chỉ trả về JSON, không thêm bất kỳ văn bản nào khác
-        - Đảm bảo định dạng ngày tháng theo mẫu
-        - Số tiền không có dấu phẩy hoặc dấu chấm phân cách và chỉ lấy số không lấy chữ
-    """
 
-    response = await client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": prompt
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": image_url},
-                    }
-                ]
-            }
-        ],
-        response_format={ "type": "json_object" }
-    )
+        # Update transformed items with IDs
+        for item in transformed_items:
+            key = (item["item_name"], item["damage_name"])
+            if key in result_map:
+                item.update(result_map[key])
 
-    # Parse JSON response
-    try:
-        result = json.loads(response.choices[0].message.content)
-        logger.info(f'process_image.chat_gpt.gia tri tra ve tu chatgpt: {str(result)}')
+        return transformed_items
 
-        # Convert string dates to proper format
-        date_fields = [
-            'insurance_start_date',
-            'insurance_end_date',
-            'premium_payment_due_date',
-            'policy_issued_datetime'
-        ]
-        for field in date_fields:
-            if field in result and result.get(field):
-                result[field] = datetime.strptime(
-                    result[field],
-                    '%d/%m/%Y %H:%M:%S'
-                ).isoformat()
+    async def process_message(self, message: aio_pika.IncomingMessage):
+        async with self.semaphore:
+            async with message.process():
+                try:
+                    # Decode message
+                    body = json.loads(message.body.decode())
+                    logger.info(f"Processing message: {body}")
 
-        # Convert policy issued datetime
-        if 'premium_payment_due_date' in result and result.get('premium_payment_due_date'):
-            result['premium_payment_due_date'] = datetime.strptime(
-                result['premium_payment_due_date'],
-                '%d/%m/%Y'
-            ).isoformat()
+                    # Get image from database
+                    db: Session = SessionLocal()
+                    image = db.query(Image).filter(Image.analysis_id == body.get("analysis_id"),
+                                                   Image.assessment_id == body.get("assessment_id")).first()
 
-        float_fields = [
-            'premium_amount',
-            'liability_amount',
-            'accident_premium',
-        ]
+                    if not image:
+                        logger.error(f"Image analysis not found: {body.get('analysis_id')}")
+                        raise Exception(f"Image analysis not found: {body.get('analysis_id')}")
 
-        for f in float_fields:
-            if result.get(f):
-                value = str(result[f])
-                if '.' in value:
-                    value = value.replace('.', '')
-                result[f] = float(value)
-
-        if 'number_seats' in result:
-            result['number_seats'] = int(str(result['number_seats']))
-
-        return result
-
-    except Exception as e:
-        logger.error(f"Error parsing OpenAI response: {str(e)}")
-        raise Exception(f"Failed to parse insurance information from image: {str(e)}")
-
-async def process_image_with_gemini(image_url: str) -> dict:
-    """
-    Sử dụng Google Gemini Vision API để trích xuất thông tin từ ảnh giấy bảo hiểm
-    """
-    # Cấu hình Gemini
-    genai.configure(api_key=settings.GOOGLE_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
-
-    prompt = """
-    Hãy trích xuất chính xác các thông tin sau từ hình ảnh được cung cấp và trả về dưới dạng JSON:
-    {
-        "serial_number": "Số Serial (Ví dụ: AA00358056/25)",
-        "owner_name": "Chủ xe",
-        "number_seats": "Số người được bảo hiểm (Số)",
-        "liability_amount": "Mức trách nhiệm bảo hiểm (Số)",
-        "accident_premium": "Phí bảo hiểm của bảo hiểm tai nạn người ngồi trên xe (định dạng Integer)",
-        "address": "Địa chỉ",
-        "plate_number": "Biển kiểm soát",
-        "phone_number": "Điện thoại",
-        "chassis_number": "Số khung",
-        "engine_number": "Số máy",
-        "vehicle_type": "Loại xe",
-        "insurance_start_date": "Thời gian bắt đầu (DD/MM/YYYY HH:mm:00)",
-        "insurance_end_date": "Thời gian kết thúc (DD/MM/YYYY HH:mm:00)"
-        "premium_amount": "PHÍ BẢO HIỂM CÓ VAT (chữ viết tay, trả lại định dạng Integer)",
-        "policy_issued_datetime": "Cấp hồi (DD/MM/YYYY HH:mm:00)"
-    }
-    Lưu ý:
-    - Chỉ trả về JSON, không thêm bất kỳ văn bản nào khác
-    - Đảm bảo định dạng ngày tháng theo mẫu
-    - Ngày giờ của thời gian kết thúc trùng với ngày giờ của thời gian bắt đầu, chỉ khác nhau mỗi năm, năm của thời gian kết thúc ở ngay dưới năm của thời gian bắt đầu
-    - Số tiền không có dấu phẩy hoặc dấu chấm phân cách và chỉ lấy số không lấy chữ
-    - - Các dấu tích v hoặc x là các điều kiện được chọn để lấy lên ví dụ: Loại xe, Số người được bảo hiểm, Mức trách nhiệm bảo hiểm
-    """
-    scan_image_url = ''
-
-    try:
-        response = requests.get(image_url)
-        response.raise_for_status()
-        image_array = np.asarray(bytearray(response.content), dtype=np.uint8)
-        cv2_image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-        # Convert images to grayscale
-        input_gray = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2GRAY)
-        ref_img = cv2.imread("/app/reference_full.jpg")
-        ref_gray = cv2.cvtColor(ref_img, cv2.COLOR_BGR2GRAY)
-        # Detect keypoints and compute descriptors using ORB
-        orb = cv2.ORB_create(5000)  # Maximum 5000 keypoints
-        kp1, des1 = orb.detectAndCompute(input_gray, None)
-        kp2, des2 = orb.detectAndCompute(ref_gray, None)
-        # Match descriptors using Brute-Force Matcher with Hamming distance
-        bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-        matches = bf.match(des1, des2)
-        matches = sorted(matches, key=lambda x: x.distance)  # Sort matches by distance
-        good_matches = matches[:50]
-        # Extract coordinates of matched keypoints
-        src_pts = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
-        dst_pts = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
-        # Compute homography matrix using RANSAC
-        matrix, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-        # Get dimensions of the reference image
-        h, w = ref_img.shape[:2]
-        # Apply perspective transformation to align the input image
-        aligned_img = cv2.warpPerspective(cv2_image, matrix, (w, h))
-        aligned_rgb = cv2.cvtColor(aligned_img, cv2.COLOR_BGR2RGB)
-        image = PIL_Image.fromarray(aligned_rgb)
-
-        # Upload aligned image to MinIO
-        scan_image_url = await upload_image_to_minio(image)
-        logger.info(f"Aligned image uploaded to: {scan_image_url}")
-        
-        # Use scan_image_url for further processing
-        response = model.generate_content([prompt, image])
-        
-        # Log raw response để debug
-        logger.info(f'Raw Gemini response: {response.text}')
-
-        try:
-            # Lấy kết quả JSON từ response
-            # Thử tìm và parse phần JSON trong response
-            import re
-            json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
-            if json_match:
-                json_str = json_match.group()
-                result = json.loads(json_str)
-                result.update({'scan_image_url': scan_image_url})
-            else:
-                raise ValueError("No JSON object found in response")
-        except Exception as e:
-            return {'scan_image_url': scan_image_url}
-        logger.info(f'process_image.gemini.gia tri tra ve tu gemini: {str(result)}')
-        
-        try:
-            # Xử lý các trường datetime
-            date_fields = [
-                'insurance_start_date',
-                'insurance_end_date',
-                'premium_payment_due_date',
-                'policy_issued_datetime'
-            ]
-
-            # Định dạng ngày cần thử
-            date_formats = ['%d/%m/%Y %H:%M:%S', '%d/%m/%Y']
-
-            for field in date_fields:
-                if result.get(field):
-                    value = result[field]
-                    for fmt in date_formats:
-                        try:
-                            result[field] = datetime.strptime(value, fmt).isoformat()
-                            break  # Nếu chuyển đổi thành công, dừng vòng lặp
-                        except ValueError:
-                            continue
-                    else:
-                        result[field] = None  # Gán None nếu không parse được
-
-            """set default ngày cấp đơn, thời hạn hiệu lực nếu không đọc được từ ảnh
-                ngày cấp: now
-                ngày hiệu lực: now - 1 ngày
-                ngày hết hiệu lực: now + 1 năm
-            """
-            if not result.get('insurance_start_date') or not result.get('policy_issued_datetime') or not result.get('insurance_end_date'):
-                now_str = datetime.strftime(datetime.now(), '%d/%m/%Y %H:%M:%S')
-                now = datetime.strptime(now_str, '%d/%m/%Y %H:%M:%S')
-
-                result['insurance_start_date'] = now.isoformat()
-                result['policy_issued_datetime'] = (now - relativedelta(days=1)).isoformat()
-                result['insurance_end_date'] = (now + relativedelta(years=1)).isoformat()
-                result.update({'is_suspecting_wrongly': True})
-
-            # Xử lý các trường số
-            float_fields = [
-                'premium_amount',
-                'liability_amount',
-                'accident_premium',
-            ]
-            for f in float_fields:
-                if result.get(f):
-                    value = str(result[f])
-                    if '.' in value:
-                        value = value.replace('.', '')
-                    result[f] = float(value)
-
-            if not result.get('premium_amount'):
-                result['premium_amount'] = 66000
-                result.update({'is_suspecting_wrongly': True})
-
-            if result.get('number_seats'):
-                result['number_seats'] = int(str(result['number_seats']))
-
-            if result.get('serial_number'):
-                result['serial_number'] = result.get('serial_number').replace(' ', '')
-
-            # Add scan_image_url to result
-            result['scan_image_url'] = scan_image_url
-
-            return result
-
-        except Exception as e:
-            logger.error(f"Error parsing Gemini response: {str(e)}")
-            raise result
-
-    except Exception as e:
-        logger.error(f"Error processing image with Gemini: {str(e)}")
-        # raise Exception(f"Failed to process insurance information from image: {str(e)}")
-        return {'scan_image_url': scan_image_url}
-
-async def process_message(message: aio_pika.IncomingMessage):
-    async with message.process():
-        try:
-            # Decode message
-            body = json.loads(message.body.decode())
-            logger.info(f"Processing message: {body}")
-
-            # Get image from database
-            db: Session = SessionLocal()
-            image = db.query(Image).filter(Image.id == body["image_id"]).first()
-            if not image:
-                logger.error(f"Image {body['image_id']} not found")
-                return
-
-            # Update image status
-            image.status = ImageStatus.PROCESSING
-            db.commit()
-
-            try:
-                # Process image with Gemini and get aligned image URL
-                insurance_info = await process_image_with_gemini(image.image_url)
-                
-                logger.info(f"Insurance info before processing scan_image_url: {insurance_info}")
-                
-                # Lưu scan_image_url vào database nếu có trong insurance_info
-                if insurance_info and 'scan_image_url' in insurance_info:
-                    logger.info(f"Found scan_image_url in insurance_info: {insurance_info['scan_image_url']}")
-                    image.scan_image_url = insurance_info.get('scan_image_url')
+                    # Update status to processing
+                    image.status = ClaimImageStatus.PROCESSING.value
                     db.commit()
-                    logger.info(f"Updated image.scan_image_url to: {image.scan_image_url}")
-                    # Xóa scan_image_url khỏi insurance_info để không lưu trùng vào json_data
-                    insurance_info.pop('scan_image_url', None)
-                    logger.info(f"Removed scan_image_url from insurance_info")
-                else:
-                    logger.warning("scan_image_url not found in insurance_info")
+                    db.refresh(image)
 
-                logger.info(f"Insurance info after processing scan_image_url: {insurance_info}")
+                    # Process image here...
+                    logger.info(f"Start processing image analysis {image.analysis_id}")
+                    try:
+                        # aiohttp / httpx
+                        response = requests.post(
+                            f"{settings.INSURANCE_PROCESSING_API_URL}/claim-image/claim-image-process",
+                            json={"image_url": image.image_url},
+                            headers={
+                                "x-api-key": f"{settings.CLAIM_IMAGE_PROCESS_API_KEY}",
+                                "Content-Type": "application/json",
+                            },
+                            timeout=settings.CLAIM_IMAGE_PROCESS_TIMEOUT
+                        )
+                        if response.status_code != 200:
+                            raise Exception(f"Failed to process image analysis {image.analysis_id}")
 
-                # Get and remove is_suspecting_wrongly flag if it exists
-                is_suspecting_wrongly = insurance_info.pop('is_suspecting_wrongly', False)
-                liability_amount = insurance_info.pop('liability_amount', False)
+                        image.status = ClaimImageStatus.SUCCESS.value
+                        image.list_json_data = response.json().get("data", [])
+                        db.commit()
+                        db.refresh(image)
+                    except Exception as e:
+                        logger.error(f"Error processing image analysis {image.analysis_id}: {str(e)}")
+                        image.status = ClaimImageStatus.FAILED.value
+                        image.error_message = str(e)
+                        db.commit()
 
-                # Create insurance detail
-                insurance_detail = InsuranceDetail(
-                    image_id=image.id,
-                    **insurance_info
-                )
-                db.add(insurance_detail)
-                db.commit()
+                    mapped_results = []
+                    if image.list_json_data:
+                        # Call mapping_assessment_item as instance method
+                        mapped_results = await self.mapping_assessment_item(image.list_json_data)
+                        image.results = json.dumps(mapped_results)
+                        db.commit()
 
-                # Kiểm tra các trường bắt buộc
-                missing_fields = []
-                for field in LIST_FIELD_REQUIRED:
-                    if not insurance_info.get(field):
-                        missing_fields.append(field)
+                    data_vals = {
+                            "analysis_id": image.analysis_id,
+                            "assessment_id": image.assessment_id,
+                            "image_id": image.id,
+                            "image_url": image.image_url,
+                            "auto_analysis": str(image.auto_analysis),
+                            # "status": image.status,
+                            "results": json.dumps(mapped_results)
+                        }
 
-                if missing_fields:
-                    error_message = f"Missing required fields: {', '.join(missing_fields)}"
-                    logger.error(error_message)
-                    raise ValueError(error_message)
+                    logger.info("Staring parsing data for notification")
+                    logger.info(f"Data vals: {data_vals}")
 
-                # Update image status
-                image.status = ImageStatus.COMPLETED
-                image.json_data = insurance_info
-                image.is_suspecting_wrongly = is_suspecting_wrongly
-                db.commit()
+                    notification_result = await FirebaseNotificationService.send_notification_to_topic(
+                        topic=f'tic_claim_{str(image.keycloak_user_id)}',
+                        # topic=settings.FIREBASE_TOPIC,
+                        title="Image Analysis Complete",
+                        body="Your image has been successfully analyzed.",
+                        data=data_vals
+                    )
 
-                session = db.query(SessionModel).filter(SessionModel.id == str(image.session_id)).first()
-                if not session:
-                    raise ValueError(f"Session {image.session_id} not found")
+                    logger.info(f"Notification result: {notification_result}")
 
-                # if session.policy_type == 'group_insured':
-                #     return
-                #
-                # # Publish event
-                # connection = await connect_to_rabbitmq()
-                # channel = await connection.channel()
-                # exchange = await channel.declare_exchange("acg.xm.direct", aio_pika.ExchangeType.DIRECT)
-                #
-                # await exchange.publish(
-                #     aio_pika.Message(
-                #         body=json.dumps({
-                #             "event_type": "IMAGE_PROCESSED",
-                #             "image_id": str(image.id),
-                #             "session_id": str(image.session_id),
-                #             "insurance_details": insurance_info,
-                #             "session_type": 'individual_insured',
-                #             "timestamp": image.updated_at.isoformat()
-                #         }).encode(),
-                #         content_type="application/json"
-                #     ),
-                #     routing_key="image.processed"
-                # )
-                #
-                # await connection.close()
+                except Exception as e:
+                    logger.error(f"Error processing message: {str(e)}")
+                    if image:
+                        image.status = ClaimImageStatus.FAILED.value
+                        image.error_message = str(e)
+                        db.commit()
 
-            except ValueError as e:
-                logger.error(f"Error processing image: {str(e)}")
-                image.status = ImageStatus.FAILED
-                image.json_data = insurance_info
-                image.error_message = str(e)
-                db.commit()
-            except Exception as e:
-                logger.error(f"Error processing image: {str(e)}")
-                image.status = ImageStatus.FAILED
-                image.json_data = insurance_info
-                image.error_message = str(e)
-                db.commit()
+                        notification_result = await FirebaseNotificationService.send_notification_to_topic(
+                            topic=f'tic_claim_{str(image.keycloak_user_id)}',
+                            # topic=settings.FIREBASE_TOPIC,
+                            title="Image Analysis Failed",
+                            body="There was an error analyzing your image.",
+                            data={
+                                "analysis_id": image.analysis_id,
+                                "assessment_id": image.assessment_id,
+                                "image_id": str(image.id),
+                                "image_url": str(image.image_url),
+                                "auto_analysis": str(image.auto_analysis),
+                                # "status": image.status,
+                                "results": json.dumps([])
+                            }
+                        )
+                finally:
+                    db.close()
 
-        except Exception as e:
-            logger.error(f"Error processing message: {str(e)}")
+    @retry(
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        reraise=True
+    )
+    async def connect_to_rabbitmq(self):
+        """Kết nối tới RabbitMQ với retry logic"""
+        logger.info(f"Attempting to connect to RabbitMQ at {settings.RABBITMQ_URL}")
+        return await aio_pika.connect_robust(
+            settings.RABBITMQ_URL,
+            loop=self.loop
+        )
+
+    async def start(self):
+        logger.info("Starting image processor worker")
+        # Connect to RabbitMQ with retry
+        connection = await self.connect_to_rabbitmq()
+        channel = await connection.channel()
+
+        # Declare exchange and queue
+        exchange = await channel.declare_exchange(
+            "image.analysis.direct",
+            aio_pika.ExchangeType.DIRECT
+        )
+        queue = await channel.declare_queue(
+            "image.analysis.processing",
+            durable=True
+        )
+
+        # Bind queue to exchange
+        await queue.bind(exchange, routing_key="image.uploaded")
+
+        # Start consuming messages
+        logger.info("Image processor worker started")
+        await queue.consume(self.process_message)
+
+        try:
+            # Keep the worker running
+            await asyncio.Future(loop=self.loop)
         finally:
-            db.close()
+            await connection.close()
 
-@retry(
-    stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=1, min=4, max=10),
-    reraise=True
-)
-async def connect_to_rabbitmq():
-    """Kết nối tới RabbitMQ với retry logic"""
-    logger.info(f"Attempting to connect to RabbitMQ at {settings.RABBITMQ_URL}")
-    return await aio_pika.connect_robust(settings.RABBITMQ_URL)
+    def run(self):
+        try:
+            logger.info("Initializing image processor worker")
+            self.loop.run_until_complete(self.start())
+        except KeyboardInterrupt:
+            logger.info("Shutting down worker...")
+        except Exception as e:
+            logger.error(f"Fatal error in image processor: {str(e)}", exc_info=True)
+            raise
+        finally:
+            self.loop.close()
 
-async def main():
-    # Connect to RabbitMQ with retry
-    connection = await connect_to_rabbitmq()
-    channel = await connection.channel()
-
-    # Declare exchange and queue
-    exchange = await channel.declare_exchange("acg.xm.direct", aio_pika.ExchangeType.DIRECT)
-    queue = await channel.declare_queue("acg.xm.image.processing", durable=True)
-
-    # Bind queue to exchange
-    await queue.bind(exchange, routing_key="image.uploaded")
-
-    # Start consuming messages
-    logger.info("Image processor worker started")
-    await queue.consume(process_message)
-
-    try:
-        await asyncio.Future()  # wait forever
-    finally:
-        await connection.close()
-
-async def upload_image_to_minio(image: PIL_Image.Image, bucket_name: str = settings.MINIO_BUCKET_NAME_XM) -> str:
-    """
-    Upload ảnh lên MinIO và trả về URL của ảnh
-    
-    Args:
-        image: PIL Image object
-        bucket_name: Tên bucket trên MinIO
-        
-    Returns:
-        str: URL của ảnh đã upload
-    """
-    try:
-        # Khởi tạo MinIO client
-        minio_client = Minio(
-            endpoint=settings.MINIO_ENDPOINT_XM,
-            access_key=settings.MINIO_ACCESS_KEY_XM,
-            secret_key=settings.MINIO_SECRET_KEY_XM,  
-            region="us-east-1",
-            secure=True
-        )
-
-        # Chuyển đổi ảnh sang bytes
-        img_byte_arr = BytesIO()
-        image.save(img_byte_arr, format='PNG')
-        img_byte_arr.seek(0)
-        
-        # Tạo tên file ngẫu nhiên
-        file_name = f"{uuid.uuid4()}.png"
-        
-        # Upload file lên MinIO
-        minio_client.put_object(
-            bucket_name,
-            file_name,
-            img_byte_arr,
-            length=len(img_byte_arr.getvalue()),
-            content_type='image/png'
-        )
-        
-        # Tạo và trả về URL
-        url = f"{settings.MINIO_ENDPOINT_XM}/{settings.MINIO_BUCKET_NAME_XM}/{file_name}"
-        if not url.startswith('http'):
-            url = f"http://{url}"
-            
-        return url
-
-    except Exception as e:
-        logger.error(f"Error uploading image to MinIO: {str(e)}")
-        raise Exception(f"Failed to upload image to MinIO: {str(e)}")
+def main():
+    processor = ImageProcessor()
+    processor.run()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
