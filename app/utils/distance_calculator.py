@@ -27,6 +27,72 @@ _geocode_cache_with_expiry = {}
 # Cache cho các khoảng cách đã được tính
 _distance_cache = {}
 
+async def geocode_address_with_cache(address: str) -> Optional[Tuple[float, float]]:
+    """
+    Chuyển đổi địa chỉ thành tọa độ (latitude, longitude) sử dụng Google Maps Geocoding API
+    
+    Args:
+        address: Địa chỉ cần chuyển đổi
+        
+    Returns:
+        Tuple (latitude, longitude) hoặc None nếu không thể chuyển đổi
+    """
+    if not address or not address.strip():
+        return None
+    
+    # Chuẩn hóa địa chỉ để sử dụng làm key trong cache
+    normalized_address = address.strip().lower()
+    
+    # Kiểm tra cache có thời hạn trước
+    current_time = time.time()
+    if normalized_address in _geocode_cache_with_expiry:
+        cache_entry = _geocode_cache_with_expiry[normalized_address]
+        # Kiểm tra xem cache có còn hiệu lực không
+        if cache_entry["expires_at"] > current_time:
+            return cache_entry["coords"]
+        else:
+            # Xóa cache đã hết hạn
+            del _geocode_cache_with_expiry[normalized_address]
+    
+    # Kiểm tra cache thông thường
+    if normalized_address in _geocode_cache:
+        return _geocode_cache[normalized_address]
+        
+    try:
+        # Sử dụng Google Maps Geocoding API
+        api_key = settings.GOOGLE_MAPS_API_KEY
+        url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={api_key}"
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url)
+            data = response.json()
+            
+            if data["status"] == "OK" and data["results"]:
+                location = data["results"][0]["geometry"]["location"]
+                coords = (location["lat"], location["lng"])
+                
+                # Lưu vào cache thông thường
+                _geocode_cache[normalized_address] = coords
+                
+                # Lưu vào cache có thời hạn (1 tháng)
+                expires_at = current_time + (30 * 24 * 60 * 60)  # 30 days in seconds
+                _geocode_cache_with_expiry[normalized_address] = {
+                    "coords": coords,
+                    "expires_at": expires_at
+                }
+                
+                return coords
+            else:
+                logger.warning(f"Không thể geocode địa chỉ: {address}. Status: {data['status']}")
+                # Lưu None vào cache để tránh gọi lại API cho địa chỉ không hợp lệ
+                _geocode_cache[normalized_address] = None
+                return None
+                
+    except Exception as e:
+        logger.error(f"Lỗi khi geocode địa chỉ {address}: {str(e)}")
+        return None
+
+
 async def geocode_address(address: str) -> Optional[Tuple[float, float]]:
     """
     Chuyển đổi địa chỉ thành tọa độ (latitude, longitude) sử dụng Google Maps Geocoding API
@@ -446,7 +512,7 @@ async def calculate_distances_batch_from_coords(lat: float, lng: float, addresse
     # Nếu có địa chỉ cần tính khoảng cách
     if addresses_to_geocode:
         # Geocode tất cả các địa chỉ cùng một lúc
-        geocode_tasks = [geocode_address(addr) for addr, _ in addresses_to_geocode]
+        geocode_tasks = [geocode_address_with_cache(addr) for addr, _ in addresses_to_geocode]
         geocode_results = await asyncio.gather(*geocode_tasks)
         
         # Tính khoảng cách cho từng địa chỉ
