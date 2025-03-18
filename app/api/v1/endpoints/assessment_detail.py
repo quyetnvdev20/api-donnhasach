@@ -288,7 +288,11 @@ async def format_image_document(document_type, image_document):
 
     if image_document:
         for i in image_document:
-            dic_image[i.get('type_document_id')]['id'] = i.get('icac_id') or None
+            if dic_image.get(i.get('type_document_id')):
+                dic_image[i.get('type_document_id')].update({
+                    'id': i.get('icac_id') or None
+                })
+
             if not i.get('type_document_id') or not dic_image.get(i.get('type_document_id')) or not i.get('link'):
                 continue
             dic_image[i.get('type_document_id')]['images'].append({
