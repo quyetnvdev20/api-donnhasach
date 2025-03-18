@@ -136,6 +136,9 @@ async def get_repair_plan_awaiting_list(
             state_conditions.append(f"a.state = ${param_index}")
             params.append('rejected')
             param_index += 1
+
+        if 'to_do' not in state_list and 'rejected' not in state_list:
+            query += " AND (a.state IN ('new', 'rejected'))"
         
         if state_conditions:
             query += " AND (" + " OR ".join(state_conditions) + ")"
@@ -389,6 +392,7 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
             coalesce(line.name, '') as name,
             category.name as category_name,
             category.id as category_id,
+            category.code as category_code,
             line.price_unit_gara as garage_price,
             line.discount as discount_percentage,
             case 
@@ -425,6 +429,7 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
             "item": {
                 "name": detail.get('category_name'),
                 "id": detail.get('category_id'),
+                "code": detail.get('category_code'),
             },
             "type": {
                 "name": category_type_dict.get(detail.get('category_type')),
