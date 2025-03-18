@@ -101,7 +101,7 @@ async def get_repair_plan_awaiting_list(
             b.id as gara_id,
             rp.name gara_name,
             c.location_damage,
-            c.name file_name,
+            a.name file_name,
             concat(rcb.name, ' ', rcm.name, ' ', ic.manufacturer_year, ' - ', ic.license_plate) as vehicle_info,
             rpu.name as submitter,
             ic.car_owner_name
