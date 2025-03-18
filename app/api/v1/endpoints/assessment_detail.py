@@ -174,7 +174,7 @@ async def update_vehicle_detail_assessment(
     response = await odoo.call_method_not_record(
         model='insurance.claim.appraisal.detail',
         method='update_insurance_assessment_detail',
-        token=settings.ODOO_TOKEN,
+        token=current_user.odoo_token,
         kwargs=body
     )
 
