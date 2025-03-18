@@ -99,6 +99,7 @@ class ApprovalHistory(BaseModel):
 class RepairPlanAwaitingDetail(BaseModel):
     id: int
     file_name: Optional[str] = None
+    repair_name: Optional[str] = None
     contract_number: Optional[str] = None
     vehicle_info: Optional[str] = None
     repair_garage_location: RepairGarageLocation

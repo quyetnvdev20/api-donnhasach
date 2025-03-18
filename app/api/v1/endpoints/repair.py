@@ -210,6 +210,7 @@ async def get_repair_plan_awaiting_detail(
     query = """
         select 
             a.id repair_id,
+            a.name as repair_name,
             a.state repair_state,
             a.price_subtotal,
             b.id as gara_id,
@@ -257,6 +258,7 @@ async def get_repair_plan_awaiting_detail(
     # Mock data - replace with actual database query later
     repair_plan_detail = {
         "file_name": res.get('file_name'),
+        "repair_name": res.get('repair_name'),
         "id": res.get('repair_id'),
         "contract_number": res.get('contract_number'),
         "vehicle_info": res.get('vehicle_info'),
