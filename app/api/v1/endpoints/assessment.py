@@ -26,6 +26,12 @@ color = {
     'cancel': '#212121',
 }
 
+STATE_COLOR = {
+    "wait": ("#2196F3", "Đang xử lý"),
+    "done": ("#4CAF50", "Đã xử lý"),
+    "cancel": ("#212121", "Đã hủy")
+}
+
 
 @router.get("/document_type")
 async def get_document_type(
@@ -221,6 +227,7 @@ async def get_assessment_list(
 async def get_assessment_detail(
         assessment_id: int,
         headers: Annotated[CommonHeaders, Header()],
+        invitation_code: Optional[str] = None,
         current_user: dict = Depends(get_current_user)
 ):
     """
@@ -307,6 +314,15 @@ async def get_assessment_detail(
         assessment_detail['assessment_progress'] = assessment_progress
         assessment_detail['status_color'] = color.get(assessment_detail['status'],
                                                       '#757575')  # Default to gray if status not found
+        status = assessment_detail['status']
+        assessment_detail['state'] = {
+            "name": STATE_COLOR.get(status, '#757575')[1] if STATE_COLOR.get(
+                    status) else "Đang xử lý",
+            "code": status,
+            "color_code": STATE_COLOR.get(status, '#757575')[0] if STATE_COLOR.get(
+                    status) else "#2196F3"
+        }
+
         assessment_detail['tasks'] = [{
             "seq": 1,
             "name": "Giám định chi tiết xe",

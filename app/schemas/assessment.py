@@ -45,10 +45,28 @@ class Task(BaseModel):
     icon: str
     status: TaskStatus = None
 
+class UserRequest(BaseModel):
+    name: str
+    phone: str
+    datetime_request: str
+
+class RemoteInspection(BaseModel):
+    name: str
+    phone: str
+    invitation_code: str
+    status: str
+    label: str
+    message: Optional[str] = None
+
+class State(BaseModel):
+    name: str
+    code: str
+    color_code: str
 
 class AssessmentDetail(BaseModel):
     case_number: str
     status: str
+    state : State
     license_plate: Optional[str] = None
     vehicle: Optional[str] = None
     location: Optional[str] = None
@@ -67,6 +85,8 @@ class AssessmentDetail(BaseModel):
     status_color: Optional[str] = "#212121"
     claim_profile_id: Optional[int] = None
     insur_claim_id: Optional[int] = None
+    user_request: Optional[UserRequest] = None
+    list_remote_inspection: Optional[List[RemoteInspection]] = None
 
 
 # Models for Vehicle Detail Assessment
