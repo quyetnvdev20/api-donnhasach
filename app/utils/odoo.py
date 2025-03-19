@@ -100,7 +100,7 @@ class RequestOdoo():
                 if result.get('exception_type') == 'Invalid User Token':
                     raise UnauthorizedError("Invalid User Token")
                 if result.get('exception_type') == 'AccessError':
-                    raise UnauthorizedError("Bạn không có quyền thực hiện hành động này")
+                    raise UserError("Bạn không có quyền thực hiện hành động này")
                 raise UserError(res_data)
             if 'success' in result:
                 res_data = result.get('success')
