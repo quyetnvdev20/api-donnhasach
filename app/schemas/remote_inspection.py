@@ -37,14 +37,14 @@ class ValidateInvitationResponse(BaseModel):
     data: ValidateInvitationDetail
 
 
-class DoneInvitationRequest(BaseModel):
+class ActionInvitationRequest(BaseModel):
     invitation_code: str
     assessment_id: int
 
 
-class DoneInvitationDetail(BaseModel):
+class ActionInvitationDetail(BaseModel):
     id: int
 
 
-class DoneInvitationResponse(BaseModel):
-    data: DoneInvitationDetail
+class ActionInvitationResponse(BaseModel):
+    data: ActionInvitationDetail
