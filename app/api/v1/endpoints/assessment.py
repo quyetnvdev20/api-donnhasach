@@ -6,10 +6,11 @@ from datetime import datetime
 from ....database import get_db
 from ...deps import get_current_user
 from ....schemas.assessment import AssessmentListItem, VehicleDetailAssessment, AssessmentDetail, DocumentCollection, \
-    DocumentResponse, DocumentUpload, DocumentType, UpdateAssessmentItemResponse, AssessmentStatus
+    DocumentResponse, DocumentUpload, DocumentType, UpdateAssessmentItemResponse, AssessmentStatus, Location
 from ....schemas.common import CommonHeaders
 from ....utils.erp_db import PostgresDB
-from ....utils.distance_calculator import calculate_distance_from_coords_to_address_with_cache, format_distance, calculate_distances_batch_from_coords
+from ....utils.distance_calculator import calculate_distance_from_coords_to_address_with_cache, format_distance, \
+    calculate_distances_batch_from_coords, geocode_address
 import json, random
 import httpx
 import logging
@@ -240,6 +241,7 @@ async def get_assessment_detail(
                     NULLIF(province.name, '')
                 ) AS location,
                 rpg.display_name AS assessment_address,
+                rpg_partner.street AS gara_address,
                 contact.name AS owner_name,
                 icr.phone_contact AS phone_number,
                 gd_chi_tiet.state AS status,
@@ -255,6 +257,7 @@ async def get_assessment_detail(
             FROM insurance_claim_appraisal_detail gd_chi_tiet
             LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
             LEFT JOIN res_partner_gara rpg ON rpg.id = gd_chi_tiet.gara_partner_id
+            LEFT JOIN res_partner rpg_partner ON rpg.partner_id = rpg_partner.id
             LEFT JOIN res_partner contact ON contact.id = icr.person_contact_id
             LEFT JOIN res_car rc ON rc.id = gd_chi_tiet.car_id
             LEFT JOIN res_car_brand rcb ON rcb.id = rc.car_brand_id
@@ -290,10 +293,13 @@ async def get_assessment_detail(
         get_accident_notification_status(assessment_id),
         get_assessment_report_status(assessment_id)
     )
-    
+
     if assessment_detail:
         assessment_detail = assessment_detail[0]
-        
+
+        if assessment_detail['gara_address']:
+            location = await geocode_address(assessment_detail['gara_address'])
+            assessment_detail['gara_address'] = Location(lat=location[0], lon=location[1])
         assessment_progress = 0
         if detail_status.get("name") == "completed":
             assessment_progress += 25
