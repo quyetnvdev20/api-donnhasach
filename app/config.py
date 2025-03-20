@@ -57,6 +57,9 @@ class Settings(BaseSettings):
 
     # Google Maps API
     GOOGLE_MAPS_API_KEY: str = ""
+
+    # Distance limit
+    USER_GARAGE_DISTANCE_LIMIT: int = 100
     
     @property
     def DATABASE_URL(self) -> str:
