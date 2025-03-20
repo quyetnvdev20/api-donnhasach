@@ -17,6 +17,7 @@ from zoneinfo import ZoneInfo
 import aiohttp
 import os
 from app.utils.redis_client import redis_client as redis_client_instance
+import json
 
 
 logger = logging.getLogger(__name__)
@@ -30,22 +31,78 @@ def generate_invitation_code():
 
 async def get_and_save_access_token(user_id):
     """Get and save access token asynchronously from Tasco API.
+    
+    Args:
+        user_id: User ID to get access token
+        
+    Returns:
+        str: Access token
+        
+    Raises:
+        HTTPException: If API call fails
     """
+    try:
+        url = f"{os.getenv('INSURANCE_API_URL')}/super-auth/user/access-token?user_id={user_id}"
+        headers = {
+            'X-API-KEY': f"{os.getenv('KEYCLOAK_API_KEY')}"
+        }
 
-    url = f"{os.getenv('INSURANCE_API_URL')}/super-auth/user/access-token?user_id={user_id}"
-
-    headers = {
-        'X-API-KEY': f"{os.getenv('KEYCLOAK_API_KEY')}"
-    }
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=headers) as response:
-            data = await response.json()
-            access_token = data.get('access_token')
-            return access_token
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status != 200:
+                    logger.error(f"Failed to get access token for user {user_id}. Status: {response.status}")
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail="Failed to get access token from authentication service"
+                    )
+                    
+                data = await response.json()
+                access_token = data.get('access_token')
+                if not access_token:
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail="Invalid response from authentication service"
+                    )
+                return access_token
+                
+    except aiohttp.ClientError as e:
+        logger.error(f"Network error while getting access token: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Failed to connect to authentication service"
+        )
 
 def get_cache_key(code):
     return f"remote_inspection_{code}"
+
+
+async def generate_unique_invitation_code(redis_client, max_attempts: int = 10):
+    """Generate a unique invitation code that doesn't exist in Redis.
+    
+    Args:
+        redis_client: Redis client instance
+        max_attempts: Maximum number of attempts to generate unique code. Defaults to 10.
+        
+    Returns:
+        tuple: (invitation_code, cache_key)
+        
+    Raises:
+        HTTPException: If unable to generate unique code after max attempts
+    """
+    attempts = 0
+    while attempts < max_attempts:
+        invitation_code = generate_invitation_code()
+        cache_key = get_cache_key(invitation_code)
+        exists = await redis_client.exists(cache_key)
+        if not exists:
+            return invitation_code, cache_key
+        attempts += 1
+    
+    logger.error(f"Failed to generate unique invitation code after {max_attempts} attempts")
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail=f"Unable to generate unique invitation code after {max_attempts} attempts"
+    )
 
 
 @router.post("/create-invitation",
@@ -56,35 +113,41 @@ async def create_invitation(
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
-    invitation_code = generate_invitation_code()
+    invitation_code, cache_key = await generate_unique_invitation_code(redis_client_instance)
+    
     expire_at = datetime.now(tz=ZoneInfo("UTC")) + timedelta(days=1)
     expire_at_str = expire_at.strftime("%Y-%m-%d %H:%M:%S")
 
-    cache_key = get_cache_key(invitation_code)
-    access_token = await get_and_save_access_token(current_user.uid)
-    vals = {
-        'access_token': access_token,
-        'assessment_id': create_invitation_vals.assessment_id
-    }
-    await redis_client_instance.set(cache_key, str(vals))
-
     odoo_vals = {
-        'remote_inspection_ids': [(0, 0, {
-            'name': create_invitation_vals.expert_name,
-            'phone': create_invitation_vals.expert_phone,
-            'invitation_code': invitation_code,
-            'expire_at': expire_at_str,
-        })]
+        'name': create_invitation_vals.expert_name,
+        'phone': create_invitation_vals.expert_phone,
+        'invitation_code': invitation_code,
+        'expire_at': expire_at_str,
+        'appraisal_detail_id': create_invitation_vals.assessment_id,
     }
 
-    response = await odoo.update_method(
-        model='insurance.claim.appraisal.detail',
-        record_id=create_invitation_vals.assessment_id,
+    response = await odoo.create_method(
+        model='insurance.claim.remote.inspection',
         vals=odoo_vals,
         token=current_user.odoo_token,
     )
 
     if response:
+        access_token = await get_and_save_access_token(current_user.uid)
+
+        # Lưu vào Redis dưới dạng JSON
+        cache_data = {
+            'access_token': access_token,
+            'assessment_id': create_invitation_vals.assessment_id,
+            'odoo_token': current_user.odoo_token,
+            'res_id': response.get('id')
+        }
+
+        await redis_client_instance.set(
+            cache_key,
+            json.dumps(cache_data),
+            expiry=86400  # 24 giờ in seconds
+        )
         local_expire_at = expire_at.astimezone(headers.time_zone)
         vals = {
             "invitation_code": invitation_code,
@@ -101,13 +164,59 @@ async def validate_invitation(
         validate_invitation_vals: ValidateInvitationRequest = Body(...),
         db: Session = Depends(get_db)
 ):
-    vals = {
-        "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICI3d1pHZmJDWlQxUGg1YVNzSXF1NkN4TWpIa3NmZE5Qa0FLb3doLUlnY0FNIn0.eyJleHAiOjE3NzM5MDg4MTcsImlhdCI6MTc0MjM3MjgxNywianRpIjoiNzYwYmNhM2YtZTc0MC00YWIzLWE0NjAtMjEzMjYzZDk4ZTM3IiwiaXNzIjoiaHR0cHM6Ly9kZXYtc3NvLmJhb2hpZW10YXNjby52bi9yZWFsbXMvbWFzdGVyIiwiYXVkIjoiYWNjb3VudCIsInN1YiI6IjQ0YTBkNGY3LTY3NDUtNDY4MS1hNTExLTZkY2JmNTg3MWQ5YyIsInR5cCI6IkJlYXJlciIsImF6cCI6InRhc2NvLWluc3VyYW5jZS1kZXYiLCJzZXNzaW9uX3N0YXRlIjoiNzFiYWM5MTAtNDdjNy00ZGQzLTg5Y2QtNDM5ZmMyNDc1NWNhIiwiYWNyIjoiMSIsImFsbG93ZWQtb3JpZ2lucyI6WyIiLCIqIl0sInJlYWxtX2FjY2VzcyI6eyJyb2xlcyI6WyJkZWZhdWx0LXJvbGVzLW1hc3RlciIsIm9mZmxpbmVfYWNjZXNzIiwidW1hX2F1dGhvcml6YXRpb24iXX0sInJlc291cmNlX2FjY2VzcyI6eyJhY2NvdW50Ijp7InJvbGVzIjpbIm1hbmFnZS1hY2NvdW50IiwibWFuYWdlLWFjY291bnQtbGlua3MiLCJ2aWV3LXByb2ZpbGUiXX19LCJzY29wZSI6Im9wZW5pZCBwcm9maWxlIGVtYWlsIiwic2lkIjoiNzFiYWM5MTAtNDdjNy00ZGQzLTg5Y2QtNDM5ZmMyNDc1NWNhIiwiZW1haWxfdmVyaWZpZWQiOmZhbHNlLCJ1c2VyX2lkIjoiNDRhMGQ0ZjctNjc0NS00NjgxLWE1MTEtNmRjYmY1ODcxZDljIiwibmFtZSI6IkjGsMahbmcgR2lhbmciLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiIwMzg4NjA4ODMzIiwiZ2l2ZW5fbmFtZSI6IkjGsMahbmcgR2lhbmcifQ.Ews3guwVgGIhQe2vLAHS0gDiqizPiedEW7x9HGiLmoPzE_AjWi_jgUhryexHaJDhLOJtXXJd82yKIUEybCWmZfMzWHg7SQM_MEszZfL4Snev4HUgeDitJMH5j9K0-OmiuX0VRAvzjb4LmI6PDswm5Nd-CcXTIYP3NkO8hA1M9DYAunzJgnfbqtTQuvPEbBrUyoDa5S-53xAF3DtQbwrjPAdukiFIX56TlDLriNXYEH2N7oa3yWRycWfK_oWDydRAnUDVHGKmosQuHfPBrC6jGqfuG_T0Z5o16TgHOgeEdxeInhqsM0zYM15rtmRhW0RIEAi1kJaQV2MT7GjShPqE9Q",
-        "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICI4ODk3MDE0YS01YWU4LTQ1MWItYmUxYi1lNzY3MjljNjI4NWIifQ.eyJleHAiOjE3NzM5MDg4MTcsImlhdCI6MTc0MjM3MjgxNywianRpIjoiNWFlODgyMzQtNGExNy00MmI0LTk1YzQtN2M3MmUyOTk4OThiIiwiaXNzIjoiaHR0cHM6Ly9kZXYtc3NvLmJhb2hpZW10YXNjby52bi9yZWFsbXMvbWFzdGVyIiwiYXVkIjoiaHR0cHM6Ly9kZXYtc3NvLmJhb2hpZW10YXNjby52bi9yZWFsbXMvbWFzdGVyIiwic3ViIjoiNDRhMGQ0ZjctNjc0NS00NjgxLWE1MTEtNmRjYmY1ODcxZDljIiwidHlwIjoiUmVmcmVzaCIsImF6cCI6InRhc2NvLWluc3VyYW5jZS1kZXYiLCJzZXNzaW9uX3N0YXRlIjoiNzFiYWM5MTAtNDdjNy00ZGQzLTg5Y2QtNDM5ZmMyNDc1NWNhIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCIsInNpZCI6IjcxYmFjOTEwLTQ3YzctNGRkMy04OWNkLTQzOWZjMjQ3NTVjYSJ9.fS9LIDY_QEgio7iSsit9gTmgbRhSS62oZlB-2sY6gus",
-        "expires_in": 86400,
-        "assessment_id": 5922
+    """Validate invitation code and return access information.
+    
+    Args:
+        validate_invitation_vals: Request containing invitation code
+        db: Database session
+        
+    Returns:
+        ValidateInvitationResponse: Access information if valid
+        
+    Raises:
+        HTTPException: If invitation code is invalid or expired
+    """
+    cache_key = get_cache_key(validate_invitation_vals.invitation_code)
+
+    # Kiểm tra xem invitation code có tồn tại trong cache không
+    if not await redis_client_instance.exists(cache_key):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invalid or expired invitation code"
+        )
+
+    # Lấy cached data
+    cached_data = await redis_client_instance.get(cache_key)
+
+    # Kiểm tra các trường bắt buộc trong cached data
+    if not all(key in cached_data for key in ['access_token', 'assessment_id']):
+        logger.error(f"Missing required fields in cached data for key: {cache_key}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Invalid invitation data format"
+        )
+
+    odoo_vals = {
+        'face_image_url': validate_invitation_vals.face_image_url,
+        # 'capture_time': validate_invitation_vals.capture_time
     }
-    return ValidateInvitationResponse(data=vals)
+
+    response = await odoo.update_method(
+        model='insurance.claim.remote.inspection',
+        record_id=cached_data['res_id'],
+        vals=odoo_vals,
+        token=cached_data['odoo_token'],
+    )
+    if response:
+        vals = {
+            "access_token": cached_data['access_token'],
+            "refresh_token": None,  # Có thể thêm logic refresh token nếu cần
+            "expires_in": 86400,  # 24 hours in seconds
+            "assessment_id": cached_data['assessment_id']
+        }
+        return ValidateInvitationResponse(data=vals)
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to validate invitation")
 
 
 @router.post("/done",

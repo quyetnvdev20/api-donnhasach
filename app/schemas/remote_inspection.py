@@ -28,7 +28,7 @@ class ValidateInvitationRequest(BaseModel):
 
 class ValidateInvitationDetail(BaseModel):
     access_token: str
-    refresh_token: str
+    refresh_token: Optional[str] = None
     expires_in: int
     assessment_id: int
 
