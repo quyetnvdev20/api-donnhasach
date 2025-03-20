@@ -237,10 +237,19 @@ async def done_remote_inspection(
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
-    vals = {
-        "id": 5922
-    }
-    return ActionInvitationResponse(data=vals)
+    assessment_id = done_invitation_vals.assessment_id
+    response = await odoo.call_method_post(
+        record_id=assessment_id,
+        model='insurance.claim.appraisal.detail',
+        method='action_done_remote_inspection_api',
+        token=current_user.odoo_token,
+        kwargs={'invitation_id': done_invitation_vals.invitation_code}
+    )
+    if response:
+        return ActionInvitationResponse(id=assessment_id)
+    else:
+        raise Exception(response.get("message"))
+
 
 
 @router.post("/cancel",
