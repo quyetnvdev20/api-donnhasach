@@ -510,7 +510,7 @@ async def assign_appraiser(
 @router.get("/check-distance")
 async def check_distance(
     headers: Annotated[CommonHeaders, Header()],
-    assessment_id: str,
+    assessment_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -533,6 +533,21 @@ async def check_distance(
         )
     
     try:
+        # Convert assessment_id to integer
+        if not assessment_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="assessment_id is required"
+            )
+            
+        try:
+            assessment_id_int = int(assessment_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="assessment_id must be a valid integer"
+            )
+        
         # Get assessment's garage address
         assessment_detail = await PostgresDB.execute_query(
             """
@@ -542,7 +557,7 @@ async def check_distance(
             LEFT JOIN res_partner rpg_partner ON rpg.partner_id = rpg_partner.id
             WHERE gd_chi_tiet.id = $1
             """,
-            [assessment_id]
+            [assessment_id_int]
         )
         # Check if assessment detail is found
         if not assessment_detail:
