@@ -510,7 +510,7 @@ async def assign_appraiser(
 @router.get("/check-distance")
 async def check_distance(
     headers: Annotated[CommonHeaders, Header()],
-    request: DistanceCheckRequest,
+    assessment_id: int,
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -542,7 +542,7 @@ async def check_distance(
             LEFT JOIN res_partner rpg_partner ON rpg.partner_id = rpg_partner.id
             WHERE gd_chi_tiet.id = $1
             """,
-            [request.assessment_id]
+            [assessment_id]
         )
         # Check if assessment detail is found
         if not assessment_detail:
