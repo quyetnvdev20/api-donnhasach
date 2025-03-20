@@ -87,6 +87,7 @@ async def get_assessment_list(
     # TODO: Remove this after testing Latitude and Longitude Tasco
     latitude = headers.latitude or 21.015853129655014
     longitude = headers.longitude or 105.78303779624088
+    logger.info(f"latitude: {latitude}, longitude: {longitude}")
     
     # Kiểm tra xem có tọa độ người dùng không
     has_user_location = latitude is not None and longitude is not None
