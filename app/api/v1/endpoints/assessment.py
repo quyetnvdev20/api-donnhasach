@@ -493,7 +493,7 @@ async def assign_appraiser(
 @router.get("/check-distance")
 async def check_distance(
     headers: Annotated[CommonHeaders, Header()],
-    assessment_id: int,
+    assessment_id: str,
     current_user: dict = Depends(get_current_user)
 ):
     """
