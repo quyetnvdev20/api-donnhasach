@@ -227,3 +227,12 @@ class OCRQuoteItem(BaseModel):
 class OCRQuoteResponse(BaseModel):
     url_cvs: str
     data: List[OCRQuoteItem] = []
+
+class AssignAppraisalRequest(BaseModel):
+    user_id: int
+    branch_id: int
+
+
+class AssignAppraisalResponse(BaseModel):
+    success: bool
+    message: str

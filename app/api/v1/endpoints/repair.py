@@ -19,7 +19,7 @@ STATE_COLOR = {
     "new": ("#84d9d8", "Mới"),
     "pending": ("#faad14", "Chờ duyệt"),
     "approved": ("#52c41a", "Đã duyệt"),
-    "rejected": ("#f5222d", "Từ chối")
+    "rejected": ("#f5222d", "Trả lại")
 }
 
 CATEGORIES_COLOR = {
@@ -101,7 +101,7 @@ async def get_repair_plan_awaiting_list(
             b.id as gara_id,
             rp.name gara_name,
             c.location_damage,
-            c.name file_name,
+            a.name file_name,
             concat(rcb.name, ' ', rcm.name, ' ', ic.manufacturer_year, ' - ', ic.license_plate) as vehicle_info,
             rpu.name as submitter,
             ic.car_owner_name
@@ -136,6 +136,9 @@ async def get_repair_plan_awaiting_list(
             state_conditions.append(f"a.state = ${param_index}")
             params.append('rejected')
             param_index += 1
+
+        if 'to_do' not in state_list and 'rejected' not in state_list:
+            query += " AND (a.state IN ('new', 'rejected'))"
         
         if state_conditions:
             query += " AND (" + " OR ".join(state_conditions) + ")"
@@ -207,6 +210,7 @@ async def get_repair_plan_awaiting_detail(
     query = """
         select 
             a.id repair_id,
+            a.name as repair_name,
             a.state repair_state,
             a.price_subtotal,
             b.id as gara_id,
@@ -254,6 +258,7 @@ async def get_repair_plan_awaiting_detail(
     # Mock data - replace with actual database query later
     repair_plan_detail = {
         "file_name": res.get('file_name'),
+        "repair_name": res.get('repair_name'),
         "id": res.get('repair_id'),
         "contract_number": res.get('contract_number'),
         "vehicle_info": res.get('vehicle_info'),
@@ -389,6 +394,7 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
             coalesce(line.name, '') as name,
             category.name as category_name,
             category.id as category_id,
+            category.code as category_code,
             line.price_unit_gara as garage_price,
             line.discount as discount_percentage,
             case 
@@ -425,6 +431,7 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
             "item": {
                 "name": detail.get('category_name'),
                 "id": detail.get('category_id'),
+                "code": detail.get('category_code'),
             },
             "type": {
                 "name": category_type_dict.get(detail.get('category_type')),

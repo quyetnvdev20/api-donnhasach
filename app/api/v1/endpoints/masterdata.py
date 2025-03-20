@@ -54,6 +54,8 @@ async def get_garage_list(
         if search:
             query += " AND (LOWER(rpg.display_name) LIKE $1)"
             params.append(f"%{search.lower()}%")
+        # TODO: Remove this after testing Latitude and Longitude Tasco
+        query += " order by rpg.id desc limit 1000"
 
         # Thực hiện truy vấn để lấy tất cả gara phù hợp với điều kiện tìm kiếm
         result = await PostgresDB.execute_query(query, params)
