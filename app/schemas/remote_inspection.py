@@ -46,7 +46,7 @@ class ValidateInvitationResponse(BaseModel):
 
 
 class DoneInvitationRequest(BaseModel):
-    invitation_id: int
+    assessment_id: int
 
 
 class DeleteInvitationRequest(BaseModel):

@@ -233,6 +233,7 @@ async def save_face_image(
 @router.post("/done",
              response_model=ActionInvitationResponse)
 async def done_remote_inspection(
+        headers: Annotated[CommonHeaders, Header()],
         done_invitation_vals: DoneInvitationRequest = Body(...),
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
@@ -243,13 +244,12 @@ async def done_remote_inspection(
         model='insurance.claim.appraisal.detail',
         method='action_done_remote_inspection_api',
         token=current_user.odoo_token,
-        kwargs={'invitation_id': done_invitation_vals.invitation_code}
+        kwargs={'invitation_code': headers.invitation_code}
     )
     if response:
-        return ActionInvitationResponse(id=assessment_id)
+        return ActionInvitationResponse(data={'id': assessment_id})
     else:
         raise Exception(response.get("message"))
-
 
 
 @router.post("/cancel",
