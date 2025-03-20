@@ -224,11 +224,12 @@ class Odoo(RequestOdoo):
     async def create_method(self, model, vals, token=None):
         if not token:
             token = self.config['ODOO_TOKEN']
-        url = '{0}/api/{1}/create?token={2}'.format(self.config['ODOO_URL'], model, token)
+        url = '{0}/api/{1}/create'.format(self.config['ODOO_URL'], model)
+        data = {'params': {'create_vals': vals, 'token': token}}
         try:
             _logger.info('create_method.url={}'.format(url))
             _logger.info('create_method.vals={}'.format(vals))
-            return await self.post(url, vals)
+            return await self.post(url, data=data)
         except Exception as ex:
             _logger.error('create_method.Exception.url={}'.format(url))
             _logger.error('create_method.Exception.ex={}'.format(ex))
