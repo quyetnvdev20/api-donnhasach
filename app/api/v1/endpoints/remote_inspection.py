@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Query, Header
 from sqlalchemy.orm import Session
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Annotated
 from ...deps import get_current_user
 from ....config import settings, odoo
 from ....database import get_db
@@ -9,24 +9,90 @@ from ....schemas.remote_inspection import CreateInvitationRequest, CreateInvitat
 import logging
 import asyncio
 from ....utils.erp_db import PostgresDB
+import random
+import string
+from datetime import datetime, timedelta
+from ....schemas.common import CommonHeaders
+from zoneinfo import ZoneInfo
+import aiohttp
+import os
+from app.utils.redis_client import redis_client as redis_client_instance
+
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
+def generate_invitation_code():
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=3))
+
+
+async def get_and_save_access_token(user_id):
+    """Get and save access token asynchronously from Tasco API.
+    """
+
+    url = f"{os.getenv('INSURANCE_API_URL')}/super-auth/user/access-token?user_id={user_id}"
+
+    headers = {
+        'X-API-KEY': f"{os.getenv('KEYCLOAK_API_KEY')}"
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers) as response:
+            data = await response.json()
+            access_token = data.get('access_token')
+            return access_token
+
+def get_cache_key(code):
+    return f"remote_inspection_{code}"
+
+
 @router.post("/create-invitation",
              response_model=CreateInvitationResponse)
 async def create_invitation(
+        headers: Annotated[CommonHeaders, Header()],
         create_invitation_vals: CreateInvitationRequest = Body(...),
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
+    invitation_code = generate_invitation_code()
+    expire_at = datetime.now(tz=ZoneInfo("UTC")) + timedelta(days=1)
+    expire_at_str = expire_at.strftime("%Y-%m-%d %H:%M:%S")
+
+    cache_key = get_cache_key(invitation_code)
+    access_token = await get_and_save_access_token(current_user.uid)
     vals = {
-        "invitation_code": "A1Z",
-        "expire_at": "2025-03-20 10:00:00"
+        'access_token': access_token,
+        'assessment_id': create_invitation_vals.assessment_id
     }
-    return CreateInvitationResponse(data=vals)
+    await redis_client_instance.set(cache_key, str(vals))
+
+    odoo_vals = {
+        'remote_inspection_ids': [(0, 0, {
+            'name': create_invitation_vals.expert_name,
+            'phone': create_invitation_vals.expert_phone,
+            'invitation_code': invitation_code,
+            'expire_at': expire_at_str,
+        })]
+    }
+
+    response = await odoo.update_method(
+        model='insurance.claim.appraisal.detail',
+        record_id=create_invitation_vals.assessment_id,
+        vals=odoo_vals,
+        token=current_user.odoo_token,
+    )
+
+    if response:
+        local_expire_at = expire_at.astimezone(headers.time_zone)
+        vals = {
+            "invitation_code": invitation_code,
+            "expire_at": local_expire_at.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        return CreateInvitationResponse(data=vals, status="Success")
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to create invitation")
 
 
 @router.post("/validate-invitation",

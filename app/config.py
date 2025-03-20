@@ -57,7 +57,8 @@ class Settings(BaseSettings):
 
     # Google Maps API
     GOOGLE_MAPS_API_KEY: str = ""
-    
+    KEYCLOAK_API_KEY: str = ""
+
     @property
     def DATABASE_URL(self) -> str:
         return self.POSTGRES_DATABASE_URL
