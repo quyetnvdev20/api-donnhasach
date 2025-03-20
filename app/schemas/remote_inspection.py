@@ -17,13 +17,13 @@ class CreateInvitationDetail(BaseModel):
 
 class CreateInvitationResponse(BaseModel):
     data: CreateInvitationDetail
+    status: str = ""
 
 
 class ValidateInvitationRequest(BaseModel):
     invitation_code: str
     face_image_url: str
     capture_time: str
-    assessment_id: int
 
 
 class ValidateInvitationDetail(BaseModel):
