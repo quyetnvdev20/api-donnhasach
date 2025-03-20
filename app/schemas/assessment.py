@@ -2,7 +2,7 @@ from enum import Enum
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from datetime import datetime
-
+from app.config import settings
 
 # Models for Assessment List
 class AssessmentListItem(BaseModel):
@@ -233,3 +233,15 @@ class OCRQuoteItem(BaseModel):
 class OCRQuoteResponse(BaseModel):
     url_cvs: str
     data: List[OCRQuoteItem] = []
+
+class AssignAppraisalRequest(BaseModel):
+    user_id: int
+    branch_id: int
+
+
+class AssignAppraisalResponse(BaseModel):
+    success: bool
+    message: str
+
+class DistanceCheckRequest(BaseModel):
+    assessment_id: int

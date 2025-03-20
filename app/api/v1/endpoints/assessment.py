@@ -6,7 +6,7 @@ from datetime import datetime
 from ....database import get_db
 from ...deps import get_current_user
 from ....schemas.assessment import AssessmentListItem, VehicleDetailAssessment, AssessmentDetail, DocumentCollection, \
-    DocumentResponse, DocumentUpload, DocumentType, UpdateAssessmentItemResponse, AssessmentStatus, Location
+    DocumentResponse, DocumentUpload, DocumentType, UpdateAssessmentItemResponse, AssessmentStatus, Location, AssignAppraisalRequest, AssignAppraisalResponse, DistanceCheckRequest
 from ....schemas.common import CommonHeaders
 from ....utils.erp_db import PostgresDB
 from ....utils.distance_calculator import calculate_distance_from_coords_to_address_with_cache, calculate_distance_haversine, format_distance, \
@@ -301,10 +301,6 @@ async def get_assessment_detail(
         if assessment_detail['gara_address']:
             location = await geocode_address(assessment_detail['gara_address'])
             assessment_detail['gara_address'] = Location(lat=location[0], lon=location[1])
-            # Tính khoảng cách từ vị trí người dùng đến gara
-            distance = calculate_distance_haversine(latitude, longitude, assessment_detail['gara_address'].lat, assessment_detail['gara_address'].lon)
-            assessment_detail['current_distance'] = distance
-            assessment_detail['distance_limit'] = settings.USER_GARAGE_DISTANCE_LIMIT
         assessment_progress = 0
         if detail_status.get("name") == "completed":
             assessment_progress += 25
@@ -453,3 +449,114 @@ async def update_garage(
         }
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    
+@router.post("/{assessment_id}/assign-appraiser", response_model=AssignAppraisalResponse)
+async def assign_appraiser(
+    assessment_id: int,
+    request: AssignAppraisalRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Điều chuyển giám định viên
+    
+    Parameters:
+    - assessment_id: ID GĐCT
+    - request: Thông tin giám định viên được điều chuyển
+    
+    Returns:
+    - Kết quả điều chuyển
+    """
+    try:
+        # Gọi API của Odoo để điều chuyển giám định viên
+        response = await odoo.call_method_post(
+            record_id=assessment_id,
+            model='insurance.claim.appraisal.detail',
+            method='assign_appraisal_api',
+            token=current_user.odoo_token,
+            kwargs={
+                'user_id': request.user_id,
+                'branch_id': request.branch_id,
+            }
+        )
+        return {
+            "success": True,
+            "message": "Điều chuyển giám định viên thành công"
+        }
+    
+    except Exception as e:
+        logger.error(f"Error assigning appraiser: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Điều chuyển giám định viên thất bại: {str(e)}"
+        )
+
+@router.get("/check-distance")
+async def check_distance(
+    headers: Annotated[CommonHeaders, Header()],
+    request: DistanceCheckRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Check distance between user's current location and a garage address
+    
+    Parameters:
+    - assessment_id: ID GĐCT
+    - headers: Common headers including user's location (latitude, longitude)
+    
+    Returns:
+    - Distance information and whether it's within allowed limit
+    """
+    latitude, longitude = headers.latitude, headers.longitude
+    
+    # Validate user has location data
+    if not latitude or not longitude:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User location (latitude and longitude) is required"
+        )
+    
+    try:
+        # Get assessment's garage address
+        assessment_detail = await PostgresDB.execute_query(
+            """
+            SELECT rpg_partner.street AS gara_address
+            FROM insurance_claim_appraisal_detail gd_chi_tiet
+            LEFT JOIN res_partner_gara rpg ON rpg.id = gd_chi_tiet.gara_partner_id
+            LEFT JOIN res_partner rpg_partner ON rpg.partner_id = rpg_partner.id
+            WHERE gd_chi_tiet.id = $1
+            """,
+            [request.assessment_id]
+        )
+        # Check if assessment detail is found
+        if not assessment_detail:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Assessment detail not found"
+            )
+        
+        # Get garage coordinates
+        location = await geocode_address(assessment_detail[0]['gara_address'])
+        
+        # Calculate distance
+        distance = calculate_distance_haversine(
+            float(latitude), 
+            float(longitude), 
+            location[0], 
+            location[1]
+        )
+        
+        # Check if within distance limit
+        is_within_limit = distance <= settings.USER_GARAGE_DISTANCE_LIMIT
+        
+        return {
+            "garage_location": Location(lat=location[0], lon=location[1]),
+            "current_distance": distance,
+            "distance_limit": settings.USER_GARAGE_DISTANCE_LIMIT,
+            "is_within_limit": is_within_limit
+        }
+    except Exception as e:
+        logger.error(f"Error checking distance: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error checking distance: {str(e)}"
+        )
