@@ -5,7 +5,7 @@ from ...deps import get_current_user
 from ....config import settings, odoo
 from ....database import get_db
 from ....schemas.remote_inspection import CreateInvitationRequest, CreateInvitationResponse, ValidateInvitationRequest, \
-    ValidateInvitationResponse, ActionInvitationResponse, ActionInvitationRequest
+    ValidateInvitationResponse, ActionInvitationResponse, DoneInvitationRequest, DeleteInvitationRequest, SaveImageRequest, SaveImageResponse
 import logging
 import asyncio
 from ....utils.erp_db import PostgresDB
@@ -196,33 +196,45 @@ async def validate_invitation(
             detail="Invalid invitation data format"
         )
 
+    vals = {
+        "access_token": cached_data['access_token'],
+        "refresh_token": None,  # Có thể thêm logic refresh token nếu cần
+        "expires_in": 86400,  # 24 hours in seconds
+        "assessment_id": cached_data['assessment_id'],
+        "invitation_id": cached_data['res_id'],
+    }
+    return ValidateInvitationResponse(data=vals)
+
+
+@router.post("/save-face-image",
+             response_model=SaveImageResponse)
+async def save_face_image(
+        save_image_vals: SaveImageRequest = Body(...),
+        db: Session = Depends(get_db),
+        current_user: dict = Depends(get_current_user)
+):
     odoo_vals = {
-        'face_image_url': validate_invitation_vals.face_image_url,
+        'face_image_url': save_image_vals.face_image_url,
         # 'capture_time': validate_invitation_vals.capture_time
     }
 
     response = await odoo.update_method(
         model='insurance.claim.remote.inspection',
-        record_id=cached_data['res_id'],
+        record_id=save_image_vals.invitation_id,
         vals=odoo_vals,
-        token=cached_data['odoo_token'],
+        token=current_user.odoo_token,
     )
     if response:
-        vals = {
-            "access_token": cached_data['access_token'],
-            "refresh_token": None,  # Có thể thêm logic refresh token nếu cần
-            "expires_in": 86400,  # 24 hours in seconds
-            "assessment_id": cached_data['assessment_id']
-        }
-        return ValidateInvitationResponse(data=vals)
+        return SaveImageResponse(id=save_image_vals.invitation_id)
     else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to validate invitation")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to save face image")
 
 
 @router.post("/done",
              response_model=ActionInvitationResponse)
 async def done_remote_inspection(
-        done_invitation_vals: ActionInvitationRequest = Body(...),
+        headers: Annotated[CommonHeaders, Header()],
+        done_invitation_vals: DoneInvitationRequest = Body(...),
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
@@ -232,19 +244,18 @@ async def done_remote_inspection(
         model='insurance.claim.appraisal.detail',
         method='action_done_remote_inspection_api',
         token=current_user.odoo_token,
-        kwargs={'invitation_id': done_invitation_vals.invitation_code}
+        kwargs={'invitation_code': headers.invitation_code}
     )
     if response:
-        return ActionInvitationResponse(id=assessment_id)
+        return ActionInvitationResponse(data={'id': assessment_id})
     else:
         raise Exception(response.get("message"))
-
 
 
 @router.post("/cancel",
              response_model=ActionInvitationResponse)
 async def cancel_remote_inspection(
-        done_invitation_vals: ActionInvitationRequest = Body(...),
+        delete_invitation_vals: DeleteInvitationRequest = Body(...),
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
