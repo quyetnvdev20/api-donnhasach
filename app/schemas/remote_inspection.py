@@ -22,8 +22,15 @@ class CreateInvitationResponse(BaseModel):
 
 class ValidateInvitationRequest(BaseModel):
     invitation_code: str
+
+class SaveImageRequest(BaseModel):
     face_image_url: str
     capture_time: str
+    invitation_id: int
+
+
+class SaveImageResponse(BaseModel):
+    id: int
 
 
 class ValidateInvitationDetail(BaseModel):
@@ -31,15 +38,19 @@ class ValidateInvitationDetail(BaseModel):
     refresh_token: Optional[str] = None
     expires_in: int
     assessment_id: int
+    invitation_id: int
 
 
 class ValidateInvitationResponse(BaseModel):
     data: ValidateInvitationDetail
 
 
-class ActionInvitationRequest(BaseModel):
-    invitation_code: str
-    assessment_id: int
+class DoneInvitationRequest(BaseModel):
+    invitation_id: int
+
+
+class DeleteInvitationRequest(BaseModel):
+    id: int
 
 
 class ActionInvitationDetail(BaseModel):
