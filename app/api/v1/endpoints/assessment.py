@@ -9,7 +9,7 @@ from ....schemas.assessment import AssessmentListItem, VehicleDetailAssessment, 
     DocumentResponse, DocumentUpload, DocumentType, UpdateAssessmentItemResponse, AssessmentStatus, Location, AssignAppraisalRequest, AssignAppraisalResponse
 from ....schemas.common import CommonHeaders
 from ....utils.erp_db import PostgresDB
-from ....utils.distance_calculator import calculate_distance_from_coords_to_address_with_cache, format_distance, \
+from ....utils.distance_calculator import calculate_distance_from_coords_to_address_with_cache, calculate_distance_haversine, format_distance, \
     calculate_distances_batch_from_coords, geocode_address
 import json, random
 import httpx
@@ -236,6 +236,7 @@ async def get_assessment_detail(
     Get detailed information about a specific assessment
     """
     time_zone = headers.time_zone
+    latitude, longitude = headers.latitude, headers.longitude
     logger.info(f"timezoneeeeeeeeee {time_zone.key}")
     query = f"""
             SELECT
@@ -308,6 +309,10 @@ async def get_assessment_detail(
         if assessment_detail['gara_address']:
             location = await geocode_address(assessment_detail['gara_address'])
             assessment_detail['gara_address'] = Location(lat=location[0], lon=location[1])
+            # Tính khoảng cách từ vị trí người dùng đến gara
+            distance = calculate_distance_haversine(latitude, longitude, assessment_detail['gara_address'].lat, assessment_detail['gara_address'].lon)
+            assessment_detail['current_distance'] = distance
+            assessment_detail['distance_limit'] = settings.USER_GARAGE_DISTANCE_LIMIT
         assessment_progress = 0
         if detail_status.get("name") == "completed":
             assessment_progress += 25

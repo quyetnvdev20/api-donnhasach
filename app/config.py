@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     GOOGLE_MAPS_API_KEY: str = ""
     KEYCLOAK_API_KEY: str = ""
 
+
+    # Distance limit
+    USER_GARAGE_DISTANCE_LIMIT: int = 100
+    
     @property
     def DATABASE_URL(self) -> str:
         return self.POSTGRES_DATABASE_URL
