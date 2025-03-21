@@ -233,18 +233,16 @@ async def save_face_image(
 @router.post("/done",
              response_model=ActionInvitationResponse)
 async def done_remote_inspection(
-        headers: Annotated[CommonHeaders, Header()],
         done_invitation_vals: DoneInvitationRequest = Body(...),
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
     assessment_id = done_invitation_vals.assessment_id
-    response = await odoo.call_method_post(
-        record_id=assessment_id,
-        model='insurance.claim.appraisal.detail',
+    response = await odoo.call_method_not_record(
+        model='insurance.claim.remote.inspection',
         method='action_done_remote_inspection_api',
         token=current_user.odoo_token,
-        kwargs={'invitation_code': headers.invitation_code}
+        kwargs={'invitation_id': done_invitation_vals.invitation_id}
     )
     if response:
         return ActionInvitationResponse(data={'id': assessment_id})
