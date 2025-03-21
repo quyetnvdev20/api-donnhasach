@@ -54,6 +54,10 @@ class DeleteInvitationRequest(BaseModel):
     id: int
 
 
+class DeleteInvitationResponse(BaseModel):
+    status: str = "success"
+
+
 class ActionInvitationDetail(BaseModel):
     id: int
 
