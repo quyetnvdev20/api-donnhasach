@@ -152,6 +152,7 @@ async def create_invitation(
         local_expire_at = expire_at.astimezone(headers.time_zone)
         vals = {
             "invitation_code": invitation_code,
+            "invitation_id": response.get('id'),
             "expire_at": local_expire_at.strftime("%Y-%m-%d %H:%M:%S")
         }
         return CreateInvitationResponse(data=vals, status="Success")
