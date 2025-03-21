@@ -355,7 +355,7 @@ async def get_assessment_detail(
             },
             {
                 "seq": 3,
-                "name": "Upload Thông tin tai nạn & Yêu cầu BT",
+                "name": "Thông báo tai nạn & Yêu cầu BT",
                 "path": "/accident_notification",
                 "desc": "Chia sẻ, in và upload bản kí tươi",
                 "icon": "https://example.com",
