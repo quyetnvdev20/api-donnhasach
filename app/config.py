@@ -61,7 +61,7 @@ class Settings(BaseSettings):
 
 
     # Distance limit
-    USER_GARAGE_DISTANCE_LIMIT: int = 100
+    USER_GARAGE_DISTANCE_LIMIT: float = 0.5
     
     @property
     def DATABASE_URL(self) -> str:
