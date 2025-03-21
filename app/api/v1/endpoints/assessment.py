@@ -6,7 +6,7 @@ from datetime import datetime
 from ....database import get_db
 from ...deps import get_current_user
 from ....schemas.assessment import AssessmentListItem, VehicleDetailAssessment, AssessmentDetail, DocumentCollection, \
-    DocumentResponse, DocumentUpload, DocumentType, UpdateAssessmentItemResponse, AssessmentStatus
+    DocumentResponse, DocumentUpload, DocumentType, UpdateAssessmentItemResponse, AssessmentStatus, AssignAppraisalRequest, AssignAppraisalResponse
 from ....schemas.common import CommonHeaders
 from ....utils.erp_db import PostgresDB
 from ....utils.distance_calculator import calculate_distance_from_coords_to_address_with_cache, format_distance, calculate_distances_batch_from_coords
@@ -347,7 +347,7 @@ async def get_assessment_detail(
             },
             {
                 "seq": 3,
-                "name": "Upload Thông tin tai nạn & Yêu cầu BT",
+                "name": "Thông báo tai nạn & Yêu cầu BT",
                 "path": "/accident_notification",
                 "desc": "Chia sẻ, in và upload bản kí tươi",
                 "icon": "https://example.com",
@@ -458,3 +458,43 @@ async def update_garage(
         }
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    
+@router.post("/{assessment_id}/assign-appraiser", response_model=AssignAppraisalResponse)
+async def assign_appraiser(
+    assessment_id: int,
+    request: AssignAppraisalRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Điều chuyển giám định viên
+    
+    Parameters:
+    - assessment_id: ID GĐCT
+    - request: Thông tin giám định viên được điều chuyển
+    
+    Returns:
+    - Kết quả điều chuyển
+    """
+    try:
+        # Gọi API của Odoo để điều chuyển giám định viên
+        response = await odoo.call_method_post(
+            record_id=assessment_id,
+            model='insurance.claim.appraisal.detail',
+            method='assign_appraisal_api',
+            token=current_user.odoo_token,
+            kwargs={
+                'user_id': request.user_id,
+                'branch_id': request.branch_id,
+            }
+        )
+        return {
+            "success": True,
+            "message": "Điều chuyển giám định viên thành công"
+        }
+    
+    except Exception as e:
+        logger.error(f"Error assigning appraiser: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Điều chuyển giám định viên thất bại: {str(e)}"
+        )

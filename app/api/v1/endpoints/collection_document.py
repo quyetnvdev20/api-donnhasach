@@ -169,8 +169,6 @@ async def update_document_collection(
         current_user: dict = Depends(get_current_user)
 ):
     
-    if not current_user.get("sub"):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     """
     Update document collection information
     """
@@ -215,7 +213,7 @@ async def update_document_collection(
     response = await odoo.call_method_not_record(
         model='insurance.claim.appraisal.detail',
         method='update_collect_document',
-        token=settings.ODOO_TOKEN,
+        token=current_user.odoo_token,
         kwargs=body
     )
 
