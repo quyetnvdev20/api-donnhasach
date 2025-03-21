@@ -5,7 +5,8 @@ from ...deps import get_current_user
 from ....config import settings, odoo
 from ....database import get_db
 from ....schemas.remote_inspection import CreateInvitationRequest, CreateInvitationResponse, ValidateInvitationRequest, \
-    ValidateInvitationResponse, ActionInvitationResponse, DoneInvitationRequest, DeleteInvitationRequest, SaveImageRequest, SaveImageResponse
+    ValidateInvitationResponse, ActionInvitationResponse, DoneInvitationRequest, DeleteInvitationRequest, \
+    SaveImageRequest, SaveImageResponse, DeleteInvitationResponse
 import logging
 import asyncio
 from ....utils.erp_db import PostgresDB
@@ -18,7 +19,6 @@ import aiohttp
 import os
 from app.utils.redis_client import redis_client as redis_client_instance
 import json
-
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ async def get_and_save_access_token(user_id):
                         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                         detail="Failed to get access token from authentication service"
                     )
-                    
+
                 data = await response.json()
                 access_token = data.get('access_token')
                 if not access_token:
@@ -64,13 +64,14 @@ async def get_and_save_access_token(user_id):
                         detail="Invalid response from authentication service"
                     )
                 return access_token
-                
+
     except aiohttp.ClientError as e:
         logger.error(f"Network error while getting access token: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Failed to connect to authentication service"
         )
+
 
 def get_cache_key(code):
     return f"remote_inspection_{code}"
@@ -97,7 +98,7 @@ async def generate_unique_invitation_code(redis_client, max_attempts: int = 10):
         if not exists:
             return invitation_code, cache_key
         attempts += 1
-    
+
     logger.error(f"Failed to generate unique invitation code after {max_attempts} attempts")
     raise HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -114,7 +115,7 @@ async def create_invitation(
         current_user: dict = Depends(get_current_user)
 ):
     invitation_code, cache_key = await generate_unique_invitation_code(redis_client_instance)
-    
+
     expire_at = datetime.now(tz=ZoneInfo("UTC")) + timedelta(days=1)
     expire_at_str = expire_at.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -251,13 +252,29 @@ async def done_remote_inspection(
 
 
 @router.post("/cancel",
-             response_model=ActionInvitationResponse)
+             response_model=DeleteInvitationResponse)
 async def cancel_remote_inspection(
         delete_invitation_vals: DeleteInvitationRequest = Body(...),
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
-    vals = {
-        "id": 5922
-    }
-    return ActionInvitationResponse(data=vals)
+    query = """
+        select 1 from insurance_claim_remote_inspection where id = %(id)s and status = 'new'
+    """
+    params = {'id': delete_invitation_vals.id}
+    results = await PostgresDB.execute_query(query, params)
+    if not results or not results[0]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invalid or expired invitation code"
+        )
+
+    response = await odoo.delete_method(
+        model='insurance.claim.remote.inspection',
+        record_id=delete_invitation_vals.id,
+        token=current_user.odoo_token,
+    )
+    if response:
+        return DeleteInvitationResponse()
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to cancel invitation")
