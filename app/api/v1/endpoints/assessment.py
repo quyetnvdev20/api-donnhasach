@@ -306,9 +306,24 @@ async def get_assessment_detail(
     if assessment_detail:
         assessment_detail = assessment_detail[0]
 
-        if assessment_detail['gara_address']:
-            location = await geocode_address(assessment_detail['gara_address'])
-            assessment_detail['gara_address'] = Location(lat=location[0], lon=location[1])
+        if assessment_detail.get('gara_address'):
+            try:
+                location = await geocode_address(assessment_detail['gara_address'])
+                # Only add gara_address as Location if geocoding was successful
+                if location and len(location) >= 2:
+                    assessment_detail['gara_address'] = Location(lat=location[0], lon=location[1])
+                else:
+                    # Remove gara_address key if geocoding failed
+                    assessment_detail.pop('gara_address', None)
+                    logger.warning(f"Geocoding failed for address: {assessment_detail.get('gara_address')}")
+            except Exception as e:
+                # Remove gara_address key if an error occurred during geocoding
+                assessment_detail.pop('gara_address', None)
+                logger.error(f"Error geocoding address: {str(e)}")
+        else:
+            # Remove gara_address key if it's null or empty
+            assessment_detail.pop('gara_address', None)
+        
         assessment_progress = 0
         if detail_status.get("name") == "completed":
             assessment_progress += 25
