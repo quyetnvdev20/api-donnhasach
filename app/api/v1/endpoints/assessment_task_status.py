@@ -101,6 +101,37 @@ async def get_accident_notification_status(assessment_id: int) -> Dict[str, Any]
         return {"name": "in_progress"}
 
 
+async def get_remote_inspection(assessment_id: int, invitation_code: str) -> List[Dict[str, Any]]:
+    if invitation_code:
+        return []
+    query = """
+        select 
+        id,
+        name,
+        phone,
+        invitation_code,
+        status
+        
+    from insurance_claim_remote_inspection
+    where appraisal_detail_id = $1
+    """
+    result = await PostgresDB.execute_query(query, (assessment_id,))
+    data = []
+    for res in result:
+        vals = {
+            'id': res.get('id'),
+            'name': res.get('name'),
+            'phone': res.get('phone'),
+            'invitation_code': res.get('invitation_code'),
+            'status': res.get('status'),
+            'label': 'Đang chờ giám định từ xa',
+            'message': f"Hồ sơ này đang chờ người khác thực hiện giám định từ xa với mã: {res.get('invitation_code')}",
+            'btn_cancel': True,
+            'btn_share': True,
+        }
+        data.append(vals)
+    return data
+
 async def get_assessment_report_status(assessment_id: int) -> Dict[str, Any]:
     """
     Check if assessment has assessment report documents.

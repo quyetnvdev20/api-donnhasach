@@ -50,12 +50,15 @@ class UserRequest(BaseModel):
     datetime_request: str
 
 class RemoteInspection(BaseModel):
+    id: int
     name: str
     phone: str
     invitation_code: str
     status: str
     label: str
     message: Optional[str] = None
+    btn_cancel: Optional[bool] = False
+    btn_share: Optional[bool] = False
 
 class State(BaseModel):
     name: str
@@ -91,7 +94,7 @@ class AssessmentDetail(BaseModel):
     claim_profile_id: Optional[int] = None
     insur_claim_id: Optional[int] = None
     user_request: Optional[UserRequest] = None
-    list_remote_inspection: Optional[List[RemoteInspection]] = None
+    list_remote_inspection: Optional[List[RemoteInspection]] = []
 
 
 # Models for Vehicle Detail Assessment
