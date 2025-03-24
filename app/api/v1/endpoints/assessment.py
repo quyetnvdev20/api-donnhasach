@@ -15,7 +15,7 @@ import httpx
 import logging
 from app.config import settings, odoo
 import asyncio
-from .assessment_task_status import get_assessment_detail_status, get_collection_document_status, get_accident_notification_status, get_assessment_report_status
+from .assessment_task_status import get_assessment_detail_status, get_collection_document_status, get_accident_notification_status, get_assessment_report_status, get_remote_inspection
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -227,7 +227,6 @@ async def get_assessment_list(
 async def get_assessment_detail(
         assessment_id: int,
         headers: Annotated[CommonHeaders, Header()],
-        invitation_code: Optional[str] = None,
         current_user: dict = Depends(get_current_user)
 ):
     """
@@ -290,12 +289,13 @@ async def get_assessment_detail(
 
     params = [assessment_id, time_zone.key]
 
-    assessment_detail, detail_status, collection_status, accident_notification_status, assessment_report_status = await asyncio.gather(
+    assessment_detail, detail_status, collection_status, accident_notification_status, assessment_report_status, remote_inspection_detail = await asyncio.gather(
         PostgresDB.execute_query(query, params),
         get_assessment_detail_status(assessment_id),
         get_collection_document_status(assessment_id),
         get_accident_notification_status(assessment_id),
-        get_assessment_report_status(assessment_id)
+        get_assessment_report_status(assessment_id),
+        get_remote_inspection(assessment_id, headers.invitationCode)
     )
     
     if assessment_detail:
@@ -322,6 +322,7 @@ async def get_assessment_detail(
             "color_code": STATE_COLOR.get(status, '#757575')[0] if STATE_COLOR.get(
                     status) else "#2196F3"
         }
+        assessment_detail['list_remote_inspection'] = remote_inspection_detail
 
         assessment_detail['tasks'] = [{
             "seq": 1,
