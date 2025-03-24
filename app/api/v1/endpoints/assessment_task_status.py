@@ -118,16 +118,26 @@ async def get_remote_inspection(assessment_id: int, invitation_code: str) -> Lis
     result = await PostgresDB.execute_query(query, (assessment_id,))
     data = []
     for res in result:
+        if res.get('status') == 'new':
+            label = "Đang chờ giám định từ xa"
+            message = f"Hồ sơ này đang chờ người khác thực hiện giám định từ xa với mã: {res.get('invitation_code')}"
+            btn_cancel = True
+            btn_share = True
+        else:
+            label = "Đã hoàn thành giám định từ xa"
+            message = f"Hồ sơ này đã được giám định từ xa bởi: {res.get('name')}"
+            btn_cancel = False
+            btn_share = False
         vals = {
             'id': res.get('id'),
             'name': res.get('name'),
             'phone': res.get('phone'),
             'invitation_code': res.get('invitation_code'),
             'status': res.get('status'),
-            'label': 'Đang chờ giám định từ xa',
-            'message': f"Hồ sơ này đang chờ người khác thực hiện giám định từ xa với mã: {res.get('invitation_code')}",
-            'btn_cancel': True,
-            'btn_share': True,
+            'label': label,
+            'message': message,
+            'btn_cancel': btn_cancel,
+            'btn_share': btn_share,
         }
         data.append(vals)
     return data
