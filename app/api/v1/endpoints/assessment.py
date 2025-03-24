@@ -16,7 +16,7 @@ import httpx
 import logging
 from app.config import settings, odoo
 import asyncio
-from .assessment_task_status import get_assessment_detail_status, get_collection_document_status, get_accident_notification_status, get_assessment_report_status, get_remote_inspection
+from .assessment_task_status import get_assessment_detail_status, get_collection_document_status, get_accident_notification_status, get_assessment_report_status, get_remote_inspection, get_user_request_remote_inspection
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -32,6 +32,14 @@ STATE_COLOR = {
     "done": ("#4CAF50", "Đã xử lý"),
     "cancel": ("#212121", "Đã hủy")
 }
+
+
+async def safe_task(coro, name=None, return_if_error=None, timeout=10):
+    try:
+        return await asyncio.wait_for(coro, timeout)
+    except Exception as e:
+        logger.error(f"Task '{name or coro}' failed: {e}")
+        return return_if_error
 
 
 @router.get("/document_type")
@@ -294,14 +302,25 @@ async def get_assessment_detail(
 
     params = [assessment_id, time_zone.key]
 
-    assessment_detail, detail_status, collection_status, accident_notification_status, assessment_report_status, remote_inspection_detail = await asyncio.gather(
-        PostgresDB.execute_query(query, params),
-        get_assessment_detail_status(assessment_id),
-        get_collection_document_status(assessment_id),
-        get_accident_notification_status(assessment_id),
-        get_assessment_report_status(assessment_id),
-        get_remote_inspection(assessment_id, headers.invitationCode)
+    results = await asyncio.gather(
+        safe_task(PostgresDB.execute_query(query, params), name="DB query", return_if_error=[]),
+        safe_task(get_assessment_detail_status(assessment_id), name="detail_status", return_if_error={}),
+        safe_task(get_collection_document_status(assessment_id), name="collection_status", return_if_error={}),
+        safe_task(get_accident_notification_status(assessment_id), name="accident_notification_status", return_if_error={}),
+        safe_task(get_assessment_report_status(assessment_id), name="assessment_report_status", return_if_error={}),
+        safe_task(get_remote_inspection(assessment_id, headers.invitationCode), name="remote_inspection", return_if_error=[]),
+        safe_task(get_user_request_remote_inspection(assessment_id, headers.invitationCode), name="get_user_request_remote_inspection", return_if_error={})
     )
+
+    (
+        assessment_detail,
+        detail_status,
+        collection_status,
+        accident_notification_status,
+        assessment_report_status,
+        remote_inspection_detail,
+        user_request
+    ) = results
 
     if assessment_detail:
         assessment_detail = assessment_detail[0]
@@ -346,6 +365,8 @@ async def get_assessment_detail(
                     status) else "#2196F3"
         }
         assessment_detail['list_remote_inspection'] = remote_inspection_detail
+        if user_request:
+            assessment_detail['user_request'] = user_request
 
         assessment_detail['tasks'] = [{
             "seq": 1,
