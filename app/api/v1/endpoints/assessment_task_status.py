@@ -131,7 +131,8 @@ async def get_remote_inspection(assessment_id: int, invitation_code: str) -> Lis
         name,
         phone,
         invitation_code,
-        status
+        status,
+        deeplink
         
     from insurance_claim_remote_inspection
     where appraisal_detail_id = $1
@@ -157,6 +158,7 @@ async def get_remote_inspection(assessment_id: int, invitation_code: str) -> Lis
             'status': res.get('status'),
             'label': label,
             'message': message,
+            'deeplink': res.get('deeplink') if res.get('deeplink') else '',
             'btn_cancel': btn_cancel,
             'btn_share': btn_share,
         }

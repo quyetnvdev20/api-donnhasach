@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     # Google Maps API
     GOOGLE_MAPS_API_KEY: str = ""
     KEYCLOAK_API_KEY: str = ""
+    DEEPLINK_APP: str = ""
 
     @property
     def DATABASE_URL(self) -> str:

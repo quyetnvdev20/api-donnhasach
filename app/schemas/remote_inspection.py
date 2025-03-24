@@ -14,6 +14,7 @@ class CreateInvitationDetail(BaseModel):
     invitation_code: str
     invitation_id: int
     expire_at: str
+    deeplink: str
 
 
 class CreateInvitationResponse(BaseModel):
