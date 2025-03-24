@@ -46,9 +46,9 @@ class Task(BaseModel):
     status: TaskStatus = None
 
 class UserRequest(BaseModel):
-    name: str
-    phone: str
-    datetime_request: str
+    label: Optional[str] = None
+    name: Optional[str] = None
+    datetime_request: Optional[str] = None
 
 class RemoteInspection(BaseModel):
     id: int
@@ -88,7 +88,7 @@ class AssessmentDetail(BaseModel):
     status_color: Optional[str] = "#212121"
     claim_profile_id: Optional[int] = None
     insur_claim_id: Optional[int] = None
-    user_request: Optional[UserRequest] = None
+    user_request: Optional[UserRequest] = {}
     list_remote_inspection: Optional[List[RemoteInspection]] = []
 
 

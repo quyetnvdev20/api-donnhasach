@@ -100,6 +100,27 @@ async def get_accident_notification_status(assessment_id: int) -> Dict[str, Any]
     else:
         return {"name": "in_progress"}
 
+async def get_user_request_remote_inspection(assessment_id: int, invitation_code: str) -> Dict[str, Any]:
+    if not invitation_code:
+        return {}
+    query = """
+        select 
+            'Người yêu cầu giám định từ xa' as label,
+            c.name,
+            to_char(a.create_date + INTERVAL '7 hours','dd/MM/yyyy HH24:MI') as datetime_request
+        
+        from insurance_claim_remote_inspection a
+        inner join res_users b on a.create_uid = b.id
+        inner join res_partner c on b.partner_id = c.id
+        where a.appraisal_detail_id = $1
+        and a.invitation_code = $2
+        limit 1
+    """
+    result = await PostgresDB.execute_query(query, (assessment_id, invitation_code))
+    if result and result[0]:
+        return result[0]
+    return {}
+
 
 async def get_remote_inspection(assessment_id: int, invitation_code: str) -> List[Dict[str, Any]]:
     if invitation_code:
