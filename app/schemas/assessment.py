@@ -56,6 +56,7 @@ class RemoteInspection(BaseModel):
     invitation_code: str
     status: str
     label: str
+    deeplink: Optional[str] = ''
     message: Optional[str] = None
     btn_cancel: Optional[bool] = False
     btn_share: Optional[bool] = False

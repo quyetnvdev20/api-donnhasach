@@ -118,6 +118,7 @@ async def create_invitation(
 
     expire_at = datetime.now(tz=ZoneInfo("UTC")) + timedelta(days=1)
     expire_at_str = expire_at.strftime("%Y-%m-%d %H:%M:%S")
+    deeplink = f"{os.getenv('DEEPLINK_APP')}?invitation_code={invitation_code}"
 
     odoo_vals = {
         'name': create_invitation_vals.expert_name,
@@ -125,6 +126,7 @@ async def create_invitation(
         'invitation_code': invitation_code,
         'expire_at': expire_at_str,
         'appraisal_detail_id': create_invitation_vals.assessment_id,
+        'deeplink': deeplink,
     }
 
     response = await odoo.create_method(
@@ -153,7 +155,8 @@ async def create_invitation(
         vals = {
             "invitation_code": invitation_code,
             "invitation_id": response.get('id'),
-            "expire_at": local_expire_at.strftime("%Y-%m-%d %H:%M:%S")
+            "expire_at": local_expire_at.strftime("%Y-%m-%d %H:%M:%S"),
+            "deeplink": deeplink
         }
         return CreateInvitationResponse(data=vals, status="Success")
     else:
