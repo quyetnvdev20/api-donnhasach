@@ -1,0 +1,34 @@
+{
+    "applinks": {
+        "details": [
+            {
+                "appIDs": [
+                    "MQFG65A4WF.com.tasco360tech.vnxpert"
+                ],
+                "components": [
+                    {
+                        "#": "no_universal_links",
+                        "exclude": true,
+                        "comment": "Matches any URL with a fragment that equals no_universal_links and instructs the system not to open it as a universal link."
+                    },
+                    {
+                        "/": "/products/*",
+                        "comment": "Matches any URL with a path that starts with /products/."
+                    },
+                    {
+                        "/": "/help/*",
+                        "?": {
+                            "articleNumber": "????"
+                        },
+                        "comment": "Matches any URL with a path that starts with /help/ and that has a query item with name 'articleNumber' and a value of exactly four characters."
+                    }
+                ]
+            }
+        ]
+    },
+    "webcredentials": {
+        "apps": [
+            "MQFG65A4WF.com.tasco360tech.vnxpert"
+        ]
+    }
+}

@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body, Query, Header
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any, Annotated
+
+from app.utils import shorten_url
 from ...deps import get_current_user
 from ....config import settings, odoo
 from ....database import get_db
 from ....schemas.remote_inspection import CreateInvitationRequest, CreateInvitationResponse, ValidateInvitationRequest, \
-    ValidateInvitationResponse, ActionInvitationResponse, DoneInvitationRequest, DeleteInvitationRequest, \
-    SaveImageRequest, SaveImageResponse, DeleteInvitationResponse
+    ValidateInvitationResponse, ActionInvitationResponse, DoneInvitationRequest, CancelInvitationRequest, \
+    SaveImageRequest, SaveImageResponse, CancelInvitationResponse
 import logging
 import asyncio
 from ....utils.erp_db import PostgresDB
@@ -26,7 +28,7 @@ router = APIRouter()
 
 
 def generate_invitation_code():
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=3))
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=3))
 
 
 async def get_and_save_access_token(user_id):
@@ -114,11 +116,33 @@ async def create_invitation(
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
+
+    query = """
+        select id, invitation_code, expire_at, deeplink
+        from insurance_claim_remote_inspection 
+        where appraisal_detail_id = %(assessment_id)s 
+        and status = 'new' 
+        and expire_at >= now()
+        limit 1
+    """
+    params = {'assessment_id': create_invitation_vals.assessment_id}
+    results = await PostgresDB.execute_query(query, params)
+    if results and results[0]:
+        res = results[0]
+        vals = {
+            "invitation_code": res.get('invitation_code'),
+            "invitation_id": res.get('id'),
+            "expire_at": res.get('expire_at').strftime("%Y-%m-%d %H:%M:%S"),
+            "deeplink": res.get('deeplink') or ''
+        }
+        return CreateInvitationResponse(data=vals, status="Success")
+
     invitation_code, cache_key = await generate_unique_invitation_code(redis_client_instance)
 
     expire_at = datetime.now(tz=ZoneInfo("UTC")) + timedelta(days=1)
     expire_at_str = expire_at.strftime("%Y-%m-%d %H:%M:%S")
-    deeplink = f"{os.getenv('DEEPLINK_APP')}?invitation_code={invitation_code}"
+    deeplink = f"{settings.DEEPLINK_APP}?invitation_code={invitation_code}"
+    shorten_deeplink = await shorten_url.generate_shorten_url(deeplink)
 
     odoo_vals = {
         'name': create_invitation_vals.expert_name,
@@ -126,7 +150,7 @@ async def create_invitation(
         'invitation_code': invitation_code,
         'expire_at': expire_at_str,
         'appraisal_detail_id': create_invitation_vals.assessment_id,
-        'deeplink': deeplink,
+        'deeplink': shorten_deeplink,
     }
 
     response = await odoo.create_method(
@@ -156,7 +180,7 @@ async def create_invitation(
             "invitation_code": invitation_code,
             "invitation_id": response.get('id'),
             "expire_at": local_expire_at.strftime("%Y-%m-%d %H:%M:%S"),
-            "deeplink": deeplink
+            "deeplink": shorten_deeplink
         }
         return CreateInvitationResponse(data=vals, status="Success")
     else:
@@ -256,16 +280,16 @@ async def done_remote_inspection(
 
 
 @router.post("/cancel",
-             response_model=DeleteInvitationResponse)
+             response_model=CancelInvitationResponse)
 async def cancel_remote_inspection(
-        delete_invitation_vals: DeleteInvitationRequest = Body(...),
+        cancel_invitation_vals: CancelInvitationRequest = Body(...),
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
     query = """
         select 1 from insurance_claim_remote_inspection where id = %(id)s and status = 'new'
     """
-    params = {'id': delete_invitation_vals.id}
+    params = {'id': cancel_invitation_vals.id}
     results = await PostgresDB.execute_query(query, params)
     if not results or not results[0]:
         raise HTTPException(
@@ -273,12 +297,17 @@ async def cancel_remote_inspection(
             detail="Invalid or expired invitation code"
         )
 
-    response = await odoo.delete_method(
+    vals = {
+        'status': 'cancel'
+    }
+
+    response = await odoo.update_method(
         model='insurance.claim.remote.inspection',
-        record_id=delete_invitation_vals.id,
+        record_id=cancel_invitation_vals.id,
+        vals=vals,
         token=current_user.odoo_token,
     )
     if response:
-        return DeleteInvitationResponse()
+        return CancelInvitationRequest(id=cancel_invitation_vals.id)
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to cancel invitation")

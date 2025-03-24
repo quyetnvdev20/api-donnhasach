@@ -52,11 +52,11 @@ class DoneInvitationRequest(BaseModel):
     invitation_id: int
 
 
-class DeleteInvitationRequest(BaseModel):
+class CancelInvitationRequest(BaseModel):
     id: int
 
 
-class DeleteInvitationResponse(BaseModel):
+class CancelInvitationResponse(BaseModel):
     status: str = "success"
 
 

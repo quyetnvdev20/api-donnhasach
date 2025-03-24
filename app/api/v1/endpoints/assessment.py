@@ -360,13 +360,18 @@ async def get_assessment_detail(
 
         if headers.invitationCode:
             state_name = 'Giám định từ xa'
+            color_code = '2196F3'
+        elif remote_inspection_detail and status == 'wait':
+            state_name = 'Chờ giám định từ xa'
+            color_code = '#faad14'
         else:
             state_name = STATE_COLOR.get(status, '#757575')[1] if STATE_COLOR.get(status) else "Đang xử lý"
+            color_code = STATE_COLOR.get(status, '#757575')[0] if STATE_COLOR.get(status) else "#2196F3"
 
         assessment_detail['state'] = {
             "name": state_name,
             "code": status,
-            "color_code": STATE_COLOR.get(status, '#757575')[0] if STATE_COLOR.get(status) else "#2196F3"
+            "color_code": color_code
         }
         assessment_detail['list_remote_inspection'] = remote_inspection_detail
         if user_request:
