@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     GOOGLE_MAPS_API_KEY: str = ""
     KEYCLOAK_API_KEY: str = ""
     DEEPLINK_APP: str = ""
+    SHORTEN_URL_API_URL: str = ""
+    SHORTEN_URL_API_KEY: str = ""
 
     @property
     def DATABASE_URL(self) -> str:
