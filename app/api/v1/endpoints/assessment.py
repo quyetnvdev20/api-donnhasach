@@ -6,10 +6,11 @@ from datetime import datetime
 from ....database import get_db
 from ...deps import get_current_user
 from ....schemas.assessment import AssessmentListItem, VehicleDetailAssessment, AssessmentDetail, DocumentCollection, \
-    DocumentResponse, DocumentUpload, DocumentType, UpdateAssessmentItemResponse, AssessmentStatus, AssignAppraisalRequest, AssignAppraisalResponse
+    DocumentResponse, DocumentUpload, DocumentType, UpdateAssessmentItemResponse, AssessmentStatus, Location, AssignAppraisalRequest, AssignAppraisalResponse
 from ....schemas.common import CommonHeaders
 from ....utils.erp_db import PostgresDB
-from ....utils.distance_calculator import calculate_distance_from_coords_to_address_with_cache, format_distance, calculate_distances_batch_from_coords
+from ....utils.distance_calculator import calculate_distance_from_coords_to_address_with_cache, calculate_distance_haversine, format_distance, \
+    calculate_distances_batch_from_coords, geocode_address
 import json, random
 import httpx
 import logging
@@ -227,6 +228,7 @@ async def get_assessment_detail(
     Get detailed information about a specific assessment
     """
     time_zone = headers.time_zone
+    latitude, longitude = headers.latitude, headers.longitude
     logger.info(f"timezoneeeeeeeeee {time_zone.key}")
     query = f"""
             SELECT
@@ -240,6 +242,7 @@ async def get_assessment_detail(
                     NULLIF(province.name, '')
                 ) AS location,
                 rpg.display_name AS assessment_address,
+                rpg_partner.street AS gara_address,
                 contact.name AS owner_name,
                 icr.phone_contact AS phone_number,
                 gd_chi_tiet.state AS status,
@@ -255,6 +258,7 @@ async def get_assessment_detail(
             FROM insurance_claim_appraisal_detail gd_chi_tiet
             LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
             LEFT JOIN res_partner_gara rpg ON rpg.id = gd_chi_tiet.gara_partner_id
+            LEFT JOIN res_partner rpg_partner ON rpg.partner_id = rpg_partner.id
             LEFT JOIN res_partner contact ON contact.id = icr.person_contact_id
             LEFT JOIN res_car rc ON rc.id = gd_chi_tiet.car_id
             LEFT JOIN res_car_brand rcb ON rcb.id = rc.car_brand_id
@@ -290,10 +294,13 @@ async def get_assessment_detail(
         get_accident_notification_status(assessment_id),
         get_assessment_report_status(assessment_id)
     )
-    
+
     if assessment_detail:
         assessment_detail = assessment_detail[0]
-        
+
+        if assessment_detail['gara_address']:
+            location = await geocode_address(assessment_detail['gara_address'])
+            assessment_detail['gara_address'] = Location(lat=location[0], lon=location[1])
         assessment_progress = 0
         if detail_status.get("name") == "completed":
             assessment_progress += 25
@@ -481,4 +488,75 @@ async def assign_appraiser(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Điều chuyển giám định viên thất bại: {str(e)}"
+        )
+
+@router.get("/{assessment_id}/check-distance")
+async def check_distance(
+    assessment_id: int,
+    headers: Annotated[CommonHeaders, Header()],
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Check distance between user's current location and a garage address
+    
+    Parameters:
+    - assessment_id: ID GĐCT
+    - headers: Common headers including user's location (latitude, longitude)
+    
+    Returns:
+    - Distance information and whether it's within allowed limit
+    """
+    latitude, longitude = headers.latitude, headers.longitude
+    
+    # Validate user has location data
+    if not latitude or not longitude:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User location (latitude and longitude) is required"
+        )
+    
+    try:
+        # Get assessment's garage address
+        assessment_detail = await PostgresDB.execute_query(
+            """
+            SELECT rpg_partner.street AS gara_address
+            FROM insurance_claim_appraisal_detail gd_chi_tiet
+            LEFT JOIN res_partner_gara rpg ON rpg.id = gd_chi_tiet.gara_partner_id
+            LEFT JOIN res_partner rpg_partner ON rpg.partner_id = rpg_partner.id
+            WHERE gd_chi_tiet.id = $1
+            """,
+            [assessment_id]
+        )
+        # Check if assessment detail is found
+        if not assessment_detail:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Assessment detail not found"
+            )
+        
+        # Get garage coordinates
+        location = await geocode_address(assessment_detail[0]['gara_address'])
+        
+        # Calculate distance
+        distance = calculate_distance_haversine(
+            float(latitude), 
+            float(longitude), 
+            location[0], 
+            location[1]
+        )
+        
+        # Check if within distance limit
+        is_within_limit = distance <= settings.USER_GARAGE_DISTANCE_LIMIT
+        
+        return {
+            "garage_location": Location(lat=location[0], lon=location[1]),
+            "current_distance": distance,
+            "distance_limit": settings.USER_GARAGE_DISTANCE_LIMIT,
+            "is_within_limit": is_within_limit
+        }
+    except Exception as e:
+        logger.error(f"Error checking distance: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error checking distance: {str(e)}"
         )

@@ -2,7 +2,7 @@ from enum import Enum
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from datetime import datetime
-
+from app.config import settings
 
 # Models for Assessment List
 class AssessmentListItem(BaseModel):
@@ -46,9 +46,15 @@ class Task(BaseModel):
     status: TaskStatus = None
 
 
+class Location(BaseModel):
+    lat: float
+    lon: float
+
+
 class AssessmentDetail(BaseModel):
     case_number: str
     status: str
+    gara_address: Optional[Location] = None
     license_plate: Optional[str] = None
     vehicle: Optional[str] = None
     location: Optional[str] = None
