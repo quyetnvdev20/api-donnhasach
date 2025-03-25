@@ -11,7 +11,7 @@ async def generate_shorten_url(url: str) -> str:
   """
   async with httpx.AsyncClient() as client:
     response = await client.post(
-      f"{settings.SHORTEN_URL_API_URL}/shorten",
+      f"{settings.SHORTEN_URL_API_URL}",
       json={"destination": url},
       headers={
         "x-access-token": settings.SHORTEN_URL_API_KEY,
