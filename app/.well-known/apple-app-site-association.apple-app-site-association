@@ -12,6 +12,10 @@
                         "comment": "Matches any URL with a fragment that equals no_universal_links and instructs the system not to open it as a universal link."
                     },
                     {
+                        "/": "/invitation_code/*",
+                        "comment": "Matches any URL with a path that starts with /invitation_code/."
+                    },
+                    {
                         "/": "/products/*",
                         "comment": "Matches any URL with a path that starts with /products/."
                     },

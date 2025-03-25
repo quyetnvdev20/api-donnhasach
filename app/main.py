@@ -2,8 +2,10 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 import logging
+import os
 
 from .config import settings
 from .services.rabbitmq import publish_event
@@ -11,7 +13,6 @@ from .db_init import init_db
 from .api.v1.endpoints import analysis, notifications, masterdata, claim_profile, assessment, assessment_detail, collection_document, repair, repair_masterdata, ocr_quote, odoo_test, report, doc_vision, remote_inspection
 from .utils.redis_client import redis_client
 from .exceptions.handlers import validation_exception_handler
-from .api.v1.endpoints.well_known_file import router as well_known_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,6 +24,16 @@ app = FastAPI(
     description="Service xử lý các hình ảnh bồi thường của giám định viên",
     version="1.0.0",
 )
+
+# Set up .well-known directory
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+WELL_KNOWN_DIR = os.path.join(BASE_DIR, ".well-known")
+logger.info(f"WELL_KNOWN_DIR: {WELL_KNOWN_DIR}")
+# Ensure .well-known directory exists
+# os.makedirs(WELL_KNOWN_DIR, exist_ok=True)
+# Mount for both root and /claim-ai paths
+app.mount("/.well-known", StaticFiles(directory=WELL_KNOWN_DIR), name="well-known-root")
+app.mount("/claim-ai/.well-known", StaticFiles(directory=WELL_KNOWN_DIR), name="well-known-claim-ai")
 
 app.add_middleware(
     CORSMiddleware,
@@ -51,11 +62,6 @@ app.include_router(ocr_quote.router, prefix="/repairs", tags=["repairs_ocr"])
 app.include_router(odoo_test.router, prefix="/odoo", tags=["odoo"])
 app.include_router(doc_vision.router, prefix="/doc-vision", tags=["doc_vision"])
 app.include_router(remote_inspection.router, prefix="/remote-inspection", tags=["remote_inspection"])
-app.include_router(
-    well_known_router,
-    prefix="",  # Không thêm prefix vì .well-known cần ở root path
-    tags=["well-known"]
-)
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
