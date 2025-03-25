@@ -19,7 +19,7 @@ async def generate_shorten_url(url: str) -> str:
       }
     )
     if response.status_code == 200:
-      return response.json()["short_url"]
+      return response.json()["url"]
     else:
       logger.error(f"Failed to shorten url: {response.json()}")
       raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to shorten url")
