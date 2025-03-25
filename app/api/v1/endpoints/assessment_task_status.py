@@ -135,7 +135,7 @@ async def get_remote_inspection(assessment_id: int, invitation_code: str) -> Lis
         deeplink
         
     from insurance_claim_remote_inspection
-    where appraisal_detail_id = $1 and state != 'cancel'
+    where appraisal_detail_id = $1 and status != 'cancel'
     """
     result = await PostgresDB.execute_query(query, (assessment_id,))
     data = []
