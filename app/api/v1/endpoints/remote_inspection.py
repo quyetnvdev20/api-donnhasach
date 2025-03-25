@@ -263,14 +263,19 @@ async def save_face_image(
 @router.post("/done",
              response_model=ActionInvitationResponse)
 async def done_remote_inspection(
+        headers: Annotated[CommonHeaders, Header()],
         done_invitation_vals: DoneInvitationRequest = Body(...),
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
     query = """
-            select 1 from insurance_claim_remote_inspection where id = %(id)s and status = 'new'
+            select id from insurance_claim_remote_inspection 
+            where invitation_code = %(invitation_code)s 
+            and status = 'new' 
+            and appraisal_detail_id = %(assessment_id)s
+            limit 1
         """
-    params = {'id': done_invitation_vals.invitation_id}
+    params = {'invitation_code': headers.invitationCode, 'assessment_id': done_invitation_vals.assessment_id}
     results = await PostgresDB.execute_query(query, params)
     if not results or not results[0]:
         raise HTTPException(
@@ -278,15 +283,14 @@ async def done_remote_inspection(
             detail="Mã mời không khả dụng để thực hiện hành động này."
         )
 
-    assessment_id = done_invitation_vals.assessment_id
     response = await odoo.call_method_not_record(
         model='insurance.claim.remote.inspection',
         method='action_done_remote_inspection_api',
         token=current_user.odoo_token,
-        kwargs={'invitation_id': done_invitation_vals.invitation_id}
+        kwargs={'invitation_id': results[0].get('id')}
     )
     if response:
-        return ActionInvitationResponse(data={'id': assessment_id})
+        return ActionInvitationResponse(data={'id': done_invitation_vals.assessment_id})
     else:
         raise Exception(response.get("message"))
 
