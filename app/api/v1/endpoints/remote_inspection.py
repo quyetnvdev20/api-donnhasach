@@ -31,8 +31,8 @@ def generate_invitation_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=3))
 
 
-async def get_and_save_access_token(user_id):
-    """Get and save access token asynchronously from Tasco API.
+async def get_keycloak_access_token(user_id):
+    """Get access token asynchronously from Tasco API.
     
     Args:
         user_id: User ID to get access token
@@ -160,7 +160,7 @@ async def create_invitation(
     )
 
     if response:
-        access_token = await get_and_save_access_token(current_user.uid)
+        access_token = await get_keycloak_access_token(current_user.uid)
 
         # Lưu vào Redis dưới dạng JSON
         cache_data = {
