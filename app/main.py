@@ -25,10 +25,16 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Mount .well-known directory
+# Set up .well-known directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-WELL_KNOWN_DIR = os.path.join(BASE_DIR, "config_file") 
-app.mount("/.well-known", StaticFiles(directory=WELL_KNOWN_DIR), name="well-known")
+WELL_KNOWN_DIR = os.path.join(BASE_DIR, ".well-known")
+
+# Ensure .well-known directory exists
+os.makedirs(WELL_KNOWN_DIR, exist_ok=True)
+
+# Mount for both root and /claim-ai paths
+app.mount("/.well-known", StaticFiles(directory=WELL_KNOWN_DIR), name="well-known-root")
+app.mount("/claim-ai/.well-known", StaticFiles(directory=WELL_KNOWN_DIR), name="well-known-claim-ai")
 
 app.add_middleware(
     CORSMiddleware,
