@@ -211,7 +211,7 @@ async def validate_invitation(
     if not await redis_client_instance.exists(cache_key):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Invalid or expired invitation code"
+            detail="Mã mời không hợp lệ hoặc đã hết hạn"
         )
 
     # Lấy cached data
@@ -256,7 +256,7 @@ async def save_face_image(
     if response:
         return SaveImageResponse(id=save_image_vals.invitation_id)
     else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to save face image")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response.get("message"))
 
 
 @router.post("/done",
@@ -266,6 +266,17 @@ async def done_remote_inspection(
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
+    query = """
+            select 1 from insurance_claim_remote_inspection where id = %(id)s and status = 'new'
+        """
+    params = {'id': done_invitation_vals.invitation_id}
+    results = await PostgresDB.execute_query(query, params)
+    if not results or not results[0]:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Mã mời không khả dụng để thực hiện hành động này."
+        )
+
     assessment_id = done_invitation_vals.assessment_id
     response = await odoo.call_method_not_record(
         model='insurance.claim.remote.inspection',
@@ -294,7 +305,7 @@ async def cancel_remote_inspection(
     if not results or not results[0]:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Invalid or expired invitation code"
+            detail="Mã mời không khả dụng để thực hiện hành động này"
         )
 
     vals = {
@@ -310,4 +321,4 @@ async def cancel_remote_inspection(
     if response:
         return CancelInvitationRequest(id=cancel_invitation_vals.id)
     else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to cancel invitation")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response.get("message"))
