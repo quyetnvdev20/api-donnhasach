@@ -242,6 +242,3 @@ class AssignAppraisalRequest(BaseModel):
 class AssignAppraisalResponse(BaseModel):
     success: bool
     message: str
-
-class DistanceCheckRequest(BaseModel):
-    assessment_id: int

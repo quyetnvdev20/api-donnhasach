@@ -186,6 +186,9 @@ async def get_branch_list(
 @router.get("/appraisers", response_model=AppraiserListResponse)
 async def get_appraisers(
     branch_id: Optional[int] = None,
+    search: Optional[str] = None,
+    offset: int = 0,
+    limit: int = 20,
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -201,21 +204,36 @@ async def get_appraisers(
     - Danh sách giám định viên
     """
     try:
-        # Gọi API của Odoo để lấy danh sách giám định viên
+        query = """
+            select ru.id, rp.name
+            from res_users ru
+            inner join res_partner rp on ru.partner_id = rp.id
+            inner join branch_claim_user_rel rel on ru.id = rel.user_id
+            inner join res_branch rb on rel.branch_id = rb.id
+            inner join res_groups_users_rel group_rel on ru.id = group_rel.uid
+            where group_rel.gid in (SELECT res_id FROM ir_model_data WHERE module='tasco_insurance_claim' AND name='group_bhtasco_claim_staff' AND model='res.groups')
+        """
 
-        response = await odoo.call_method_not_record(
-            model='res.users',
-            method='get_claim_staff_user_api',
-            token=current_user.odoo_token,
-            kwargs={'branch_id': branch_id}
-        )
+        params = {}
 
-        if not response:
-            return {"data": []}
+        if search:
+            query += """ and rp.name ILIKE %(search)s"""
+            params["search"] = f"%{search}%"
+
+        if branch_id:
+            query += """ and rb.id = %(branch_id)s"""
+            params["branch_id"] = branch_id
+
+        query += f"""
+                ORDER BY ru.id DESC
+                LIMIT {limit} OFFSET {offset}
+            """
+
+        results = await PostgresDB.execute_query(query, params)
         
         # Chuyển đổi kết quả thành danh sách AppraiserItem
         appraiser_items = []
-        for item in response:
+        for item in results:
             appraiser_items.append({
                 "id": item.get('id'),
                 "name": item.get('name')

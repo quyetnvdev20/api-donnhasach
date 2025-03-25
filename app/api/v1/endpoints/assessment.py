@@ -6,7 +6,7 @@ from datetime import datetime
 from ....database import get_db
 from ...deps import get_current_user
 from ....schemas.assessment import AssessmentListItem, VehicleDetailAssessment, AssessmentDetail, DocumentCollection, \
-    DocumentResponse, DocumentUpload, DocumentType, UpdateAssessmentItemResponse, AssessmentStatus, Location, AssignAppraisalRequest, AssignAppraisalResponse, DistanceCheckRequest
+    DocumentResponse, DocumentUpload, DocumentType, UpdateAssessmentItemResponse, AssessmentStatus, Location, AssignAppraisalRequest, AssignAppraisalResponse
 from ....schemas.common import CommonHeaders
 from ....utils.erp_db import PostgresDB
 from ....utils.distance_calculator import calculate_distance_from_coords_to_address_with_cache, calculate_distance_haversine, format_distance, \
@@ -338,7 +338,7 @@ async def get_assessment_detail(
             },
             {
                 "seq": 3,
-                "name": "Upload Thông tin tai nạn & Yêu cầu BT",
+                "name": "Thông báo tai nạn & Yêu cầu BT",
                 "path": "/accident_notification",
                 "desc": "Chia sẻ, in và upload bản kí tươi",
                 "icon": "https://example.com",
