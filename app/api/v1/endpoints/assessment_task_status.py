@@ -145,6 +145,11 @@ async def get_remote_inspection(assessment_id: int, invitation_code: str) -> Lis
             message = f"Hồ sơ này đang chờ người khác thực hiện giám định từ xa với mã: {res.get('invitation_code')}"
             btn_cancel = True
             btn_share = True
+        elif res.get('status') == 'cancel':
+            label = "Giám định từ xa đã hủy"
+            message = f"Yêu cầu giám định từ xa đã được hủy bỏ"
+            btn_cancel = False
+            btn_share = False
         else:
             label = "Đã hoàn thành giám định từ xa"
             message = f"Hồ sơ này đã được giám định từ xa bởi: {res.get('name')}"
