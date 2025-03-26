@@ -60,18 +60,101 @@ async def get_keycloak_access_token(user_id):
 
                 data = await response.json()
                 access_token = data.get('access_token')
+                session_state = data.get('session_state')
                 if not access_token:
                     raise HTTPException(
                         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                         detail="Invalid response from authentication service"
                     )
-                return access_token
+                return access_token, session_state
 
     except aiohttp.ClientError as e:
         logger.error(f"Network error while getting access token: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Failed to connect to authentication service"
+        )
+
+
+async def delete_keycloak_access_token(user_id: str, session_state:str) -> bool:
+    """Delete access token asynchronously from Tasco API.
+
+    Args:
+        user_id (str): User ID to revoke access token
+        session_state (str): Access token to revoke
+
+    Returns:
+        bool: True if token was successfully revoked
+
+    Raises:
+        HTTPException: If there is any error during token deletion
+    """
+    logger.info(f"Attempting to delete access token for user {user_id}")
+
+    # Validate input parameters
+    if not user_id or not session_state:
+        logger.error("Missing required parameters: user_id or session_state")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="user_id and session_state are required"
+        )
+
+    # Get environment variables
+    api_url = os.getenv('INSURANCE_API_URL')
+    api_key = os.getenv('KEYCLOAK_API_KEY')
+
+    if not api_url or not api_key:
+        logger.error("Missing required environment variables: INSURANCE_API_URL or KEYCLOAK_API_KEY")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Server configuration error"
+        )
+
+    url = f"{api_url}/super-auth/user/access-token"
+    headers = {
+        'X-API-KEY': api_key,
+        'Content-Type': 'application/json'
+    }
+    params = {
+        'user_id': user_id,
+        'session_id': session_state
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.delete(url, params=params, headers=headers) as response:
+                if response.status != 200:
+                    error_msg = f"Failed to delete token. Status: {response.status}"
+                    logger.error(f"{error_msg} for user {user_id}")
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail=error_msg
+                    )
+
+                data = await response.json()
+                success = data.get('success', False)
+
+                if not success:
+                    error_msg = f"Failed to delete token. Response: {data}"
+                    logger.error(f"{error_msg} for user {user_id}")
+                    return False
+
+                logger.info(f"Successfully deleted access token for user {user_id}")
+                return True
+
+    except aiohttp.ClientError as e:
+        error_msg = f"Network error while deleting access token: {str(e)}"
+        logger.error(f"{error_msg} for user {user_id}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=error_msg
+        )
+    except Exception as e:
+        error_msg = f"Unexpected error while deleting token: {str(e)}"
+        logger.error(f"{error_msg} for user {user_id}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_msg
         )
 
 
@@ -161,11 +244,12 @@ async def create_invitation(
     )
 
     if response:
-        access_token = await get_keycloak_access_token(current_user.uid)
+        access_token, session_state = await get_keycloak_access_token(current_user.uid)
 
         # Lưu vào Redis dưới dạng JSON
         cache_data = {
             'access_token': access_token,
+            'session_state': session_state,
             'assessment_id': create_invitation_vals.assessment_id,
             'odoo_token': current_user.odoo_token,
             'res_id': response.get('id')
@@ -311,8 +395,10 @@ async def cancel_remote_inspection(
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
+    # Kiểm tra invitation trong database
     query = """
-        select 1 from insurance_claim_remote_inspection where id = %(id)s and status = 'new'
+        select invitation_code from insurance_claim_remote_inspection 
+        where id = %(id)s and status = 'new'
     """
     params = {'id': cancel_invitation_vals.id}
     results = await PostgresDB.execute_query(query, params)
@@ -322,17 +408,43 @@ async def cancel_remote_inspection(
             detail="Mã mời không khả dụng để thực hiện hành động này"
         )
 
-    vals = {
-        'status': 'cancel'
-    }
+    invitation_code = results[0].get('invitation_code')
+    cache_key = get_cache_key(invitation_code)
 
-    response = await odoo.update_method(
-        model='insurance.claim.remote.inspection',
-        record_id=cancel_invitation_vals.id,
-        vals=vals,
-        token=current_user.odoo_token,
-    )
-    if response:
-        return CancelInvitationRequest(id=cancel_invitation_vals.id)
-    else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response.get("message"))
+    try:
+        # Cập nhật status trong Odoo
+        vals = {'status': 'cancel'}
+        response = await odoo.update_method(
+            model='insurance.claim.remote.inspection',
+            record_id=cancel_invitation_vals.id,
+            vals=vals,
+            token=current_user.odoo_token,
+        )
+        if not response:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=response.get("message", "Failed to cancel invitation in Odoo")
+            )
+
+        # Xử lý Redis cache và Keycloak token
+        if await redis_client_instance.exists(cache_key):
+            cached_data = await redis_client_instance.get(cache_key)
+            session_state = cached_data.get('session_state')
+
+            if session_state:
+                # Xóa token trong Keycloak
+                status_delete = await delete_keycloak_access_token(current_user.uid, session_state)
+                if status_delete:
+                    # Xóa cache trong Redis
+                    await redis_client_instance.delete(cache_key)
+
+        return CancelInvitationResponse(data={'id': cancel_invitation_vals.id})
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error canceling invitation {cancel_invitation_vals.id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unexpected error while canceling invitation"
+        )
