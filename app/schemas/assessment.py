@@ -2,12 +2,13 @@ from enum import Enum
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from datetime import datetime
+from app.config import settings
 
 
-class Status(BaseModel):
-    color_code: str
+class State(BaseModel):
     name: str
     code: str
+    color_code: str
 
 
 # Models for Assessment List
@@ -29,7 +30,7 @@ class AssessmentListItem(BaseModel):
     note: Optional[str] = None
     status: Optional[str]
     status_color: Optional[str] = "#212121"
-    new_status: Optional[Status] = {}
+    new_status: Optional[State] = {}
 
 
 class AssessmentStatus(Enum):
@@ -69,15 +70,17 @@ class RemoteInspection(BaseModel):
     btn_cancel: Optional[bool] = False
     btn_share: Optional[bool] = False
 
-class State(BaseModel):
-    name: str
-    code: str
-    color_code: str
+
+class Location(BaseModel):
+    lat: float
+    lon: float
+
 
 class AssessmentDetail(BaseModel):
     case_number: str
     status: str
     state : State
+    gara_address: Optional[Location] = None
     license_plate: Optional[str] = None
     vehicle: Optional[str] = None
     location: Optional[str] = None
