@@ -10,7 +10,7 @@ from ....schemas.assessment import AssessmentListItem, VehicleDetailAssessment, 
 from ....schemas.common import CommonHeaders
 from ....utils.erp_db import PostgresDB
 from ....utils.distance_calculator import calculate_distance_from_coords_to_address_with_cache, calculate_distance_haversine, format_distance, \
-    calculate_distances_batch_from_coords, geocode_address
+    calculate_distances_batch_from_coords, geocode_address, calculate_distances_batch_from_coords_v2
 import json, random
 import httpx
 import logging
@@ -103,6 +103,7 @@ async def get_assessment_list(
             from res_partner rp
             where rpg.partner_id = rp.id) AS gara_address,
             rpg.display_name AS assessment_address,
+            rpg.id AS garage_id,
             TO_CHAR(icr.date_damage AT TIME ZONE 'UTC' AT TIME ZONE %(time_zone)s, 'DD/MM/YYYY - HH24:MI') AS notification_time,
             TO_CHAR((icr.date_damage + INTERVAL '3 hours') AT TIME ZONE 'UTC' AT TIME ZONE %(time_zone)s, 'DD/MM/YYYY - HH24:MI') AS complete_time,
             icr.note AS note
@@ -173,11 +174,11 @@ async def get_assessment_list(
     if has_user_location:
         try:
             # Lấy danh sách địa chỉ gara từ kết quả
-            gara_addresses = [result.get('gara_address', '') for result in results]
+            gara_addresses = [{'address': result.get('gara_address', ''), 'id': result.get('garage_id', '')} for result in results]
             
             # Tính khoảng cách hàng loạt
-            distances = await calculate_distances_batch_from_coords(
-                float(latitude), float(longitude), gara_addresses
+            distances = await calculate_distances_batch_from_coords_v2(
+                float(latitude), float(longitude), gara_addresses, current_user.odoo_token
             )
         except Exception as e:
             logger.error(f"Lỗi khi tính khoảng cách hàng loạt: {str(e)}")
