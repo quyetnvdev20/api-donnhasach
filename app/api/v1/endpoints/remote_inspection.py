@@ -243,21 +243,30 @@ async def save_face_image(
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
-    odoo_vals = {
-        'face_image_url': save_image_vals.face_image_url,
-        # 'capture_time': validate_invitation_vals.capture_time
-    }
+    if not save_image_vals.invitation_id and not save_image_vals.assessment_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Thiếu thông tin bắt buộc: invitation_id hoặc assessment_id"
+        )
 
-    response = await odoo.update_method(
-        model='insurance.claim.remote.inspection',
-        record_id=save_image_vals.invitation_id,
-        vals=odoo_vals,
-        token=current_user.odoo_token,
-    )
-    if response:
-        return SaveImageResponse(id=save_image_vals.invitation_id)
+    if save_image_vals.invitation_id:
+        odoo_vals = {
+            'face_image_url': save_image_vals.face_image_url,
+            # 'capture_time': validate_invitation_vals.capture_time
+        }
+
+        response = await odoo.update_method(
+            model='insurance.claim.remote.inspection',
+            record_id=save_image_vals.invitation_id,
+            vals=odoo_vals,
+            token=current_user.odoo_token,
+        )
+        if response:
+            return SaveImageResponse(id=save_image_vals.invitation_id)
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response.get("message"))
     else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response.get("message"))
+        return SaveImageResponse(id=save_image_vals.assessment_id)
 
 
 @router.post("/done",
