@@ -161,7 +161,7 @@ async def get_repair_plan_awaiting_list(
     formatted_plans = []
 
     for res in results:
-        formatted_plans.append({
+        vals = {
             "file_name": res.get('file_name'),
             "id": res.get('repair_id'),
             "vehicle_info": res.get('vehicle_info'),
@@ -189,7 +189,10 @@ async def get_repair_plan_awaiting_list(
                 "code": "LABEL001",
                 "color_code": None
             }
-        })
+        }
+        if res.get('repair_state') == 'rejected':
+            vals.update({'reason_reject': 'Ly do tu choi'})
+        formatted_plans.append(vals)
 
     return RepairPlanListResponse(
         data=formatted_plans
