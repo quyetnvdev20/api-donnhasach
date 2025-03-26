@@ -93,6 +93,19 @@ async def get_repair_plan_awaiting_list(
     state_list = [s.strip() for s in state.split(',') if s.strip()]
     
     query = """
+        with reason_table as (
+            SELECT T.solution_repair_approved_id as repair_id, T.reason
+            FROM (
+                SELECT 
+                    ROW_NUMBER() OVER (partition BY log.solution_repair_approved_id ORDER BY log.ID desc) AS RowNumber,
+                    log.solution_repair_approved_id,
+                    log.reason
+                 FROM insurance_claim_history_log log
+                 inner join insurance_claim_solution_repair repair on log.solution_repair_approved_id = repair.id
+                 where log.state = 'cancel' and repair.state = 'rejected'
+             ) AS T
+            WHERE T.RowNumber = 1
+        )
         select 
             a.id repair_id,
             a.state repair_state,
@@ -104,7 +117,8 @@ async def get_repair_plan_awaiting_list(
             a.name file_name,
             concat(rcb.name, ' ', rcm.name, ' ', ic.manufacturer_year, ' - ', ic.license_plate) as vehicle_info,
             rpu.name as submitter,
-            ic.car_owner_name
+            ic.car_owner_name,
+            reason_table.reason as reason_reject
         from insurance_claim_solution_repair a
         left join insurance_claim_appraisal_detail e on a.detailed_appraisal_id = e.id
         left join res_partner_gara b on a.gara_partner_id = b.id
@@ -117,6 +131,7 @@ async def get_repair_plan_awaiting_list(
         left join res_car_brand rcb on rcb.id = ic.car_brand_id
         left join res_users ru on a.create_uid = ru.id
         left join res_partner rpu on ru.partner_id = rpu.id
+        left join reason_table on a.id = reason_table.repair_id
         where 1 = 1
     """
 
@@ -161,7 +176,7 @@ async def get_repair_plan_awaiting_list(
     formatted_plans = []
 
     for res in results:
-        vals = {
+        formatted_plans.append({
             "file_name": res.get('file_name'),
             "id": res.get('repair_id'),
             "vehicle_info": res.get('vehicle_info'),
@@ -188,11 +203,9 @@ async def get_repair_plan_awaiting_list(
                 "name": None,  # TODO chưa biết lấy dữ liệu ở đâu
                 "code": "LABEL001",
                 "color_code": None
-            }
-        }
-        if res.get('repair_state') == 'rejected':
-            vals.update({'reason_reject': 'Ly do tu choi'})
-        formatted_plans.append(vals)
+            },
+            'reason_reject': res.get('reason_reject')
+        })
 
     return RepairPlanListResponse(
         data=formatted_plans
