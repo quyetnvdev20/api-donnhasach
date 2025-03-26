@@ -82,6 +82,7 @@ class RepairPlanListItem(BaseModel):
     inspection_date: Optional[str] = None
     location_damage: Optional[str] = None
     submitter: Optional[str] = None
+    reason_reject: Optional[str] = None
     status: Status
     label: Label
     total_cost: Optional[dict] = None
