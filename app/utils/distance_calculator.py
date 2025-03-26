@@ -69,8 +69,8 @@ async def geocode_address_with_cache(address: str) -> Optional[Tuple[float, floa
             response = await client.get(url)
             data = response.json()
             
-            if data["status"] == "OK" and data["results"]:
-                location = data["results"][0]["geometry"]["location"]
+            if data["items"]:
+                location = data["items"][0]["position"]
                 coords = (location["lat"], location["lng"])
                 
                 # Lưu vào cache thông thường
@@ -85,7 +85,7 @@ async def geocode_address_with_cache(address: str) -> Optional[Tuple[float, floa
                 
                 return coords
             else:
-                logger.warning(f"Không thể geocode địa chỉ: {address}. Status: {data['status']}")
+                logger.warning(f"Không thể geocode địa chỉ: {address}")
                 # Lưu None vào cache để tránh gọi lại API cho địa chỉ không hợp lệ
                 _geocode_cache[normalized_address] = None
                 return None
@@ -177,8 +177,8 @@ async def geocode_address(address: str) -> Optional[Tuple[float, float]]:
             response = await client.get(url)
             data = response.json()
             
-            if data["status"] == "OK" and data["results"]:
-                location = data["results"][0]["geometry"]["location"]
+            if data["items"]:
+                location = data["items"][0]["position"]
                 coords = (location["lat"], location["lng"])
                 
                 # Lưu vào cache thông thường
