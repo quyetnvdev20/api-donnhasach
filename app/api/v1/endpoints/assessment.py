@@ -120,7 +120,8 @@ async def get_assessment_list(
             rpg.display_name AS assessment_address,
             TO_CHAR(icr.date_damage AT TIME ZONE 'UTC' AT TIME ZONE %(time_zone)s, 'DD/MM/YYYY - HH24:MI') AS notification_time,
             TO_CHAR((icr.date_damage + INTERVAL '3 hours') AT TIME ZONE 'UTC' AT TIME ZONE %(time_zone)s, 'DD/MM/YYYY - HH24:MI') AS complete_time,
-            icr.note AS note
+            icr.note AS note,
+			(select sum(1) from insurance_claim_remote_inspection where appraisal_detail_id = gd_chi_tiet.id and status != 'cancel') as remote_inspection
         FROM insurance_claim_appraisal_detail gd_chi_tiet
         LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
         LEFT JOIN res_partner_gara rpg ON rpg.id = gd_chi_tiet.gara_partner_id
@@ -226,6 +227,24 @@ async def get_assessment_list(
             "note": result["note"] or "",
             "status": result["status"] or "",
             "status_color": "#212121"
+        }
+
+        status = result['status']
+
+        if headers.invitationCode:
+            state_name = 'Giám định từ xa'
+            color_code = '2196F3'
+        elif result.get('remote_inspection') and status == 'wait':
+            state_name = 'Chờ giám định từ xa'
+            color_code = '#faad14'
+        else:
+            state_name = STATE_COLOR.get(status, '#757575')[1] if STATE_COLOR.get(status) else "Đang xử lý"
+            color_code = STATE_COLOR.get(status, '#757575')[0] if STATE_COLOR.get(status) else "#2196F3"
+
+        assessment_item['new_status'] = {
+            "name": state_name,
+            "code": status,
+            "color_code": color_code
         }
         
         assessment_list.append(assessment_item)

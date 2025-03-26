@@ -3,6 +3,13 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from datetime import datetime
 
+
+class Status(BaseModel):
+    color_code: str
+    name: str
+    code: str
+
+
 # Models for Assessment List
 class AssessmentListItem(BaseModel):
     id: int
@@ -22,6 +29,7 @@ class AssessmentListItem(BaseModel):
     note: Optional[str] = None
     status: Optional[str]
     status_color: Optional[str] = "#212121"
+    new_status: Optional[Status] = {}
 
 
 class AssessmentStatus(Enum):
