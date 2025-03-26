@@ -65,7 +65,10 @@ class Settings(BaseSettings):
 
     # Distance limit
     USER_GARAGE_DISTANCE_LIMIT: float = 0.5
-    
+
+    # Here Maps API
+    HERE_MAPS_API_KEY: str = ""
+
     @property
     def DATABASE_URL(self) -> str:
         return self.POSTGRES_DATABASE_URL
