@@ -64,7 +64,7 @@ class Settings(BaseSettings):
 
     # Distance limit
     USER_GARAGE_DISTANCE_LIMIT: float = 0.5
-    APPRAISAL_IMAGE_TYPE_DOCUMENT: float
+    APPRAISAL_IMAGE_TYPE_DOCUMENT: int
 
     @property
     def DATABASE_URL(self) -> str:
