@@ -78,6 +78,7 @@ class Location(BaseModel):
 class AssessmentDetail(BaseModel):
     case_number: str
     status: str
+    edit_screen: bool
     state : State
     gara_address: Optional[Location] = None
     gara_distance: Optional[float] = None
