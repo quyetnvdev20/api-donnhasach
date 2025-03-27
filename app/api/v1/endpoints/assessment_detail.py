@@ -204,7 +204,7 @@ async def update_scene_attachment(
         attachment_vals = []
 
         if scene_attachment.listImageRemove:
-            attachment_vals.append((2, id, False) for id in scene_attachment.listImageRemove)
+            attachment_vals += [(2, id, False) for id in scene_attachment.listImageRemove]
 
         for image in scene_attachment.images:
             if image.id:
