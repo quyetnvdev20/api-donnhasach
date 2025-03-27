@@ -65,6 +65,7 @@ class Settings(BaseSettings):
 
     # Distance limit
     USER_GARAGE_DISTANCE_LIMIT: float = 0.5
+    APPRAISAL_IMAGE_TYPE_DOCUMENT: int
 
     # Here Maps API
     HERE_MAPS_API_KEY: str = ""
