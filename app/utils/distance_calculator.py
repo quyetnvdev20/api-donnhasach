@@ -720,7 +720,6 @@ async def find_nearby_garages(lat: float, lng: float, garage_list: list, token: 
         
         # Phase 3: Query database for coordinates of remaining garages
         if need_select_db:
-            db_hits = 0
             
             try:
                 # Get all garage IDs for batch query
@@ -748,7 +747,6 @@ async def find_nearby_garages(lat: float, lng: float, garage_list: list, token: 
                     for garage_id, address, address_normalized, name in need_select_db:
                         # Check if we have coordinates for this garage from DB
                         if garage_id in db_coords:
-                            db_hits += 1
                             coords = db_coords[garage_id]
                             
                             # Calculate distance
@@ -858,7 +856,7 @@ async def find_nearby_garages(lat: float, lng: float, garage_list: list, token: 
     finally:
         end_time = time.time()
         execution_time = end_time - start_time
-        logger.debug(f"find_nearby_garages executed in {execution_time:.2f} seconds. Found {len(result)} garages. Memory cache hits: {memory_cache_hits}, Redis hits: {redis_hits}, DB hits: {db_hits}, API calls: {api_calls}")
+        logger.debug(f"find_nearby_garages executed in {execution_time:.2f} seconds. Found {len(result)} garages. Memory cache hits: {memory_cache_hits}, Redis hits: {redis_hits}, API calls: {api_calls}")
 
 # Helper function to update Redis in the background
 async def _update_redis_coords(address_normalized: str, coords):
