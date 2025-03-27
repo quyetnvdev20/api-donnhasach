@@ -229,7 +229,7 @@ async def update_scene_attachment(
         else:
             vals_items.append((0, 0, vals_scene))
 
-        if not scene_attachment.images:
+        if not scene_attachment.images and scene_attachment.id:
             vals_items.append((2, scene_attachment.id, False))
 
     vals = {
