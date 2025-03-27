@@ -109,12 +109,17 @@ async def get_garage_list(
             }
         list_garage_items = []  
         for item in result:
-            list_garage_items.append({
-                "id": item.get('id'),
-                "name": item.get('name'),
-                "street": item.get('street'),
-                "distance": 0,
-                "travel_time_minutes": 0
+            garage_id = item.get('id')
+            address = item.get('address', '')
+            name = item.get('name', '')
+            
+            if garage_id and address and name:
+                list_garage_items.append({
+                    "id": garage_id,
+                    "name": name,
+                    "street": address,
+                    "distance": 0,
+                    "travel_time_minutes": 0
             })
         start_idx = min(offset * limit, len(list_garage_items))
         end_idx = min(offset * limit + limit, len(list_garage_items))
