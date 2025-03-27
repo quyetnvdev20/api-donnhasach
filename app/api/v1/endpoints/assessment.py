@@ -152,10 +152,47 @@ async def get_assessment_list(
 
     # Use named parameters
     params = {"time_zone": time_zone.key}
+    
+    # Khởi tạo status_lst trước
+    status_lst = [s.strip() for s in status.split(',')] if status else []
+    
+    # Xử lý điều kiện status và remote_inspection
+    if status_lst:  # Thay đổi điều kiện từ if status thành if status_lst
+        # Xử lý điều kiện remote_inspection trong query
+        has_remote = 'remote_inspection' in status_lst
+        has_wait = 'wait' in status_lst
 
-    if status:
-        query += " AND gd_chi_tiet.state = ANY(%(status)s) "
-        params["status"] = [s.strip() for s in status.split(',')]
+        if has_remote or has_wait:
+            # Loại bỏ remote_inspection khỏi status_lst vì sẽ xử lý riêng
+            if has_remote:
+                status_lst.remove('remote_inspection')
+            
+            # Xử lý điều kiện remote inspection
+            if has_remote and has_wait:
+                # Nếu có cả remote_inspection và wait, lấy tất cả các case wait
+                # (bao gồm cả có và không có remote inspection)
+                status_lst.append('wait')
+            elif has_remote:
+                # Chỉ lấy các case có remote inspection và status wait
+                query += """ 
+                    AND (SELECT COUNT(1) 
+                         FROM insurance_claim_remote_inspection 
+                         WHERE appraisal_detail_id = gd_chi_tiet.id 
+                         AND status != 'cancel') > 0 
+                """
+                status_lst.append('wait')
+            elif has_wait:
+                # Chỉ lấy các case wait không có remote inspection
+                query += """ 
+                    AND (SELECT COUNT(1) 
+                         FROM insurance_claim_remote_inspection 
+                         WHERE appraisal_detail_id = gd_chi_tiet.id 
+                         AND status != 'cancel') = 0 
+                """
+
+        if status_lst:
+            query += " AND gd_chi_tiet.state = ANY(%(status)s) "
+            params["status"] = status_lst
 
     if search:
         query += """
@@ -181,7 +218,6 @@ async def get_assessment_list(
     """
 
     results = await PostgresDB.execute_query(query, params)
-    
     # Tạo danh sách kết quả
     assessment_list = []
     
