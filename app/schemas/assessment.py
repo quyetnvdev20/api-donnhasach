@@ -80,6 +80,7 @@ class AssessmentDetail(BaseModel):
     case_number: str
     status: str
     edit_screen: bool
+    enable_remote_inspection: bool
     state : State
     gara_address: Optional[Location] = None
     license_plate: Optional[str] = None
