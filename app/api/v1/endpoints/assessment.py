@@ -435,6 +435,7 @@ async def get_assessment_detail(
         status = assessment_detail['status']
 
         edit_screen = True
+        enable_remote_inspection = True
 
         if headers.invitationCode:
             state_name = 'Giám định từ xa'
@@ -442,6 +443,7 @@ async def get_assessment_detail(
         elif remote_inspection_detail and status == 'wait':
             if any(r.get('status') == 'new' for r in remote_inspection_detail):
                 edit_screen = False
+                enable_remote_inspection = False
                 state_name = 'Chờ giám định từ xa'
                 color_code = '#faad14'
             else:
@@ -461,6 +463,7 @@ async def get_assessment_detail(
             assessment_detail['user_request'] = user_request
 
         assessment_detail['edit_screen'] = edit_screen
+        assessment_detail['enable_remote_inspection'] = enable_remote_inspection
 
         assessment_detail['tasks'] = [{
             "seq": 1,
