@@ -323,6 +323,7 @@ async def validate_invitation(
 @router.post("/save-face-image",
              response_model=SaveImageResponse)
 async def save_face_image(
+        headers: Annotated[CommonHeaders, Header()],
         save_image_vals: SaveImageRequest = Body(...),
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
@@ -350,7 +351,34 @@ async def save_face_image(
         else:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response.get("message"))
     else:
-        return SaveImageResponse(id=save_image_vals.assessment_id)
+        vals_items = {
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "type_document_id": int(settings.APPRAISAL_IMAGE_TYPE_DOCUMENT),
+            "type": "photo",
+            "attachment_ids": [(0, 0, {
+                "date_upload": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "latitude": headers.latitude if headers.latitude else None,
+                "longitude": headers.longitude if headers.longitude else None,
+                "link": save_image_vals.face_image_url + '?image_process=resize,w_100,h_100',
+                "link_preview": save_image_vals.face_image_url,
+                "location": '',
+                "note": ''
+            })]
+        }
+        vals = {
+            'appraisal_attachment_ids': [(0, 0, vals_items)]
+        }
+
+        response = await odoo.update_method(
+            model='insurance.claim.appraisal.detail',
+            record_id=save_image_vals.assessment_id,
+            vals=vals,
+            token=current_user.odoo_token,
+        )
+        if response:
+            return SaveImageResponse(id=save_image_vals.assessment_id)
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response.get("message"))
 
 
 @router.post("/done",
