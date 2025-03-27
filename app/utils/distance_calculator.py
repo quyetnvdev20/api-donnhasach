@@ -921,9 +921,7 @@ async def calculate_distances_batch_from_coords_v2(lat: float, lng: float, addre
             
             # Kiểm tra cache khoảng cách
             if cache_key in _distance_cache:
-                cache_data = _distance_cache[cache_key]
-                distance = cache_data.get("distance", 0.0)
-                coords = cache_data.get("coords", (0, 0))
+                distance = _distance_cache[cache_key]
                 
                 # Tính thời gian di chuyển bằng xe máy (phút) với tốc độ trung bình 30 km/h
                 travel_time_minutes = round((distance / 30) * 60) if distance > 0 else 0
@@ -932,7 +930,6 @@ async def calculate_distances_batch_from_coords_v2(lat: float, lng: float, addre
                 result[address] = {
                     "distance": distance,
                     "travel_time_minutes": travel_time_minutes,
-                    "coords": coords,
                     "id": garage_id,
                 }
             else:
@@ -977,15 +974,11 @@ async def calculate_distances_batch_from_coords_v2(lat: float, lng: float, addre
                         result[address] = {
                             "distance": distance,
                             "travel_time_minutes": travel_time_minutes,
-                            "coords": coords,
                             "id": garage_id,
                         }
                         
                         # Lưu vào cache khoảng cách
-                        _distance_cache[(coords_key, address_normalized)] = {
-                            "distance": distance,
-                            "coords": coords
-                        }
+                        _distance_cache[(coords_key, address_normalized)] = distance
                     else:
                         # Cache hết hạn, xóa và tiếp tục xử lý
                         del _geocode_cache_with_expiry[address_normalized]
@@ -1013,14 +1006,10 @@ async def calculate_distances_batch_from_coords_v2(lat: float, lng: float, addre
                         result[address] = {
                             "distance": distance,
                             "travel_time_minutes": travel_time_minutes,
-                            "coords": coords,
                             "id": garage_id,
                         }
                         # Lưu vào cache khoảng cách
-                        _distance_cache[(coords_key, address_normalized)] = {
-                            "distance": distance,
-                            "coords": coords
-                        }
+                        _distance_cache[(coords_key, address_normalized)] = distance
                     else:
                         # Không có trong cache thông thường
                         remaining_after_regular_cache.append(garage)
@@ -1077,15 +1066,11 @@ async def calculate_distances_batch_from_coords_v2(lat: float, lng: float, addre
                                 result[address] = {
                                     "distance": distance,
                                     "travel_time_minutes": travel_time_minutes,
-                                    "coords": coords,
                                     "id": garage_id,
                                 }
                                 
                                 # Lưu vào cache khoảng cách
-                                _distance_cache[(coords_key, address_normalized)] = {
-                                    "distance": distance,
-                                    "coords": coords
-                                }
+                                _distance_cache[(coords_key, address_normalized)] = distance
                                 
                                 # Đánh dấu gara đã xử lý để không tìm kiếm trên API
                                 del garages_by_id[garage_id]
@@ -1116,7 +1101,6 @@ async def calculate_distances_batch_from_coords_v2(lat: float, lng: float, addre
                         result[address] = {
                             "distance": result_item["distance"],
                             "travel_time_minutes": result_item["travel_time_minutes"],
-                            "coords": result_item["coords"],
                             "id": result_item["id"],
                         }
                         
@@ -1174,10 +1158,7 @@ async def here_maps_geocode_with_api(garage, lat, lng, token):
                 
                 # Lưu vào cache khoảng cách
                 coords_key = f"{lat:.6f},{lng:.6f}"
-                _distance_cache[(coords_key, address_normalized)] = {
-                    "distance": distance,
-                    "coords": coords
-                }
+                _distance_cache[(coords_key, address_normalized)] = distance
                 
                 return {
                     "address": address,
