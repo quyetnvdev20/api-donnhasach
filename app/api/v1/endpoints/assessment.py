@@ -120,7 +120,7 @@ async def get_assessment_list(
             TO_CHAR(icr.date_damage AT TIME ZONE 'UTC' AT TIME ZONE %(time_zone)s, 'DD/MM/YYYY - HH24:MI') AS notification_time,
             TO_CHAR((icr.date_damage + INTERVAL '3 hours') AT TIME ZONE 'UTC' AT TIME ZONE %(time_zone)s, 'DD/MM/YYYY - HH24:MI') AS complete_time,
             icr.note AS note,
-			(select sum(1) from insurance_claim_remote_inspection where appraisal_detail_id = gd_chi_tiet.id and status != 'cancel') as remote_inspection
+			(select json_agg(status) from insurance_claim_remote_inspection where appraisal_detail_id = gd_chi_tiet.id and status != 'cancel') as remote_inspection
         FROM insurance_claim_appraisal_detail gd_chi_tiet
         LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
         LEFT JOIN res_partner_gara rpg ON rpg.id = gd_chi_tiet.gara_partner_id
@@ -155,37 +155,45 @@ async def get_assessment_list(
     status_lst = [s.strip() for s in status.split(',')] if status else []
     
     # Xử lý điều kiện status và remote_inspection
-    if status_lst:  # Thay đổi điều kiện từ if status thành if status_lst
-        # Xử lý điều kiện remote_inspection trong query
+    if status_lst:
         has_remote = 'remote_inspection' in status_lst
         has_wait = 'wait' in status_lst
 
         if has_remote or has_wait:
-            # Loại bỏ remote_inspection khỏi status_lst vì sẽ xử lý riêng
             if has_remote:
                 status_lst.remove('remote_inspection')
             
-            # Xử lý điều kiện remote inspection
             if has_remote and has_wait:
                 # Nếu có cả remote_inspection và wait, lấy tất cả các case wait
-                # (bao gồm cả có và không có remote inspection)
                 status_lst.append('wait')
             elif has_remote:
-                # Chỉ lấy các case có remote inspection và status wait
+                # Chỉ lấy các case có remote inspection với status 'new' và status wait
                 query += """ 
-                    AND (SELECT COUNT(1) 
-                         FROM insurance_claim_remote_inspection 
-                         WHERE appraisal_detail_id = gd_chi_tiet.id 
-                         AND status != 'cancel') > 0 
+                    AND EXISTS (
+                        SELECT 1
+                        FROM insurance_claim_remote_inspection 
+                        WHERE appraisal_detail_id = gd_chi_tiet.id 
+                        AND status = 'new'
+                    )
                 """
                 status_lst.append('wait')
             elif has_wait:
-                # Chỉ lấy các case wait không có remote inspection
+                # Lấy các case wait không có remote inspection
+                # HOẶC tất cả remote inspection có status là 'done'
                 query += """ 
-                    AND (SELECT COUNT(1) 
+                    AND (
+                        (SELECT COUNT(1) 
                          FROM insurance_claim_remote_inspection 
                          WHERE appraisal_detail_id = gd_chi_tiet.id 
-                         AND status != 'cancel') = 0 
+                         AND status != 'cancel') = 0
+                        OR 
+                        NOT EXISTS (
+                            SELECT 1
+                            FROM insurance_claim_remote_inspection
+                            WHERE appraisal_detail_id = gd_chi_tiet.id
+                            AND status != 'done'
+                        )
+                    )
                 """
 
         if status_lst:
@@ -270,8 +278,12 @@ async def get_assessment_list(
             state_name = 'Giám định từ xa'
             color_code = '2196F3'
         elif result.get('remote_inspection') and status == 'wait':
-            state_name = 'Chờ giám định từ xa'
-            color_code = '#faad14'
+            if 'new' in result.get('remote_inspection'):
+                state_name = 'Chờ giám định từ xa'
+                color_code = '#faad14'
+            else:
+                state_name = STATE_COLOR.get(status, '#757575')[1] if STATE_COLOR.get(status) else "Đang xử lý"
+                color_code = STATE_COLOR.get(status, '#757575')[0] if STATE_COLOR.get(status) else "#2196F3"
         else:
             state_name = STATE_COLOR.get(status, '#757575')[1] if STATE_COLOR.get(status) else "Đang xử lý"
             color_code = STATE_COLOR.get(status, '#757575')[0] if STATE_COLOR.get(status) else "#2196F3"
@@ -396,12 +408,19 @@ async def get_assessment_detail(
                                                       '#757575')  # Default to gray if status not found
         status = assessment_detail['status']
 
+        edit_screen = True
+
         if headers.invitationCode:
             state_name = 'Giám định từ xa'
             color_code = '2196F3'
         elif remote_inspection_detail and status == 'wait':
-            state_name = 'Chờ giám định từ xa'
-            color_code = '#faad14'
+            if any(r.get('status') == 'new' for r in remote_inspection_detail):
+                edit_screen = False
+                state_name = 'Chờ giám định từ xa'
+                color_code = '#faad14'
+            else:
+                state_name = STATE_COLOR.get(status, '#757575')[1] if STATE_COLOR.get(status) else "Đang xử lý"
+                color_code = STATE_COLOR.get(status, '#757575')[0] if STATE_COLOR.get(status) else "#2196F3"
         else:
             state_name = STATE_COLOR.get(status, '#757575')[1] if STATE_COLOR.get(status) else "Đang xử lý"
             color_code = STATE_COLOR.get(status, '#757575')[0] if STATE_COLOR.get(status) else "#2196F3"
@@ -414,6 +433,8 @@ async def get_assessment_detail(
         assessment_detail['list_remote_inspection'] = remote_inspection_detail
         if user_request:
             assessment_detail['user_request'] = user_request
+
+        assessment_detail['edit_screen'] = edit_screen
 
         assessment_detail['tasks'] = [{
             "seq": 1,
