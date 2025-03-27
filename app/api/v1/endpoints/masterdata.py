@@ -14,9 +14,11 @@ logger = logging.getLogger(__name__)
 @router.get("/garages", response_model=GarageListResponse)
 async def get_garage_list(
     headers: Annotated[CommonHeaders, Header()],
+    current_user: dict = Depends(get_current_user),
     search: Optional[str] = None,
     offset: int = 0,
     limit: int = 10,
+    
 ):
     
     # TODO: Remove this after testing Latitude and Longitude Tasco
@@ -76,7 +78,8 @@ async def get_garage_list(
         distances = await find_nearby_garages(
             float(latitude), 
             float(longitude), 
-            garage_items_check
+            garage_items_check,
+            current_user.odoo_token
         )
         
         if distances:
@@ -104,7 +107,20 @@ async def get_garage_list(
                 "data": paginated_garage_items,
                 
             }
-        return {"data": []}
+        list_garage_items = []  
+        for item in result:
+            list_garage_items.append({
+                "id": item.get('id'),
+                "name": item.get('name'),
+                "street": item.get('street'),
+                "distance": 0,
+                "travel_time_minutes": 0
+            })
+        start_idx = min(offset * limit, len(list_garage_items))
+        end_idx = min(offset * limit + limit, len(list_garage_items))
+        paginated_garage_items = list_garage_items[start_idx:end_idx]
+        
+        return {"data": paginated_garage_items}
     
     except Exception as e:
         logger.error(f"Error getting garage list: {str(e)}")
