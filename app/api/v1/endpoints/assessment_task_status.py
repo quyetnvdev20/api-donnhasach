@@ -136,6 +136,8 @@ async def get_remote_inspection(assessment_id: int, invitation_code: str) -> Lis
         
     from insurance_claim_remote_inspection
     where appraisal_detail_id = $1 and status != 'cancel'
+    order by id desc
+    limit 1
     """
     result = await PostgresDB.execute_query(query, (assessment_id,))
     data = []
