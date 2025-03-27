@@ -566,261 +566,132 @@ async def find_nearby_garages(lat: float, lng: float, garage_list: list, token: 
     redis_hits = 0
     api_calls = 0
     
-    try:
-        # Validate input parameters
-        if not isinstance(garage_list, list) or len(garage_list) == 0:
-            logger.error("garage_list must be a non-empty list")
-            return {}
-            
-        if not (isinstance(lat, (int, float)) and isinstance(lng, (int, float))):
-            logger.error("lat and lng must be numeric values")
-            return {}
-        
-        # Lọc ra các gara có địa chỉ hợp lệ
-        valid_garages = []
-        for garage in garage_list:
-            if isinstance(garage, dict):
-                garage_id = garage.get('id')
-                address = garage.get('address', '').strip() if garage.get('address') else ''
-                name = garage.get('name', '').strip() if garage.get('name') else ''
-                
-                if garage_id and address and name:
-                    valid_garages.append((garage_id, address, name))
-        
-        if not valid_garages:
-            logger.warning("No valid garages found in the provided list")
-            return {}
-            
-        # Tạo key cho tọa độ người dùng
-        coords_key = f"{lat:.6f},{lng:.6f}"
-        
-        # Phase 1: Process all garages using in-memory cache first
-        processed_garages = {}  # Dictionary to track processed garages
-        need_redis_check = []   # Garages that need Redis lookup
-        need_select_db = []# Garages that need database lookup
-        need_geocoding = []     # Garages that need geocoding API calls
-        
-        current_time = time.time()
-        
-        # First pass: Check in-memory caches
-        for garage_id, address, name in valid_garages:
-            address_normalized = address.lower()
-            cache_key = (coords_key, address_normalized)
-            
-            # Check distance cache first (fastest path)
-            if cache_key in _distance_cache:
-                distance = _distance_cache[cache_key]
-                memory_cache_hits += 1
-                
-                # Look for coordinates in memory caches
-                garage_coords = None
-                
-                # Check expiry cache first
-                if address_normalized in _geocode_cache_with_expiry:
-                    cache_entry = _geocode_cache_with_expiry[address_normalized]
-                    if cache_entry["expires_at"] > current_time:
-                        garage_coords = cache_entry["coords"]
-                
-                # Then check regular cache
-                if garage_coords is None and address_normalized in _geocode_cache:
-                    garage_coords = _geocode_cache[address_normalized]
-                
-                # Calculate travel time
-                travel_time_minutes = round((distance / 30) * 60)
-                
-                # Add to results
-                result[garage_id] = {
-                    "id": garage_id,
-                    "address": address,
-                    "name": name,
-                    "distance": distance,
-                    "travel_time_minutes": travel_time_minutes,
-                    "coordinates": garage_coords
-                }
-                
-                # Mark as processed
-                processed_garages[address_normalized] = True
-                
-                # Background task to update Redis (don't wait for it)
-                if garage_coords:
-                    asyncio.create_task(_update_redis_coords(address_normalized, garage_coords))
-            else:
-                # Need to check other sources
-                need_redis_check.append((garage_id, address, address_normalized, name))
-        
-        # Phase 2: Batch check Redis for remaining garages
-        if need_redis_check:
-            # Prepare Redis keys for batch retrieval
-            redis_keys = [f"{REDIS_GEOCODE_PREFIX}{addr_norm}" for _, _, addr_norm, _ in need_redis_check]
-            
-            # Batch get from Redis
-            try:
-                # Get keys in parallel with an overall timeout
-                redis_results = await asyncio.gather(*[redis_client.get(key) for key in redis_keys], 
-                                                   return_exceptions=True)
-                
-                # Process Redis results
-                for i, (garage_id, address, address_normalized, name) in enumerate(need_redis_check):
-                    if i < len(redis_results):
-                        redis_result = redis_results[i]
-                        
-                        # Skip errors from Redis
-                        if isinstance(redis_result, Exception):
-                            need_select_db.append((garage_id, address, address_normalized, name))
-                            continue
-                            
-                        # Process valid Redis result
-                        if redis_result:
-                            redis_hits += 1
-                            coords = tuple(redis_result) if isinstance(redis_result, list) else redis_result
-                            
-                            # Calculate distance
-                            try:
-                                distance = calculate_distance_haversine(
-                                    lat, lng, coords[0], coords[1]
-                                )
-                                distance = round(distance, 2)
-                                
-                                # Update memory caches
-                                _distance_cache[(coords_key, address_normalized)] = distance
-                                _geocode_cache[address_normalized] = coords
-                                _geocode_cache_with_expiry[address_normalized] = {
-                                    "coords": coords,
-                                    "expires_at": current_time + REDIS_GEOCODE_EXPIRY
-                                }
-                                
-                                # Calculate travel time
-                                travel_time_minutes = round((distance / 30) * 60)
-                                
-                                # Add to results
-                                result[garage_id] = {
-                                    "id": garage_id,
-                                    "address": address,
-                                    "name": name,
-                                    "distance": distance,
-                                    "travel_time_minutes": travel_time_minutes,
-                                    "coordinates": coords
-                                }
-                                
-                                # Mark as processed
-                                processed_garages[address_normalized] = True
-                            except Exception as e:
-                                logger.error(f"Error calculating distance for '{address}' from Redis coords: {str(e)}")
-                                need_select_db.append((garage_id, address, address_normalized, name))
-                        else:
-                            # No data in Redis
-                            need_select_db.append((garage_id, address, address_normalized, name))
-                    else:
-                        # Redis result missing
+    # try:
+    # Validate input parameters
+    if not isinstance(garage_list, list) or len(garage_list) == 0:
+        logger.error("garage_list must be a non-empty list")
+        return {}
+
+    if not (isinstance(lat, (int, float)) and isinstance(lng, (int, float))):
+        logger.error("lat and lng must be numeric values")
+        return {}
+
+    # Lọc ra các gara có địa chỉ hợp lệ
+    valid_garages = []
+    for garage in garage_list:
+        if isinstance(garage, dict):
+            garage_id = garage.get('id')
+            address = garage.get('address', '').strip() if garage.get('address') else ''
+            name = garage.get('name', '').strip() if garage.get('name') else ''
+
+            if garage_id and address and name:
+                valid_garages.append((garage_id, address, name))
+
+    if not valid_garages:
+        logger.warning("No valid garages found in the provided list")
+        return {}
+
+    # Tạo key cho tọa độ người dùng
+    coords_key = f"{lat:.6f},{lng:.6f}"
+
+    # Phase 1: Process all garages using in-memory cache first
+    processed_garages = {}  # Dictionary to track processed garages
+    need_redis_check = []   # Garages that need Redis lookup
+    need_select_db = []# Garages that need database lookup
+    need_geocoding = []     # Garages that need geocoding API calls
+
+    current_time = time.time()
+
+    # First pass: Check in-memory caches
+    for garage_id, address, name in valid_garages:
+        address_normalized = address.lower()
+        cache_key = (coords_key, address_normalized)
+
+        # Check distance cache first (fastest path)
+        if cache_key in _distance_cache:
+            distance = _distance_cache[cache_key]
+            memory_cache_hits += 1
+
+            # Look for coordinates in memory caches
+            garage_coords = None
+
+            # Check expiry cache first
+            if address_normalized in _geocode_cache_with_expiry:
+                cache_entry = _geocode_cache_with_expiry[address_normalized]
+                if cache_entry["expires_at"] > current_time:
+                    garage_coords = cache_entry["coords"]
+
+            # Then check regular cache
+            if garage_coords is None and address_normalized in _geocode_cache:
+                garage_coords = _geocode_cache[address_normalized]
+
+            # Calculate travel time
+            travel_time_minutes = round((distance / 30) * 60)
+
+            # Add to results
+            result[garage_id] = {
+                "id": garage_id,
+                "address": address,
+                "name": name,
+                "distance": distance,
+                "travel_time_minutes": travel_time_minutes,
+                "coordinates": garage_coords
+            }
+
+            # Mark as processed
+            processed_garages[address_normalized] = True
+
+            # Background task to update Redis (don't wait for it)
+            if garage_coords:
+                asyncio.create_task(_update_redis_coords(address_normalized, garage_coords))
+        else:
+            # Need to check other sources
+            need_redis_check.append((garage_id, address, address_normalized, name))
+
+    # Phase 2: Batch check Redis for remaining garages
+    if need_redis_check:
+        # Prepare Redis keys for batch retrieval
+        redis_keys = [f"{REDIS_GEOCODE_PREFIX}{addr_norm}" for _, _, addr_norm, _ in need_redis_check]
+
+        # Batch get from Redis
+        try:
+            # Get keys in parallel with an overall timeout
+            redis_results = await asyncio.gather(*[redis_client.get(key) for key in redis_keys],
+                                               return_exceptions=True)
+
+            # Process Redis results
+            for i, (garage_id, address, address_normalized, name) in enumerate(need_redis_check):
+                if i < len(redis_results):
+                    redis_result = redis_results[i]
+
+                    # Skip errors from Redis
+                    if isinstance(redis_result, Exception):
                         need_select_db.append((garage_id, address, address_normalized, name))
-            except Exception as e:
-                logger.warning(f"Error in batch Redis operation: {str(e)}")
-                # Add all to geocoding list if Redis batch fails
-                need_select_db.extend(need_redis_check)
-        
-        # Phase 3: Query database for coordinates of remaining garages
-        if need_select_db:
-            
-            try:
-                # Get all garage IDs for batch query
-                garage_ids_to_query = [garage_id for garage_id, _, _, _ in need_select_db if garage_id]
-                
-                if garage_ids_to_query:
-                    # Create placeholders for SQL IN clause
-                    placeholders = ', '.join([f'${i+1}' for i in range(len(garage_ids_to_query))])
-                    
-                    # Query to get coordinates from database
-                    query = f"SELECT id, latitude, longitude FROM res_partner_gara WHERE id IN ({placeholders})"
-                    
-                    # Execute query with all garage IDs
-                    db_results = await PostgresDB.execute_query(query, garage_ids_to_query)
-                    
-                    # Create lookup dictionary for fast access
-                    db_coords = {}
-                    for row in db_results:
-                        garage_id, lat_db, lng_db = row
-                        # Only use valid coordinates (not NULL and not 0,0)
-                        if lat_db is not None and lng_db is not None and (lat_db != 0 or lng_db != 0):
-                            db_coords[garage_id] = (lat_db, lng_db)
-                    
-                    # Process results and update caches
-                    for garage_id, address, address_normalized, name in need_select_db:
-                        # Check if we have coordinates for this garage from DB
-                        if garage_id in db_coords:
-                            coords = db_coords[garage_id]
-                            
-                            # Calculate distance
-                            distance = calculate_distance_haversine(
-                                lat, lng, coords[0], coords[1]
-                            )
-                            distance = round(distance, 2)
-                            
-                            # Update caches
-                            _distance_cache[(coords_key, address_normalized)] = distance
-                            _geocode_cache[address_normalized] = coords
-                            _geocode_cache_with_expiry[address_normalized] = {
-                                "coords": coords,
-                                "expires_at": current_time + REDIS_GEOCODE_EXPIRY
-                            }
-                            
-                            # Calculate travel time
-                            travel_time_minutes = round((distance / 30) * 60)
-                            
-                            # Add to results
-                            result[garage_id] = {
-                                "id": garage_id,
-                                "address": address,
-                                "name": name,
-                                "distance": distance,
-                                "travel_time_minutes": travel_time_minutes,
-                                "coordinates": coords
-                            }
-                            
-                            # Mark as processed
-                            processed_garages[address_normalized] = True
-                            
-                            # Update Redis in background
-                            asyncio.create_task(_update_redis_coords(address_normalized, coords))
-                        else:
-                            # No coordinates in database, need geocoding
-                            need_geocoding.append((garage_id, address, address_normalized, name))
-                else:
-                    # If no valid IDs, all need geocoding
-                    need_geocoding.extend(need_select_db)
-            except Exception as e:
-                logger.error(f"Error querying database for coordinates: {str(e)}")
-                # If database query fails, fall back to geocoding
-                need_geocoding.extend(need_select_db)
-        
-        # Phase 4: Geocode remaining garages in optimized batches
-        if need_geocoding:
-            api_calls = len(need_geocoding)
-            
-            # Prepare geocoding tasks
-            geocode_tasks = [geocode_address(addr) for _, addr, _, _ in need_geocoding]
-            
-            # Execute geocoding in parallel with timeout protection
-            try:
-                geocode_results = await asyncio.gather(*geocode_tasks, return_exceptions=True)
-                
-                # Process geocoding results
-                for j, (garage_id, address, address_normalized, name) in enumerate(need_geocoding):
-                    if j < len(geocode_results) and not isinstance(geocode_results[j], Exception) and geocode_results[j]:
-                        coords = geocode_results[j]
-                        
+                        continue
+
+                    # Process valid Redis result
+                    if redis_result:
+                        redis_hits += 1
+                        coords = tuple(redis_result) if isinstance(redis_result, list) else redis_result
+
                         # Calculate distance
                         try:
                             distance = calculate_distance_haversine(
                                 lat, lng, coords[0], coords[1]
                             )
                             distance = round(distance, 2)
-                            
-                            # Update caches
+
+                            # Update memory caches
                             _distance_cache[(coords_key, address_normalized)] = distance
-                            
+                            _geocode_cache[address_normalized] = coords
+                            _geocode_cache_with_expiry[address_normalized] = {
+                                "coords": coords,
+                                "expires_at": current_time + REDIS_GEOCODE_EXPIRY
+                            }
+
                             # Calculate travel time
                             travel_time_minutes = round((distance / 30) * 60)
-                            
+
                             # Add to results
                             result[garage_id] = {
                                 "id": garage_id,
@@ -830,33 +701,162 @@ async def find_nearby_garages(lat: float, lng: float, garage_list: list, token: 
                                 "travel_time_minutes": travel_time_minutes,
                                 "coordinates": coords
                             }
-                            
-                            # Background task to update Redis and DB
-                            asyncio.create_task(_update_redis_coords(address_normalized, coords))
-                            
-                            # If we found coordinates via API, update the database in background
-                            if garage_id:
-                                asyncio.create_task(update_orm_coords(garage_id, coords, token))
+
+                            # Mark as processed
+                            processed_garages[address_normalized] = True
                         except Exception as e:
-                            logger.error(f"Error calculating distance for '{address}': {str(e)}")
+                            logger.error(f"Error calculating distance for '{address}' from Redis coords: {str(e)}")
+                            need_select_db.append((garage_id, address, address_normalized, name))
                     else:
-                        error = geocode_results[j] if j < len(geocode_results) and isinstance(geocode_results[j], Exception) else "Unknown error"
-                        logger.warning(f"Error geocoding address '{address}': {error}")
-            except Exception as e:
-                logger.error(f"Error during geocoding batch: {str(e)}")
-        
-        # Return sorted results
-        if result:
-            return dict(sorted(result.items(), key=lambda item: item[1]['distance']))
-        return {}
+                        # No data in Redis
+                        need_select_db.append((garage_id, address, address_normalized, name))
+                else:
+                    # Redis result missing
+                    need_select_db.append((garage_id, address, address_normalized, name))
+        except Exception as e:
+            logger.warning(f"Error in batch Redis operation: {str(e)}")
+            # Add all to geocoding list if Redis batch fails
+            need_select_db.extend(need_redis_check)
+
+    # Phase 3: Query database for coordinates of remaining garages
+    if need_select_db:
+
+        try:
+            # Get all garage IDs for batch query
+            garage_ids_to_query = [garage_id for garage_id, _, _, _ in need_select_db if garage_id]
+
+            if garage_ids_to_query:
+                # Create placeholders for SQL IN clause
+                placeholders = ', '.join([f'${i+1}' for i in range(len(garage_ids_to_query))])
+
+                # Query to get coordinates from database
+                query = f"SELECT id, latitude, longitude FROM res_partner_gara WHERE id IN ({placeholders})"
+
+                # Execute query with all garage IDs
+                db_results = await PostgresDB.execute_query(query, garage_ids_to_query)
+
+                # Create lookup dictionary for fast access
+                db_coords = {}
+                for row in db_results:
+                    garage_id, lat_db, lng_db = row
+                    # Only use valid coordinates (not NULL and not 0,0)
+                    if lat_db is not None and lng_db is not None and (lat_db != 0 or lng_db != 0):
+                        db_coords[garage_id] = (lat_db, lng_db)
+
+                # Process results and update caches
+                for garage_id, address, address_normalized, name in need_select_db:
+                    # Check if we have coordinates for this garage from DB
+                    if garage_id in db_coords:
+                        coords = db_coords[garage_id]
+
+                        # Calculate distance
+                        distance = calculate_distance_haversine(
+                            lat, lng, coords[0], coords[1]
+                        )
+                        distance = round(distance, 2)
+
+                        # Update caches
+                        _distance_cache[(coords_key, address_normalized)] = distance
+                        _geocode_cache[address_normalized] = coords
+                        _geocode_cache_with_expiry[address_normalized] = {
+                            "coords": coords,
+                            "expires_at": current_time + REDIS_GEOCODE_EXPIRY
+                        }
+
+                        # Calculate travel time
+                        travel_time_minutes = round((distance / 30) * 60)
+
+                        # Add to results
+                        result[garage_id] = {
+                            "id": garage_id,
+                            "address": address,
+                            "name": name,
+                            "distance": distance,
+                            "travel_time_minutes": travel_time_minutes,
+                            "coordinates": coords
+                        }
+
+                        # Mark as processed
+                        processed_garages[address_normalized] = True
+
+                        # Update Redis in background
+                        asyncio.create_task(_update_redis_coords(address_normalized, coords))
+                    else:
+                        # No coordinates in database, need geocoding
+                        need_geocoding.append((garage_id, address, address_normalized, name))
+            else:
+                # If no valid IDs, all need geocoding
+                need_geocoding.extend(need_select_db)
+        except Exception as e:
+            logger.error(f"Error querying database for coordinates: {str(e)}")
+            # If database query fails, fall back to geocoding
+            need_geocoding.extend(need_select_db)
+
+    # Phase 4: Geocode remaining garages in optimized batches
+    if need_geocoding:
+        api_calls = len(need_geocoding)
+
+        # Prepare geocoding tasks
+        geocode_tasks = [geocode_address(addr) for _, addr, _, _ in need_geocoding]
+
+        # Execute geocoding in parallel with timeout protection
+        try:
+            geocode_results = await asyncio.gather(*geocode_tasks, return_exceptions=True)
+
+            # Process geocoding results
+            for j, (garage_id, address, address_normalized, name) in enumerate(need_geocoding):
+                if j < len(geocode_results) and not isinstance(geocode_results[j], Exception) and geocode_results[j]:
+                    coords = geocode_results[j]
+
+                    # Calculate distance
+                    try:
+                        distance = calculate_distance_haversine(
+                            lat, lng, coords[0], coords[1]
+                        )
+                        distance = round(distance, 2)
+
+                        # Update caches
+                        _distance_cache[(coords_key, address_normalized)] = distance
+
+                        # Calculate travel time
+                        travel_time_minutes = round((distance / 30) * 60)
+
+                        # Add to results
+                        result[garage_id] = {
+                            "id": garage_id,
+                            "address": address,
+                            "name": name,
+                            "distance": distance,
+                            "travel_time_minutes": travel_time_minutes,
+                            "coordinates": coords
+                        }
+
+                        # Background task to update Redis and DB
+                        asyncio.create_task(_update_redis_coords(address_normalized, coords))
+
+                        # If we found coordinates via API, update the database in background
+                        if garage_id:
+                            asyncio.create_task(update_orm_coords(garage_id, coords, token))
+                    except Exception as e:
+                        logger.error(f"Error calculating distance for '{address}': {str(e)}")
+                else:
+                    error = geocode_results[j] if j < len(geocode_results) and isinstance(geocode_results[j], Exception) else "Unknown error"
+                    logger.warning(f"Error geocoding address '{address}': {error}")
+        except Exception as e:
+            logger.error(f"Error during geocoding batch: {str(e)}")
+
+    # Return sorted results
+    if result:
+        return dict(sorted(result.items(), key=lambda item: item[1]['distance']))
+    return {}
     
-    except Exception as e:
-        logger.error(f"Error in find_nearby_garages: {str(e)}")
-        return result
-    finally:
-        end_time = time.time()
-        execution_time = end_time - start_time
-        logger.debug(f"find_nearby_garages executed in {execution_time:.2f} seconds. Found {len(result)} garages. Memory cache hits: {memory_cache_hits}, Redis hits: {redis_hits}, API calls: {api_calls}")
+    # except Exception as e:
+    #     logger.error(f"Error in find_nearby_garages: {str(e)}")
+    #     return result
+    # finally:
+    #     end_time = time.time()
+    #     execution_time = end_time - start_time
+    #     logger.debug(f"find_nearby_garages executed in {execution_time:.2f} seconds. Found {len(result)} garages. Memory cache hits: {memory_cache_hits}, Redis hits: {redis_hits}, API calls: {api_calls}")
 
 # Helper function to update Redis in the background
 async def _update_redis_coords(address_normalized: str, coords):
