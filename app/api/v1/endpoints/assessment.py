@@ -351,6 +351,12 @@ async def get_assessment_detail(
                 # Only add gara_address as Location if geocoding was successful
                 if location and len(location) >= 2:
                     assessment_detail['gara_address'] = Location(lat=location[0], lon=location[1])
+                    assessment_detail['gara_distance'] = calculate_distance_haversine(
+                        float(latitude), 
+                        float(longitude), 
+                        location[0], 
+                        location[1]
+                    )
                 else:
                     # Remove gara_address key if geocoding failed
                     assessment_detail.pop('gara_address', None)
@@ -362,7 +368,7 @@ async def get_assessment_detail(
         else:
             # Remove gara_address key if it's null or empty
             assessment_detail.pop('gara_address', None)
-        
+            
         assessment_progress = 0
         if detail_status.get("name") == "completed":
             assessment_progress += 25
