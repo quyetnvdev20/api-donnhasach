@@ -229,6 +229,9 @@ async def update_scene_attachment(
         else:
             vals_items.append((0, 0, vals_scene))
 
+        if not scene_attachment.images:
+            vals_items.append((2, scene_attachment.id, False))
+
     vals = {
         'scene_attachment_ids': vals_items
     }
