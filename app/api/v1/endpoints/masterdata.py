@@ -14,9 +14,11 @@ logger = logging.getLogger(__name__)
 @router.get("/garages", response_model=GarageListResponse)
 async def get_garage_list(
     headers: Annotated[CommonHeaders, Header()],
+    current_user: dict = Depends(get_current_user),
     search: Optional[str] = None,
     offset: int = 0,
     limit: int = 10,
+    
 ):
     
     # TODO: Remove this after testing Latitude and Longitude Tasco
@@ -35,7 +37,7 @@ async def get_garage_list(
     - Danh sách gara được sắp xếp theo khoảng cách từ gần đến xa, với phân trang
     """
     try:
-        # Truy vấn để lấy danh sách gara
+    # Truy vấn để lấy danh sách gara
         query = """
         SELECT 
             rpg.id, 
@@ -48,9 +50,9 @@ async def get_garage_list(
         WHERE 
             rp.active = true
         """
-        
+
         params = []
-        
+
         if search:
             query += " AND (LOWER(rpg.display_name) LIKE $1)"
             params.append(f"%{search.lower()}%")
@@ -59,10 +61,10 @@ async def get_garage_list(
 
         # Thực hiện truy vấn để lấy tất cả gara phù hợp với điều kiện tìm kiếm
         result = await PostgresDB.execute_query(query, params)
-        
+
         if not result:
             return {"data": [], "total": 0, "offset": offset, "limit": limit}
-        
+
         # Tạo danh sách gara cần kiểm tra khoảng cách
         garage_items_check = []
         for item in result:
@@ -74,11 +76,12 @@ async def get_garage_list(
 
         # Tính khoảng cách và sắp xếp theo khoảng cách từ gần đến xa
         distances = await find_nearby_garages(
-            float(latitude), 
-            float(longitude), 
-            garage_items_check
+            float(latitude),
+            float(longitude),
+            garage_items_check,
+            current_user.odoo_token
         )
-        
+
         if distances:
             # Trả về danh sách đã sắp xếp theo khoảng cách
             all_garage_items = []
@@ -90,21 +93,39 @@ async def get_garage_list(
                     "distance": garage_info.get('distance', 0),
                     "travel_time_minutes": garage_info.get('travel_time_minutes', 0)
                 })
-            
+
             # Tính tổng số gara
             total_garages = len(all_garage_items)
-            
-            
+
+
             # Áp dụng phân trang
             start_idx = min(offset * limit, total_garages)
             end_idx = min(offset * limit + limit, total_garages)
             paginated_garage_items = all_garage_items[start_idx:end_idx]
-            
+
             return {
                 "data": paginated_garage_items,
-                
+
             }
-        return {"data": []}
+        list_garage_items = []
+        for item in result:
+            garage_id = item.get('id')
+            address = item.get('address', '')
+            name = item.get('name', '')
+
+            if garage_id and address and name:
+                list_garage_items.append({
+                    "id": garage_id,
+                    "name": name,
+                    "street": address,
+                    "distance": 0,
+                    "travel_time_minutes": 0
+            })
+        start_idx = min(offset * limit, len(list_garage_items))
+        end_idx = min(offset * limit + limit, len(list_garage_items))
+        paginated_garage_items = list_garage_items[start_idx:end_idx]
+
+        return {"data": paginated_garage_items}
     
     except Exception as e:
         logger.error(f"Error getting garage list: {str(e)}")
