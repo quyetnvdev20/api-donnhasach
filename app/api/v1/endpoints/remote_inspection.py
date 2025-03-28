@@ -236,8 +236,8 @@ async def create_invitation(
 
     expire_at = datetime.now(tz=ZoneInfo("UTC")) + timedelta(days=1)
     expire_at_str = expire_at.strftime("%Y-%m-%d %H:%M:%S")
-    # deeplink = f"{settings.DEEPLINK_APP}?invitation_code={invitation_code}"
-    deeplink = f"{settings.DEEPLINK_APP}/invitation_code"
+    deeplink = f"{settings.DEEPLINK_APP}?invitation_code={invitation_code}"
+    # deeplink = f"{settings.DEEPLINK_APP}/invitation_code"
     shorten_deeplink = await shorten_url.generate_shorten_url(deeplink)
 
     odoo_vals = {
