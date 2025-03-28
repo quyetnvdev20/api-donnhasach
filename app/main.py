@@ -2,7 +2,6 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 import logging
 import os
@@ -24,16 +23,6 @@ app = FastAPI(
     description="Service xử lý các hình ảnh bồi thường của giám định viên",
     version="1.0.0",
 )
-
-# Set up .well-known directory
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-WELL_KNOWN_DIR = os.path.join(BASE_DIR, ".well-known")
-logger.info(f"WELL_KNOWN_DIR: {WELL_KNOWN_DIR}")
-# Ensure .well-known directory exists
-# os.makedirs(WELL_KNOWN_DIR, exist_ok=True)
-# Mount for both root and /claim-ai paths
-app.mount("/.well-known", StaticFiles(directory=WELL_KNOWN_DIR), name="well-known-root")
-app.mount("/claim-ai/.well-known", StaticFiles(directory=WELL_KNOWN_DIR), name="well-known-claim-ai")
 
 app.add_middleware(
     CORSMiddleware,
