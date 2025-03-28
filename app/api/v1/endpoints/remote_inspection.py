@@ -199,6 +199,18 @@ async def create_invitation(
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
+    check_query = """
+            select id 
+            from insurance_claim_appraisal_detail
+            where state = 'wait' and id = %(assessment_id)s
+        """
+    params = {'assessment_id': create_invitation_vals.assessment_id}
+    check_results = await PostgresDB.execute_query(check_query, params)
+    if not check_results or not check_results[0]:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Không thể tạo mã mời vì giám định chi tiết đã được hoàn thành."
+        )
 
     query = """
         select id, invitation_code, expire_at, deeplink
@@ -308,6 +320,20 @@ async def validate_invitation(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Invalid invitation data format"
+        )
+
+    query = """
+        select a.id 
+        from insurance_claim_remote_inspection a
+		inner join insurance_claim_appraisal_detail b on a.appraisal_detail_id = b.id
+        where a.id = %(invitation_id)s and a.status = 'new' and b.state = 'wait'
+    """
+    params = {'invitation_id': cached_data['res_id']}
+    results = await PostgresDB.execute_query(query, params)
+    if not results or not results[0]:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Mã mời không còn khả dụng để thực hiện chức năng này."
         )
 
     vals = {
