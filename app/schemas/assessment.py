@@ -2,7 +2,13 @@ from enum import Enum
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from datetime import datetime
-from app.config import settings
+
+
+class State(BaseModel):
+    name: str
+    code: str
+    color_code: str
+
 
 # Models for Assessment List
 class AssessmentListItem(BaseModel):
@@ -23,6 +29,7 @@ class AssessmentListItem(BaseModel):
     note: Optional[str] = None
     status: Optional[str]
     status_color: Optional[str] = "#212121"
+    new_status: Optional[State] = {}
 
 
 class AssessmentStatus(Enum):
@@ -45,6 +52,23 @@ class Task(BaseModel):
     icon: str
     status: TaskStatus = None
 
+class UserRequest(BaseModel):
+    label: Optional[str] = None
+    name: Optional[str] = None
+    datetime_request: Optional[str] = None
+
+class RemoteInspection(BaseModel):
+    id: int
+    name: str
+    phone: str
+    invitation_code: str
+    status: str
+    label: str
+    deeplink: Optional[str] = ''
+    message: Optional[str] = None
+    btn_cancel: Optional[bool] = False
+    btn_share: Optional[bool] = False
+
 
 class Location(BaseModel):
     lat: float
@@ -54,7 +78,11 @@ class Location(BaseModel):
 class AssessmentDetail(BaseModel):
     case_number: str
     status: str
+    edit_screen: bool
+    enable_remote_inspection: bool
+    state : State
     gara_address: Optional[Location] = None
+    gara_distance: Optional[float] = None
     license_plate: Optional[str] = None
     vehicle: Optional[str] = None
     location: Optional[str] = None
@@ -72,7 +100,10 @@ class AssessmentDetail(BaseModel):
     tasks: List[Task]
     status_color: Optional[str] = "#212121"
     claim_profile_id: Optional[int] = None
+    claim_profile_name: Optional[str] = None
     insur_claim_id: Optional[int] = None
+    user_request: Optional[UserRequest] = {}
+    list_remote_inspection: Optional[List[RemoteInspection]] = []
 
 
 # Models for Vehicle Detail Assessment

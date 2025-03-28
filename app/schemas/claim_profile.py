@@ -12,3 +12,12 @@ class AssignAppraisalResponse(BaseModel):
     message: str
 
 
+class ApproveLeaveSceneRequest(BaseModel):
+    user_receive_id: int
+
+
+class ApproveLeaveSceneResponse(BaseModel):
+    success: bool
+    message: str
+
+

@@ -100,6 +100,77 @@ async def get_accident_notification_status(assessment_id: int) -> Dict[str, Any]
     else:
         return {"name": "in_progress"}
 
+async def get_user_request_remote_inspection(assessment_id: int, invitation_code: str) -> Dict[str, Any]:
+    if not invitation_code:
+        return {}
+    query = """
+        select 
+            'Người yêu cầu giám định từ xa' as label,
+            c.name,
+            to_char(a.create_date + INTERVAL '7 hours','dd/MM/yyyy HH24:MI') as datetime_request
+        
+        from insurance_claim_remote_inspection a
+        inner join res_users b on a.create_uid = b.id
+        inner join res_partner c on b.partner_id = c.id
+        where a.appraisal_detail_id = $1
+        and a.invitation_code = $2
+        limit 1
+    """
+    result = await PostgresDB.execute_query(query, (assessment_id, invitation_code))
+    if result and result[0]:
+        return result[0]
+    return {}
+
+
+async def get_remote_inspection(assessment_id: int, invitation_code: str) -> List[Dict[str, Any]]:
+    if invitation_code:
+        return []
+    query = """
+        select 
+        id,
+        name,
+        phone,
+        invitation_code,
+        status,
+        deeplink
+        
+    from insurance_claim_remote_inspection
+    where appraisal_detail_id = $1 and status != 'cancel'
+    order by id desc
+    limit 1
+    """
+    result = await PostgresDB.execute_query(query, (assessment_id,))
+    data = []
+    for res in result:
+        if res.get('status') == 'new':
+            label = "Đang chờ giám định từ xa"
+            message = f"Hồ sơ này đang chờ người khác thực hiện giám định từ xa với mã: {res.get('invitation_code')}"
+            btn_cancel = True
+            btn_share = True
+        elif res.get('status') == 'cancel':
+            label = "Giám định từ xa đã hủy"
+            message = f"Yêu cầu giám định từ xa đã được hủy bỏ"
+            btn_cancel = False
+            btn_share = False
+        else:
+            label = "Đã hoàn thành giám định từ xa"
+            message = f"Hồ sơ này đã được giám định từ xa bởi: {res.get('name')}"
+            btn_cancel = False
+            btn_share = False
+        vals = {
+            'id': res.get('id'),
+            'name': res.get('name'),
+            'phone': res.get('phone'),
+            'invitation_code': res.get('invitation_code'),
+            'status': res.get('status'),
+            'label': label,
+            'message': message,
+            'deeplink': res.get('deeplink') if res.get('deeplink') else '',
+            'btn_cancel': btn_cancel,
+            'btn_share': btn_share,
+        }
+        data.append(vals)
+    return data
 
 async def get_assessment_report_status(assessment_id: int) -> Dict[str, Any]:
     """

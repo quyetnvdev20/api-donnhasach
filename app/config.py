@@ -57,10 +57,19 @@ class Settings(BaseSettings):
 
     # Google Maps API
     GOOGLE_MAPS_API_KEY: str = ""
+    KEYCLOAK_API_KEY: str = ""
+    DEEPLINK_APP: str = ""
+    SHORTEN_URL_API_URL: str = ""
+    SHORTEN_URL_API_KEY: str = ""
+
 
     # Distance limit
     USER_GARAGE_DISTANCE_LIMIT: float = 0.5
-    
+    APPRAISAL_IMAGE_TYPE_DOCUMENT: int
+
+    # Here Maps API
+    HERE_MAPS_API_KEY: str = ""
+
     @property
     def DATABASE_URL(self) -> str:
         return self.POSTGRES_DATABASE_URL

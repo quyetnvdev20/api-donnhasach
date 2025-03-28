@@ -4,11 +4,12 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 import logging
+import os
 
 from .config import settings
 from .services.rabbitmq import publish_event
 from .db_init import init_db
-from .api.v1.endpoints import analysis, notifications, masterdata, claim_profile, assessment, assessment_detail, collection_document, repair, repair_masterdata, ocr_quote, odoo_test, report, doc_vision
+from .api.v1.endpoints import analysis, notifications, masterdata, claim_profile, assessment, assessment_detail, collection_document, repair, repair_masterdata, ocr_quote, odoo_test, report, doc_vision, remote_inspection
 from .utils.redis_client import redis_client
 from .exceptions.handlers import validation_exception_handler
 
@@ -49,6 +50,7 @@ app.include_router(repair_masterdata.router, prefix="/repairs", tags=["repair_ma
 app.include_router(ocr_quote.router, prefix="/repairs", tags=["repairs_ocr"])
 app.include_router(odoo_test.router, prefix="/odoo", tags=["odoo"])
 app.include_router(doc_vision.router, prefix="/doc-vision", tags=["doc_vision"])
+app.include_router(remote_inspection.router, prefix="/remote-inspection", tags=["remote_inspection"])
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):

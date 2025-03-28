@@ -10,13 +10,13 @@ from ....schemas.assessment import AssessmentListItem, VehicleDetailAssessment, 
 from ....schemas.common import CommonHeaders
 from ....utils.erp_db import PostgresDB
 from ....utils.distance_calculator import calculate_distance_from_coords_to_address_with_cache, calculate_distance_haversine, format_distance, \
-    calculate_distances_batch_from_coords, geocode_address
+    calculate_distances_batch_from_coords, geocode_address, calculate_distances_batch_from_coords_v2
 import json, random
 import httpx
 import logging
 from app.config import settings, odoo
 import asyncio
-from .assessment_task_status import get_assessment_detail_status, get_collection_document_status, get_accident_notification_status, get_assessment_report_status
+from .assessment_task_status import get_assessment_detail_status, get_collection_document_status, get_accident_notification_status, get_assessment_report_status, get_remote_inspection, get_user_request_remote_inspection
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -26,6 +26,20 @@ color = {
     'done': '#4CAF50',
     'cancel': '#212121',
 }
+
+STATE_COLOR = {
+    "wait": ("#2196F3", "Đang xử lý"),
+    "done": ("#4CAF50", "Đã xử lý"),
+    "cancel": ("#212121", "Đã hủy")
+}
+
+
+async def safe_task(coro, name=None, return_if_error=None, timeout=10):
+    try:
+        return await asyncio.wait_for(coro, timeout)
+    except Exception as e:
+        logger.error(f"Task '{name or coro}' failed: {e}")
+        return return_if_error
 
 
 @router.get("/document_type")
@@ -81,6 +95,7 @@ async def get_assessment_list(
     # TODO: Remove this after testing Latitude and Longitude Tasco
     latitude = headers.latitude or 21.015853129655014
     longitude = headers.longitude or 105.78303779624088
+    logger.info(f"latitude: {latitude}, longitude: {longitude}")
     
     # Kiểm tra xem có tọa độ người dùng không
     has_user_location = latitude is not None and longitude is not None
@@ -103,9 +118,11 @@ async def get_assessment_list(
             from res_partner rp
             where rpg.partner_id = rp.id) AS gara_address,
             rpg.display_name AS assessment_address,
+            rpg.id AS garage_id,
             TO_CHAR(icr.date_damage AT TIME ZONE 'UTC' AT TIME ZONE %(time_zone)s, 'DD/MM/YYYY - HH24:MI') AS notification_time,
             TO_CHAR((icr.date_damage + INTERVAL '3 hours') AT TIME ZONE 'UTC' AT TIME ZONE %(time_zone)s, 'DD/MM/YYYY - HH24:MI') AS complete_time,
-            icr.note AS note
+            icr.note AS note,
+			(select json_agg(status) from insurance_claim_remote_inspection where appraisal_detail_id = gd_chi_tiet.id and status != 'cancel') as remote_inspection
         FROM insurance_claim_appraisal_detail gd_chi_tiet
         LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
         LEFT JOIN res_partner_gara rpg ON rpg.id = gd_chi_tiet.gara_partner_id
@@ -135,10 +152,55 @@ async def get_assessment_list(
 
     # Use named parameters
     params = {"time_zone": time_zone.key}
+    
+    # Khởi tạo status_lst trước
+    status_lst = [s.strip() for s in status.split(',')] if status else []
+    
+    # Xử lý điều kiện status và remote_inspection
+    if status_lst:
+        has_remote = 'remote_inspection' in status_lst
+        has_wait = 'wait' in status_lst
 
-    if status:
-        query += " AND gd_chi_tiet.state = ANY(%(status)s) "
-        params["status"] = [s.strip() for s in status.split(',')]
+        if has_remote or has_wait:
+            if has_remote:
+                status_lst.remove('remote_inspection')
+            
+            if has_remote and has_wait:
+                # Nếu có cả remote_inspection và wait, lấy tất cả các case wait
+                status_lst.append('wait')
+            elif has_remote:
+                # Chỉ lấy các case có remote inspection với status 'new' và status wait
+                query += """ 
+                    AND EXISTS (
+                        SELECT 1
+                        FROM insurance_claim_remote_inspection 
+                        WHERE appraisal_detail_id = gd_chi_tiet.id 
+                        AND status = 'new'
+                    )
+                """
+                status_lst.append('wait')
+            elif has_wait:
+                # Lấy các case wait không có remote inspection
+                # HOẶC tất cả remote inspection có status là 'done'
+                query += """ 
+                    AND (
+                        (SELECT COUNT(1) 
+                         FROM insurance_claim_remote_inspection 
+                         WHERE appraisal_detail_id = gd_chi_tiet.id 
+                         AND status != 'cancel') = 0
+                        OR 
+                        NOT EXISTS (
+                            SELECT 1
+                            FROM insurance_claim_remote_inspection
+                            WHERE appraisal_detail_id = gd_chi_tiet.id
+                            AND status != 'done'
+                        )
+                    )
+                """
+
+        if status_lst:
+            query += " AND gd_chi_tiet.state = ANY(%(status)s) "
+            params["status"] = status_lst
 
     if search:
         query += """
@@ -164,7 +226,6 @@ async def get_assessment_list(
     """
 
     results = await PostgresDB.execute_query(query, params)
-    
     # Tạo danh sách kết quả
     assessment_list = []
     
@@ -173,11 +234,11 @@ async def get_assessment_list(
     if has_user_location:
         try:
             # Lấy danh sách địa chỉ gara từ kết quả
-            gara_addresses = [result.get('gara_address', '') for result in results]
+            gara_addresses = [{'address': result.get('gara_address', ''), 'id': result.get('garage_id', '')} for result in results]
             
             # Tính khoảng cách hàng loạt
-            distances = await calculate_distances_batch_from_coords(
-                float(latitude), float(longitude), gara_addresses
+            distances = await calculate_distances_batch_from_coords_v2(
+                float(latitude), float(longitude), gara_addresses, current_user.odoo_token
             )
         except Exception as e:
             logger.error(f"Lỗi khi tính khoảng cách hàng loạt: {str(e)}")
@@ -211,6 +272,28 @@ async def get_assessment_list(
             "note": result["note"] or "",
             "status": result["status"] or "",
             "status_color": "#212121"
+        }
+
+        status = result['status']
+
+        if headers.invitationCode:
+            state_name = 'Giám định từ xa'
+            color_code = '2196F3'
+        elif result.get('remote_inspection') and status == 'wait':
+            if 'new' in result.get('remote_inspection'):
+                state_name = 'Chờ giám định từ xa'
+                color_code = '#faad14'
+            else:
+                state_name = STATE_COLOR.get(status, '#757575')[1] if STATE_COLOR.get(status) else "Đang xử lý"
+                color_code = STATE_COLOR.get(status, '#757575')[0] if STATE_COLOR.get(status) else "#2196F3"
+        else:
+            state_name = STATE_COLOR.get(status, '#757575')[1] if STATE_COLOR.get(status) else "Đang xử lý"
+            color_code = STATE_COLOR.get(status, '#757575')[0] if STATE_COLOR.get(status) else "#2196F3"
+
+        assessment_item['new_status'] = {
+            "name": state_name,
+            "code": status,
+            "color_code": color_code
         }
         
         assessment_list.append(assessment_item)
@@ -253,10 +336,12 @@ async def get_assessment_detail(
                 TO_CHAR((icr.date_damage + INTERVAL '3 hours') AT TIME ZONE 'UTC' AT TIME ZONE $2, 'DD/MM/YYYY - HH24:MI') AS complete_time,
                 icr.note AS note,
                 gd_chi_tiet.new_claim_profile_id AS claim_profile_id,
+                icp.name AS claim_profile_name,
                 gd_chi_tiet.insur_claim_id as insur_claim_id,
                 crp.name AS assigned_to
             FROM insurance_claim_appraisal_detail gd_chi_tiet
             LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
+            LEFT JOIN insurance_claim_profile icp ON icp.id = gd_chi_tiet.new_claim_profile_id
             LEFT JOIN res_partner_gara rpg ON rpg.id = gd_chi_tiet.gara_partner_id
             LEFT JOIN res_partner rpg_partner ON rpg.partner_id = rpg_partner.id
             LEFT JOIN res_partner contact ON contact.id = icr.person_contact_id
@@ -287,20 +372,53 @@ async def get_assessment_detail(
 
     params = [assessment_id, time_zone.key]
 
-    assessment_detail, detail_status, collection_status, accident_notification_status, assessment_report_status = await asyncio.gather(
-        PostgresDB.execute_query(query, params),
-        get_assessment_detail_status(assessment_id),
-        get_collection_document_status(assessment_id),
-        get_accident_notification_status(assessment_id),
-        get_assessment_report_status(assessment_id)
+    results = await asyncio.gather(
+        safe_task(PostgresDB.execute_query(query, params), name="DB query", return_if_error=[]),
+        safe_task(get_assessment_detail_status(assessment_id), name="detail_status", return_if_error={}),
+        safe_task(get_collection_document_status(assessment_id), name="collection_status", return_if_error={}),
+        safe_task(get_accident_notification_status(assessment_id), name="accident_notification_status", return_if_error={}),
+        safe_task(get_assessment_report_status(assessment_id), name="assessment_report_status", return_if_error={}),
+        safe_task(get_remote_inspection(assessment_id, headers.invitationCode), name="remote_inspection", return_if_error=[]),
+        safe_task(get_user_request_remote_inspection(assessment_id, headers.invitationCode), name="get_user_request_remote_inspection", return_if_error={})
     )
+
+    (
+        assessment_detail,
+        detail_status,
+        collection_status,
+        accident_notification_status,
+        assessment_report_status,
+        remote_inspection_detail,
+        user_request
+    ) = results
 
     if assessment_detail:
         assessment_detail = assessment_detail[0]
 
-        if assessment_detail['gara_address']:
-            location = await geocode_address(assessment_detail['gara_address'])
-            assessment_detail['gara_address'] = Location(lat=location[0], lon=location[1])
+        if assessment_detail.get('gara_address'):
+            try:
+                location = await geocode_address(assessment_detail['gara_address'])
+                # Only add gara_address as Location if geocoding was successful
+                if location and len(location) >= 2:
+                    assessment_detail['gara_address'] = Location(lat=location[0], lon=location[1])
+                    assessment_detail['gara_distance'] = calculate_distance_haversine(
+                        float(latitude), 
+                        float(longitude), 
+                        location[0], 
+                        location[1]
+                    )
+                else:
+                    # Remove gara_address key if geocoding failed
+                    assessment_detail.pop('gara_address', None)
+                    logger.warning(f"Geocoding failed for address: {assessment_detail.get('gara_address')}")
+            except Exception as e:
+                # Remove gara_address key if an error occurred during geocoding
+                assessment_detail.pop('gara_address', None)
+                logger.error(f"Error geocoding address: {str(e)}")
+        else:
+            # Remove gara_address key if it's null or empty
+            assessment_detail.pop('gara_address', None)
+            
         assessment_progress = 0
         if detail_status.get("name") == "completed":
             assessment_progress += 25
@@ -314,6 +432,39 @@ async def get_assessment_detail(
         assessment_detail['assessment_progress'] = assessment_progress
         assessment_detail['status_color'] = color.get(assessment_detail['status'],
                                                       '#757575')  # Default to gray if status not found
+        status = assessment_detail['status']
+
+        edit_screen = True
+        enable_remote_inspection = True
+
+        if headers.invitationCode:
+            state_name = 'Giám định từ xa'
+            color_code = '2196F3'
+        elif remote_inspection_detail and status == 'wait':
+            if any(r.get('status') == 'new' for r in remote_inspection_detail):
+                edit_screen = False
+                enable_remote_inspection = False
+                state_name = 'Chờ giám định từ xa'
+                color_code = '#faad14'
+            else:
+                state_name = STATE_COLOR.get(status, '#757575')[1] if STATE_COLOR.get(status) else "Đang xử lý"
+                color_code = STATE_COLOR.get(status, '#757575')[0] if STATE_COLOR.get(status) else "#2196F3"
+        else:
+            state_name = STATE_COLOR.get(status, '#757575')[1] if STATE_COLOR.get(status) else "Đang xử lý"
+            color_code = STATE_COLOR.get(status, '#757575')[0] if STATE_COLOR.get(status) else "#2196F3"
+
+        assessment_detail['state'] = {
+            "name": state_name,
+            "code": status,
+            "color_code": color_code
+        }
+        assessment_detail['list_remote_inspection'] = remote_inspection_detail
+        if user_request:
+            assessment_detail['user_request'] = user_request
+
+        assessment_detail['edit_screen'] = edit_screen
+        assessment_detail['enable_remote_inspection'] = enable_remote_inspection
+
         assessment_detail['tasks'] = [{
             "seq": 1,
             "name": "Giám định chi tiết xe",
