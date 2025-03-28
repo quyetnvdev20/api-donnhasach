@@ -2,7 +2,6 @@ from enum import Enum
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from datetime import datetime
-from app.config import settings
 
 
 class State(BaseModel):
@@ -83,6 +82,7 @@ class AssessmentDetail(BaseModel):
     enable_remote_inspection: bool
     state : State
     gara_address: Optional[Location] = None
+    gara_distance: Optional[float] = None
     license_plate: Optional[str] = None
     vehicle: Optional[str] = None
     location: Optional[str] = None
@@ -100,6 +100,7 @@ class AssessmentDetail(BaseModel):
     tasks: List[Task]
     status_color: Optional[str] = "#212121"
     claim_profile_id: Optional[int] = None
+    claim_profile_name: Optional[str] = None
     insur_claim_id: Optional[int] = None
     user_request: Optional[UserRequest] = {}
     list_remote_inspection: Optional[List[RemoteInspection]] = []

@@ -10,7 +10,7 @@ from ....schemas.assessment import AssessmentListItem, VehicleDetailAssessment, 
 from ....schemas.common import CommonHeaders
 from ....utils.erp_db import PostgresDB
 from ....utils.distance_calculator import calculate_distance_from_coords_to_address_with_cache, calculate_distance_haversine, format_distance, \
-    calculate_distances_batch_from_coords, geocode_address
+    calculate_distances_batch_from_coords, geocode_address, calculate_distances_batch_from_coords_v2
 import json, random
 import httpx
 import logging
@@ -95,6 +95,7 @@ async def get_assessment_list(
     # TODO: Remove this after testing Latitude and Longitude Tasco
     latitude = headers.latitude or 21.015853129655014
     longitude = headers.longitude or 105.78303779624088
+    logger.info(f"latitude: {latitude}, longitude: {longitude}")
     
     # Kiểm tra xem có tọa độ người dùng không
     has_user_location = latitude is not None and longitude is not None
@@ -117,6 +118,7 @@ async def get_assessment_list(
             from res_partner rp
             where rpg.partner_id = rp.id) AS gara_address,
             rpg.display_name AS assessment_address,
+            rpg.id AS garage_id,
             TO_CHAR(icr.date_damage AT TIME ZONE 'UTC' AT TIME ZONE %(time_zone)s, 'DD/MM/YYYY - HH24:MI') AS notification_time,
             TO_CHAR((icr.date_damage + INTERVAL '3 hours') AT TIME ZONE 'UTC' AT TIME ZONE %(time_zone)s, 'DD/MM/YYYY - HH24:MI') AS complete_time,
             icr.note AS note,
@@ -232,11 +234,11 @@ async def get_assessment_list(
     if has_user_location:
         try:
             # Lấy danh sách địa chỉ gara từ kết quả
-            gara_addresses = [result.get('gara_address', '') for result in results]
+            gara_addresses = [{'address': result.get('gara_address', ''), 'id': result.get('garage_id', '')} for result in results]
             
             # Tính khoảng cách hàng loạt
-            distances = await calculate_distances_batch_from_coords(
-                float(latitude), float(longitude), gara_addresses
+            distances = await calculate_distances_batch_from_coords_v2(
+                float(latitude), float(longitude), gara_addresses, current_user.odoo_token
             )
         except Exception as e:
             logger.error(f"Lỗi khi tính khoảng cách hàng loạt: {str(e)}")
@@ -334,10 +336,12 @@ async def get_assessment_detail(
                 TO_CHAR((icr.date_damage + INTERVAL '3 hours') AT TIME ZONE 'UTC' AT TIME ZONE $2, 'DD/MM/YYYY - HH24:MI') AS complete_time,
                 icr.note AS note,
                 gd_chi_tiet.new_claim_profile_id AS claim_profile_id,
+                icp.name AS claim_profile_name,
                 gd_chi_tiet.insur_claim_id as insur_claim_id,
                 crp.name AS assigned_to
             FROM insurance_claim_appraisal_detail gd_chi_tiet
             LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
+            LEFT JOIN insurance_claim_profile icp ON icp.id = gd_chi_tiet.new_claim_profile_id
             LEFT JOIN res_partner_gara rpg ON rpg.id = gd_chi_tiet.gara_partner_id
             LEFT JOIN res_partner rpg_partner ON rpg.partner_id = rpg_partner.id
             LEFT JOIN res_partner contact ON contact.id = icr.person_contact_id
@@ -387,12 +391,34 @@ async def get_assessment_detail(
         remote_inspection_detail,
         user_request
     ) = results
+
     if assessment_detail:
         assessment_detail = assessment_detail[0]
 
-        if assessment_detail['gara_address']:
-            location = await geocode_address(assessment_detail['gara_address'])
-            assessment_detail['gara_address'] = Location(lat=location[0], lon=location[1])
+        if assessment_detail.get('gara_address'):
+            try:
+                location = await geocode_address(assessment_detail['gara_address'])
+                # Only add gara_address as Location if geocoding was successful
+                if location and len(location) >= 2:
+                    assessment_detail['gara_address'] = Location(lat=location[0], lon=location[1])
+                    assessment_detail['gara_distance'] = calculate_distance_haversine(
+                        float(latitude), 
+                        float(longitude), 
+                        location[0], 
+                        location[1]
+                    )
+                else:
+                    # Remove gara_address key if geocoding failed
+                    assessment_detail.pop('gara_address', None)
+                    logger.warning(f"Geocoding failed for address: {assessment_detail.get('gara_address')}")
+            except Exception as e:
+                # Remove gara_address key if an error occurred during geocoding
+                assessment_detail.pop('gara_address', None)
+                logger.error(f"Error geocoding address: {str(e)}")
+        else:
+            # Remove gara_address key if it's null or empty
+            assessment_detail.pop('gara_address', None)
+            
         assessment_progress = 0
         if detail_status.get("name") == "completed":
             assessment_progress += 25

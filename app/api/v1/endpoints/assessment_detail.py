@@ -226,8 +226,14 @@ async def update_scene_attachment(
 
         if scene_attachment.id:
             vals_items.append((1, scene_attachment.id, vals_scene))
-        else:
+        elif attachment_vals:
             vals_items.append((0, 0, vals_scene))
+
+        if not scene_attachment.images and scene_attachment.id:
+            vals_items.append((2, scene_attachment.id, False))
+
+    if not vals_items:
+        return SceneAttachmentResponse(assessment_id=assessment_id, status="Success")
 
     vals = {
         'scene_attachment_ids': vals_items
