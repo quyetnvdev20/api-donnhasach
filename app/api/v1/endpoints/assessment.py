@@ -393,6 +393,12 @@ async def get_assessment_detail(
         if assessment_detail['gara_address']:
             location = await geocode_address(assessment_detail['gara_address'])
             assessment_detail['gara_address'] = Location(lat=location[0], lon=location[1])
+            assessment_detail['gara_distance'] = calculate_distance_haversine(
+                float(latitude), 
+                float(longitude), 
+                location[0], 
+                location[1]
+            )
         assessment_progress = 0
         if detail_status.get("name") == "completed":
             assessment_progress += 25

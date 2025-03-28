@@ -83,6 +83,7 @@ class AssessmentDetail(BaseModel):
     enable_remote_inspection: bool
     state : State
     gara_address: Optional[Location] = None
+    gara_distance: Optional[float] = None
     license_plate: Optional[str] = None
     vehicle: Optional[str] = None
     location: Optional[str] = None
