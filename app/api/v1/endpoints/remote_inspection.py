@@ -377,6 +377,7 @@ async def save_face_image(
     if save_image_vals.invitation_id:
         odoo_vals = {
             'face_image_url': save_image_vals.face_image_url,
+            'note': save_image_vals.note or '',
             # 'capture_time': validate_invitation_vals.capture_time
         }
 
@@ -395,6 +396,7 @@ async def save_face_image(
             "date": datetime.now().strftime("%Y-%m-%d"),
             "type_document_id": int(settings.APPRAISAL_IMAGE_TYPE_DOCUMENT),
             "type": "photo",
+            "note": save_image_vals.note or '',
             "attachment_ids": [(0, 0, {
                 "date_upload": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "latitude": headers.latitude if headers.latitude else None,
