@@ -5,7 +5,7 @@ from typing import Callable, Any, Optional, Type, Union
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
-            
+def handle_task_exception(
     task_model: Optional[Type] = None,
     session_factory: Optional[Callable[[], Session]] = None
 ):
