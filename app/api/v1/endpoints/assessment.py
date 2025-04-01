@@ -83,7 +83,7 @@ async def get_assessment_list(
         headers: Annotated[CommonHeaders, Header()],
         status: Optional[str] = None,
         search: Optional[str] = None,
-        is_me: Optional[bool] = True,
+        is_me: Optional[bool] = False,
         offset: int = 0,
         limit: int = 20,
         db: Session = Depends(get_db),
