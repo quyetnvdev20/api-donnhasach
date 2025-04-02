@@ -13,7 +13,7 @@ class AssignAppraisalResponse(BaseModel):
 
 
 class ApproveLeaveSceneRequest(BaseModel):
-    user_receive_id: int
+    user_receive_id: Optional[int] = None
 
 
 class ApproveLeaveSceneResponse(BaseModel):
