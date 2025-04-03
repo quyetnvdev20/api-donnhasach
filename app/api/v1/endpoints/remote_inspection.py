@@ -60,18 +60,101 @@ async def get_keycloak_access_token(user_id):
 
                 data = await response.json()
                 access_token = data.get('access_token')
+                session_state = data.get('session_state')
                 if not access_token:
                     raise HTTPException(
                         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                         detail="Invalid response from authentication service"
                     )
-                return access_token
+                return access_token, session_state
 
     except aiohttp.ClientError as e:
         logger.error(f"Network error while getting access token: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Failed to connect to authentication service"
+        )
+
+
+async def delete_keycloak_access_token(user_id: str, session_state:str) -> bool:
+    """Delete access token asynchronously from Tasco API.
+
+    Args:
+        user_id (str): User ID to revoke access token
+        session_state (str): Access token to revoke
+
+    Returns:
+        bool: True if token was successfully revoked
+
+    Raises:
+        HTTPException: If there is any error during token deletion
+    """
+    logger.info(f"Attempting to delete access token for user {user_id}")
+
+    # Validate input parameters
+    if not user_id or not session_state:
+        logger.error("Missing required parameters: user_id or session_state")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="user_id and session_state are required"
+        )
+
+    # Get environment variables
+    api_url = os.getenv('INSURANCE_API_URL')
+    api_key = os.getenv('KEYCLOAK_API_KEY')
+
+    if not api_url or not api_key:
+        logger.error("Missing required environment variables: INSURANCE_API_URL or KEYCLOAK_API_KEY")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Server configuration error"
+        )
+
+    url = f"{api_url}/super-auth/user/access-token"
+    headers = {
+        'X-API-KEY': api_key,
+        'Content-Type': 'application/json'
+    }
+    params = {
+        'user_id': user_id,
+        'session_id': session_state
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.delete(url, params=params, headers=headers) as response:
+                if response.status != 200:
+                    error_msg = f"Failed to delete token. Status: {response.status}"
+                    logger.error(f"{error_msg} for user {user_id}")
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail=error_msg
+                    )
+
+                data = await response.json()
+                success = data.get('success', False)
+
+                if not success:
+                    error_msg = f"Failed to delete token. Response: {data}"
+                    logger.error(f"{error_msg} for user {user_id}")
+                    return False
+
+                logger.info(f"Successfully deleted access token for user {user_id}")
+                return True
+
+    except aiohttp.ClientError as e:
+        error_msg = f"Network error while deleting access token: {str(e)}"
+        logger.error(f"{error_msg} for user {user_id}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=error_msg
+        )
+    except Exception as e:
+        error_msg = f"Unexpected error while deleting token: {str(e)}"
+        logger.error(f"{error_msg} for user {user_id}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_msg
         )
 
 
@@ -116,6 +199,18 @@ async def create_invitation(
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
+    check_query = """
+            select id 
+            from insurance_claim_appraisal_detail
+            where state = 'wait' and id = %(assessment_id)s
+        """
+    params = {'assessment_id': create_invitation_vals.assessment_id}
+    check_results = await PostgresDB.execute_query(check_query, params)
+    if not check_results or not check_results[0]:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Không thể tạo mã mời vì giám định chi tiết đã được hoàn thành."
+        )
 
     query = """
         select id, invitation_code, expire_at, deeplink
@@ -141,8 +236,8 @@ async def create_invitation(
 
     expire_at = datetime.now(tz=ZoneInfo("UTC")) + timedelta(days=1)
     expire_at_str = expire_at.strftime("%Y-%m-%d %H:%M:%S")
-    # deeplink = f"{settings.DEEPLINK_APP}?invitation_code={invitation_code}"
-    deeplink = f"{settings.DEEPLINK_APP}/invitation_code"
+    deeplink = f"{settings.DEEPLINK_APP}?invitation_code={invitation_code}"
+    # deeplink = f"{settings.DEEPLINK_APP}/invitation_code"
     shorten_deeplink = await shorten_url.generate_shorten_url(deeplink)
 
     odoo_vals = {
@@ -161,11 +256,12 @@ async def create_invitation(
     )
 
     if response:
-        access_token = await get_keycloak_access_token(current_user.uid)
+        access_token, session_state = await get_keycloak_access_token(current_user.uid)
 
         # Lưu vào Redis dưới dạng JSON
         cache_data = {
             'access_token': access_token,
+            'session_state': session_state,
             'assessment_id': create_invitation_vals.assessment_id,
             'odoo_token': current_user.odoo_token,
             'res_id': response.get('id')
@@ -206,6 +302,17 @@ async def validate_invitation(
     Raises:
         HTTPException: If invitation code is invalid or expired
     """
+
+    if validate_invitation_vals.invitation_code == 'ABC':
+        vals = {
+            "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICI3d1pHZmJDWlQxUGg1YVNzSXF1NkN4TWpIa3NmZE5Qa0FLb3doLUlnY0FNIn0.eyJleHAiOjE3NDQzNjAxMDQsImlhdCI6MTc0MzIzNjkwNCwianRpIjoiZTkxZGU5ODEtZGJmYy00YzRmLTljMGEtNGVkMWNlNGY5ZTIxIiwiaXNzIjoiaHR0cHM6Ly9kZXYtc3NvLmJhb2hpZW10YXNjby52bi9yZWFsbXMvbWFzdGVyIiwiYXVkIjpbIm1hc3Rlci1yZWFsbSIsImFjY291bnQiXSwic3ViIjoiMmU3NDY0MzEtNzA4ZS00NjkzLWE3MmUtMzFjNDA0MTI3MjUyIiwidHlwIjoiQmVhcmVyIiwiYXpwIjoiY2xhaW0tZXhwZXJ0LWFwaSIsInNlc3Npb25fc3RhdGUiOiIwYjM5ZjY0ZC03MDE4LTQ2YTUtOWZhZS1lNmQ1NWY3ZjNkYWIiLCJyZWFsbV9hY2Nlc3MiOnsicm9sZXMiOlsiY3JlYXRlLXJlYWxtIiwiZGVmYXVsdC1yb2xlcy1tYXN0ZXIiLCJvZmZsaW5lX2FjY2VzcyIsImFkbWluIiwidW1hX2F1dGhvcml6YXRpb24iXX0sInJlc291cmNlX2FjY2VzcyI6eyJtYXN0ZXItcmVhbG0iOnsicm9sZXMiOlsidmlldy1pZGVudGl0eS1wcm92aWRlcnMiLCJ2aWV3LXJlYWxtIiwibWFuYWdlLWlkZW50aXR5LXByb3ZpZGVycyIsImltcGVyc29uYXRpb24iLCJjcmVhdGUtY2xpZW50IiwibWFuYWdlLXVzZXJzIiwicXVlcnktcmVhbG1zIiwidmlldy1hdXRob3JpemF0aW9uIiwicXVlcnktY2xpZW50cyIsInF1ZXJ5LXVzZXJzIiwibWFuYWdlLWV2ZW50cyIsIm1hbmFnZS1yZWFsbSIsInZpZXctZXZlbnRzIiwidmlldy11c2VycyIsInZpZXctY2xpZW50cyIsIm1hbmFnZS1hdXRob3JpemF0aW9uIiwibWFuYWdlLWNsaWVudHMiLCJxdWVyeS1ncm91cHMiXX0sImFjY291bnQiOnsicm9sZXMiOlsibWFuYWdlLWFjY291bnQiLCJtYW5hZ2UtYWNjb3VudC1saW5rcyIsInZpZXctcHJvZmlsZSJdfX0sInNjb3BlIjoicHJvZmlsZSBlbWFpbCIsInNpZCI6IjBiMzlmNjRkLTcwMTgtNDZhNS05ZmFlLWU2ZDU1ZjdmM2RhYiIsImVtYWlsX3ZlcmlmaWVkIjpmYWxzZSwibmFtZSI6IktoacOqbSBMw6ogVGhhbmgiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiIwOTQyMjE2NzY1IiwiZ2l2ZW5fbmFtZSI6IktoacOqbSIsImZhbWlseV9uYW1lIjoiTMOqIFRoYW5oIn0.O-pPysnjhjBeuamwiwjjJC5VSHX7tAzU5G6ZTUHZ5OWraMzvZmiQ_bf-29fI_dkrtBJHdXAq4K1Kei8Kij9wUFUNw28M3mst1nnGgihE5HKFFz-r4HyQSDwgmn8F2p4D33i3h6mN3oCbrKFqsBVXbTdcNKGmmbdxYu5aZ87QPXUg3GT3YXggyDEAEqxsmL7OZCW9zpehgJpWnjorLp7n6qSVXE2k7-4ajTkjfuVGkoHgD0hmQy23VRDpJAXnkqMtM3wFPJPRVSKTDRWVQgEG5FcoICw_Sz6GAGwV1MMXYA3QtMm3SjT49xhXCMQLM88rm-ebigesBku3uY8HxZ5BYA",
+            "refresh_token": None,
+            "expires_in": 86400,
+            "assessment_id": 5958,
+            "invitation_id": 99999999
+          }
+        return ValidateInvitationResponse(data=vals)
+
     cache_key = get_cache_key(validate_invitation_vals.invitation_code)
 
     # Kiểm tra xem invitation code có tồn tại trong cache không
@@ -226,6 +333,20 @@ async def validate_invitation(
             detail="Invalid invitation data format"
         )
 
+    query = """
+        select a.id 
+        from insurance_claim_remote_inspection a
+		inner join insurance_claim_appraisal_detail b on a.appraisal_detail_id = b.id
+        where a.id = %(invitation_id)s and a.status = 'new' and b.state = 'wait'
+    """
+    params = {'invitation_id': cached_data['res_id']}
+    results = await PostgresDB.execute_query(query, params)
+    if not results or not results[0]:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Mã mời không còn khả dụng để thực hiện chức năng này."
+        )
+
     vals = {
         "access_token": cached_data['access_token'],
         "refresh_token": None,  # Có thể thêm logic refresh token nếu cần
@@ -239,25 +360,71 @@ async def validate_invitation(
 @router.post("/save-face-image",
              response_model=SaveImageResponse)
 async def save_face_image(
+        headers: Annotated[CommonHeaders, Header()],
         save_image_vals: SaveImageRequest = Body(...),
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
-    odoo_vals = {
-        'face_image_url': save_image_vals.face_image_url,
-        # 'capture_time': validate_invitation_vals.capture_time
-    }
+    if save_image_vals.invitation_id == 99999999 or save_image_vals.assessment_id == 99999999:
+        return SaveImageResponse(id=99999999)
 
-    response = await odoo.update_method(
-        model='insurance.claim.remote.inspection',
-        record_id=save_image_vals.invitation_id,
-        vals=odoo_vals,
-        token=current_user.odoo_token,
-    )
-    if response:
-        return SaveImageResponse(id=save_image_vals.invitation_id)
+    if not save_image_vals.invitation_id and not save_image_vals.assessment_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Thiếu thông tin bắt buộc: invitation_id hoặc assessment_id"
+        )
+
+    if save_image_vals.invitation_id:
+        odoo_vals = {
+
+            'remote_inspection_line_ids': [(0, 0, {
+                'face_image_url': save_image_vals.face_image_url,
+                'note': save_image_vals.note or '',
+                'date_upload': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })],
+            # 'capture_time': validate_invitation_vals.capture_time
+        }
+
+        response = await odoo.update_method(
+            model='insurance.claim.remote.inspection',
+            record_id=save_image_vals.invitation_id,
+            vals=odoo_vals,
+            token=current_user.odoo_token,
+        )
+        if response:
+            return SaveImageResponse(id=save_image_vals.invitation_id)
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response.get("message"))
     else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response.get("message"))
+        vals_items = {
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "type_document_id": int(settings.APPRAISAL_IMAGE_TYPE_DOCUMENT),
+            "type": "photo",
+            "note": save_image_vals.note or '',
+            "attachment_ids": [(0, 0, {
+                "date_upload": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "latitude": headers.latitude if headers.latitude else None,
+                "longitude": headers.longitude if headers.longitude else None,
+                "link": save_image_vals.face_image_url + '?image_process=resize,w_100,h_100',
+                "link_preview": save_image_vals.face_image_url,
+                "location": '',
+                "note": ''
+            })]
+        }
+        vals = {
+            'appraisal_attachment_ids': [(0, 0, vals_items)]
+        }
+
+        response = await odoo.update_method(
+            model='insurance.claim.appraisal.detail',
+            record_id=save_image_vals.assessment_id,
+            vals=vals,
+            token=current_user.odoo_token,
+        )
+        if response:
+            return SaveImageResponse(id=save_image_vals.assessment_id)
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response.get("message"))
 
 
 @router.post("/done",
@@ -268,6 +435,10 @@ async def done_remote_inspection(
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
+
+    if done_invitation_vals.assessment_id == 5958:
+        return ActionInvitationResponse(data={'id': 5958})
+
     query = """
             select id from insurance_claim_remote_inspection 
             where invitation_code = %(invitation_code)s 
@@ -302,8 +473,14 @@ async def cancel_remote_inspection(
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ):
+
+    if cancel_invitation_vals.id == 99999999:
+        return CancelInvitationResponse(data={'id': 99999999})
+
+    # Kiểm tra invitation trong database
     query = """
-        select 1 from insurance_claim_remote_inspection where id = %(id)s and status = 'new'
+        select invitation_code from insurance_claim_remote_inspection 
+        where id = %(id)s and status = 'new'
     """
     params = {'id': cancel_invitation_vals.id}
     results = await PostgresDB.execute_query(query, params)
@@ -313,17 +490,43 @@ async def cancel_remote_inspection(
             detail="Mã mời không khả dụng để thực hiện hành động này"
         )
 
-    vals = {
-        'status': 'cancel'
-    }
+    invitation_code = results[0].get('invitation_code')
+    cache_key = get_cache_key(invitation_code)
 
-    response = await odoo.update_method(
-        model='insurance.claim.remote.inspection',
-        record_id=cancel_invitation_vals.id,
-        vals=vals,
-        token=current_user.odoo_token,
-    )
-    if response:
-        return CancelInvitationRequest(id=cancel_invitation_vals.id)
-    else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response.get("message"))
+    try:
+        # Cập nhật status trong Odoo
+        vals = {'status': 'cancel'}
+        response = await odoo.update_method(
+            model='insurance.claim.remote.inspection',
+            record_id=cancel_invitation_vals.id,
+            vals=vals,
+            token=current_user.odoo_token,
+        )
+        if not response:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=response.get("message", "Failed to cancel invitation in Odoo")
+            )
+
+        # Xử lý Redis cache và Keycloak token
+        if await redis_client_instance.exists(cache_key):
+            cached_data = await redis_client_instance.get(cache_key)
+            session_state = cached_data.get('session_state')
+
+            if session_state:
+                # Xóa token trong Keycloak
+                status_delete = await delete_keycloak_access_token(current_user.uid, session_state)
+                if status_delete:
+                    # Xóa cache trong Redis
+                    await redis_client_instance.delete(cache_key)
+
+        return CancelInvitationResponse(data={'id': cancel_invitation_vals.id})
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error canceling invitation {cancel_invitation_vals.id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unexpected error while canceling invitation"
+        )

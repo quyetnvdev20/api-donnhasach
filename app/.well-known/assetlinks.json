@@ -1,9 +1,0 @@
-[{
-  "relation": ["delegate_permission/common.handle_all_urls"],
-  "target": {
-    "namespace": "android_app",
-    "package_name": "com.tasco360tech.vnxpert",
-    "sha256_cert_fingerprints":
-    ["EF:75:94:41:37:3B:0C:77:B5:5C:5D:0F:FC:97:1A:29:76:BB:0F:66:BA:78:9C:33:D0:B7:8B:97:4B:F9:33:86"]
-  }
-}]

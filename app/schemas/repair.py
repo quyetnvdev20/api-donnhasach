@@ -66,6 +66,7 @@ class RepairPlanApprovalRequest(BaseModel):
     approval_deadline: Optional[str] = None
     status: Status = None
     label: Label = None
+    list_repair_details_remote: List[int] = None
     repair_plan_details: List[RepairPlanDetailItem]
 
 
@@ -82,6 +83,7 @@ class RepairPlanListItem(BaseModel):
     inspection_date: Optional[str] = None
     location_damage: Optional[str] = None
     submitter: Optional[str] = None
+    reason_reject: Optional[str] = None
     status: Status
     label: Label
     total_cost: Optional[dict] = None

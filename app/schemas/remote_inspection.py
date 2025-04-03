@@ -28,7 +28,9 @@ class ValidateInvitationRequest(BaseModel):
 class SaveImageRequest(BaseModel):
     face_image_url: str
     capture_time: str
-    invitation_id: int
+    note: Optional[str] = None
+    invitation_id: Optional[int] = None
+    assessment_id: Optional[int] = None
 
 
 class SaveImageResponse(BaseModel):

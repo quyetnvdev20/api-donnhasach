@@ -1,7 +1,7 @@
 import base64
 import os
 
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Header
 from openai import AsyncOpenAI
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -19,6 +19,8 @@ import logging
 from datetime import datetime
 from app.config import ClaimImageStatus, settings
 from app.utils.redis_client import redis_client
+from typing import Annotated
+from ....schemas.common import CommonHeaders
 
 
 with open(f'{settings.ROOT_DIR}/app/data/list_name_dict.json', 'r', encoding='utf-8') as f:
@@ -104,6 +106,7 @@ async def test(
 @router.post("/assessment/{assessment_id}/analysis/upload",
              response_model=ImageAnalysisResponse)
 async def process_image_analysis(
+    headers: Annotated[CommonHeaders, Header()],
     assessment_id: str,
     request: ImageAnalysisRequest = Body(...),
     db: Session = Depends(get_db),
@@ -148,6 +151,11 @@ async def process_image_analysis(
     db.add(new_image)
     db.commit()
     db.refresh(new_image)
+
+    if headers.invitationCode:
+        topic = f'tic_claim_{str(headers.invitationCode)}'
+    else:
+        topic = f'tic_claim_{str(new_image.keycloak_user_id)}'
 
     try:
         # if analysis has more than 3 images then use process_images_list_with_gpt
@@ -238,7 +246,7 @@ async def process_image_analysis(
 
         # Send notification
         await send_analysis_notification(new_image, 
-                                        f'tic_claim_{str(new_image.keycloak_user_id)}',
+                                        topic,
                                         "Image Analysis Complete",
                                         "Your image has been successfully analyzed.")
 
@@ -250,7 +258,7 @@ async def process_image_analysis(
 
         # Send failure notification        
         await send_analysis_notification(new_image, 
-                                        f'tic_claim_{str(new_image.keycloak_user_id)}',
+                                        topic,
                                         "Image Analysis Failed",
                                         "There was an error analyzing your image.")
         raise HTTPException(

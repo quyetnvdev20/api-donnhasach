@@ -4,10 +4,10 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 
 
-class Status(BaseModel):
-    color_code: str
+class State(BaseModel):
     name: str
     code: str
+    color_code: str
 
 
 # Models for Assessment List
@@ -29,7 +29,7 @@ class AssessmentListItem(BaseModel):
     note: Optional[str] = None
     status: Optional[str]
     status_color: Optional[str] = "#212121"
-    new_status: Optional[Status] = {}
+    new_status: Optional[State] = {}
 
 
 class AssessmentStatus(Enum):
@@ -69,10 +69,6 @@ class RemoteInspection(BaseModel):
     btn_cancel: Optional[bool] = False
     btn_share: Optional[bool] = False
 
-class State(BaseModel):
-    name: str
-    code: str
-    color_code: str
 
 class Location(BaseModel):
     lat: float
@@ -82,8 +78,11 @@ class Location(BaseModel):
 class AssessmentDetail(BaseModel):
     case_number: str
     status: str
-    gara_address: Optional[Location] = None
+    edit_screen: bool
+    enable_remote_inspection: bool
     state : State
+    gara_address: Optional[Location] = None
+    gara_distance: Optional[float] = None
     license_plate: Optional[str] = None
     vehicle: Optional[str] = None
     location: Optional[str] = None
@@ -101,6 +100,7 @@ class AssessmentDetail(BaseModel):
     tasks: List[Task]
     status_color: Optional[str] = "#212121"
     claim_profile_id: Optional[int] = None
+    claim_profile_name: Optional[str] = None
     insur_claim_id: Optional[int] = None
     user_request: Optional[UserRequest] = {}
     list_remote_inspection: Optional[List[RemoteInspection]] = []
@@ -273,6 +273,3 @@ class AssignAppraisalRequest(BaseModel):
 class AssignAppraisalResponse(BaseModel):
     success: bool
     message: str
-
-class DistanceCheckRequest(BaseModel):
-    assessment_id: int
