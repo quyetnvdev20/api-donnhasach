@@ -376,8 +376,12 @@ async def save_face_image(
 
     if save_image_vals.invitation_id:
         odoo_vals = {
-            'face_image_url': save_image_vals.face_image_url,
-            'note': save_image_vals.note or '',
+
+            'remote_inspection_line_ids': [(0, 0, {
+                'face_image_url': save_image_vals.face_image_url,
+                'note': save_image_vals.note or '',
+                'date_upload': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })],
             # 'capture_time': validate_invitation_vals.capture_time
         }
 
