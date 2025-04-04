@@ -112,153 +112,142 @@ async def process_image_analysis(
     """
     Process image analysis directly without using RabbitMQ
     """
-    # Check for existing image
-    existing_image = db.query(Image).filter(
-        Image.analysis_id == str(request.analysis_id or request.image_id),
-        Image.id == str(request.image_id),
-        Image.assessment_id == str(assessment_id),
-    ).first()
-    
-    if existing_image:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Image already exists"
-        )
-        
-    # # read base64 image from url
-    # async with httpx.AsyncClient() as client:
-    #     image = await client.get(request.image_url)
-    # base64_image = base64.b64encode(image.content).decode('utf-8')
-    #
-    # # Store base64 image in Redis with key pattern: image_base64:{analysis_id}:{image_id}
-    # redis_key = f"image_base64:{request.analysis_id or request.image_id}:{request.image_id}"
-    # await redis_client.set(redis_key, base64_image, expiry=3600)  # Set expiry to 1 hour
-    
-    # Create new image record without storing base64
-    new_image = Image(
-        analysis_id=str(request.analysis_id or request.image_id),
-        assessment_id=str(assessment_id),
-        image_url=request.image_url,
-        id=str(request.image_id),
-        device_token=request.device_token,
-        keycloak_user_id=current_user.get("sub"),
-        auto_analysis=request.auto_analysis,
-        status=ClaimImageStatus.PROCESSING.value
-    )
-    db.add(new_image)
-    db.commit()
-    db.refresh(new_image)
-
     try:
-        # if analysis has more than 3 images then use process_images_list_with_gpt
-        # analysis_image = db.query(Image).filter(Image.analysis_id == new_image.analysis_id,
-        #                                         Image.status == ClaimImageStatus.SUCCESS.value).count()
-        # if analysis_image < 2:
-        #     new_image.status = ClaimImageStatus.SUCCESS.value
-        #     db.commit()
-        #     db.refresh(new_image)
-        #
-        #     # Send notification
-        #     await send_analysis_notification(new_image,
-        #                                     f'tic_claim_{str(new_image.keycloak_user_id)}',
-        #                                     "Image Analysis Complete",
-        #                                     "Your image has been successfully analyzed.")
-        #
-        #     return new_image
-        #
-        # # Get all base64 images for this analysis from Redis
-        # redis_pattern = f"image_base64:{new_image.analysis_id}:*"
-        # redis_keys = await redis_client.keys(redis_pattern)
-        # list_image_base64 = []
-        # for key in redis_keys:
-        #     base64_data = await redis_client.get(key)
-        #     if base64_data:
-        #         list_image_base64.append(base64_data)
-        #
-        # # Process images using GPT
-        # response = await process_images_list_with_gpt(list_image_base64)
+        # Check for existing image
+        existing_image = db.query(Image).filter(
+            Image.analysis_id == str(request.analysis_id or request.image_id),
+            Image.id == str(request.image_id),
+            Image.assessment_id == str(assessment_id),
+        ).first()
         
-        response = await process_image_with_gpt(request.image_url)
-        
-        # Update image with results
-        new_image.status = ClaimImageStatus.SUCCESS.value
-        new_image.list_json_data = response
+        if existing_image:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Image already exists"
+            )
+            
+        # Create new image record
+        new_image = Image(
+            analysis_id=str(request.analysis_id or request.image_id),
+            assessment_id=str(assessment_id),
+            image_url=request.image_url,
+            id=str(request.image_id),
+            device_token=request.device_token,
+            keycloak_user_id=current_user.get("sub"),
+            auto_analysis=request.auto_analysis,
+            status=ClaimImageStatus.PROCESSING.value
+        )
+        db.add(new_image)
         db.commit()
         db.refresh(new_image)
 
-        # Map assessment items
-        mapped_results = []
-        if new_image.list_json_data:
-            # Transform and map the data
-            transformed_items = []
-            for data_dict in new_image.list_json_data:
-                for category, state in data_dict.items():
-                    transformed_items.append({
-                        "damage_name": state,
-                        "item_name": category
-                    })
+        try:
+            # Process image with GPT
+            response = await process_image_with_gpt(request.image_url)
+            
+            if not response:
+                raise ValueError("GPT analysis returned no results")
 
-            if transformed_items:
-                # Build query
-                placeholders = []
-                values = []
-                for i, item in enumerate(transformed_items):
-                    placeholders.append(f"(iclc.name = ${2*i + 1} AND isc.name = ${2*i + 2})")
-                    values.extend([item["item_name"], item["damage_name"]])
+            # Update image with results
+            new_image.status = ClaimImageStatus.SUCCESS.value
+            new_image.list_json_data = response
+            db.commit()
+            db.refresh(new_image)
 
-                query = f"""
-                    SELECT 
-                        iclc.id AS category_id,
-                        isc.id AS state_id,
-                        iclc.name AS category_name,
-                        isc.name AS state_name
-                    FROM insurance_claim_list_category iclc
-                    JOIN insurance_state_category isc ON 1=1
-                    WHERE {' OR '.join(placeholders)};
-                """
+            # Map assessment items
+            mapped_results = []
+            if new_image.list_json_data:
+                # Transform and map the data
+                transformed_items = []
+                for data_dict in new_image.list_json_data:
+                    if not isinstance(data_dict, dict):
+                        logger.warning(f"Invalid data format in list_json_data: {data_dict}")
+                        continue
+                        
+                    for category, state in data_dict.items():
+                        transformed_items.append({
+                            "damage_name": state,
+                            "item_name": category
+                        })
 
-                results = await PostgresDB.execute_query(query, values)
+                if transformed_items:
+                    # Build query
+                    placeholders = []
+                    values = []
+                    for i, item in enumerate(transformed_items):
+                        placeholders.append(f"(iclc.name = ${2*i + 1} AND isc.name = ${2*i + 2})")
+                        values.extend([item["item_name"], item["damage_name"]])
 
-                if results:
-                    result_map = {
-                        (row["category_name"], row["state_name"]): {
-                            "damage_id": row["state_id"],
-                            "item_id": row["category_id"]
-                        } for row in results
-                    }
+                    query = f"""
+                        SELECT 
+                            iclc.id AS category_id,
+                            isc.id AS state_id,
+                            iclc.name AS category_name,
+                            isc.name AS state_name
+                        FROM insurance_claim_list_category iclc
+                        JOIN insurance_state_category isc ON 1=1
+                        WHERE {' OR '.join(placeholders)};
+                    """
 
-                    for item in transformed_items:
-                        key = (item["item_name"], item["damage_name"])
-                        if key in result_map:
-                            item.update(result_map[key])
-                            mapped_results.append(item)
+                    results = await PostgresDB.execute_query(query, values)
 
-            new_image.results = json.dumps(mapped_results)
+                    if results:
+                        result_map = {
+                            (row["category_name"], row["state_name"]): {
+                                "damage_id": row["state_id"],
+                                "item_id": row["category_id"]
+                            } for row in results
+                        }
+
+                        for item in transformed_items:
+                            key = (item["item_name"], item["damage_name"])
+                            if key in result_map:
+                                item.update(result_map[key])
+                                mapped_results.append(item)
+
+            # Ensure results is valid JSON before saving
+            if mapped_results:
+                try:
+                    results_json = json.dumps(mapped_results)
+                    new_image.results = results_json
+                except TypeError as e:
+                    logger.error(f"Error converting mapped_results to JSON: {e}")
+                    new_image.results = json.dumps([])
+            else:
+                new_image.results = json.dumps([])
+                
             db.commit()
 
-        # Send notification
-        await send_analysis_notification(new_image, 
-                                        f'tic_claim_{str(new_image.keycloak_user_id)}',
-                                        "Image Analysis Complete",
-                                        "Your image has been successfully analyzed.")
+            # Send notification
+            await send_analysis_notification(new_image, 
+                                          f'tic_claim_{str(new_image.keycloak_user_id)}',
+                                          "Image Analysis Complete",
+                                          "Your image has been successfully analyzed.")
+
+        except Exception as e:
+            logger.error(f"Error processing image: {str(e)}")
+            new_image.status = ClaimImageStatus.FAILED.value
+            new_image.error_message = str(e)
+            db.commit()
+
+            # Send failure notification        
+            await send_analysis_notification(new_image, 
+                                          f'tic_claim_{str(new_image.keycloak_user_id)}',
+                                          "Image Analysis Failed",
+                                          "There was an error analyzing your image.")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(e)
+            )
+
+        return new_image
 
     except Exception as e:
-        logger.error(f"Error processing image: {str(e)}")
-        new_image.status = ClaimImageStatus.FAILED.value
-        new_image.error_message = str(e)
-        db.commit()
-
-        # Send failure notification        
-        await send_analysis_notification(new_image, 
-                                        f'tic_claim_{str(new_image.keycloak_user_id)}',
-                                        "Image Analysis Failed",
-                                        "There was an error analyzing your image.")
+        logger.error(f"Unexpected error in process_image_analysis: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="An unexpected error occurred while processing the image"
         )
-
-    return new_image
 
 
 @router.post("/assessment/{assessment_id}/analysis/audio", response_model=AudioAnalysisResponse)
