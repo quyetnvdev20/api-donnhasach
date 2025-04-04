@@ -477,6 +477,9 @@ async def get_assessment_detail(
 
         if not assessment_detail.get('list_image_contract'):
             assessment_detail['list_image_contract'] = []
+        else:
+            assessment_detail['list_image_contract'] = eval(assessment_detail['list_image_contract'])
+
 
         assessment_detail['tasks'] = [{
             "seq": 1,
