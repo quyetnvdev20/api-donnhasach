@@ -36,9 +36,9 @@ def init_sentry(dsn, environment, traces_sample_rate=0.1):
         max_breadcrumbs=50,      # Số lượng breadcrumbs tối đa
         
         # Bỏ qua một số lỗi không cần thiết
-        ignore_errors=[
-            "HTTPException",     # Bỏ qua các lỗi HTTP thông thường
-        ],
+        # ignore_errors=[
+        #     "HTTPException",     # Bỏ qua các lỗi HTTP thông thường
+        # ],
     )
     
     logger.info(f"Sentry đã được khởi tạo với môi trường: {environment}") 
