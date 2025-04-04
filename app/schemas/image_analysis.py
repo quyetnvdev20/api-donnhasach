@@ -19,3 +19,19 @@ class ImageAnalysisResponse(BaseModel):
     error_message: Optional[str] = None
     json_data: Optional[dict] = None
     scan_image_url: Optional[str] = None
+
+
+# Thêm các models mới
+class CategoryResponse(BaseModel):
+    id: int
+    name: str
+    code: Optional[str] = None
+
+class StatusResponse(BaseModel):
+    id: int
+    name: str
+    code: Optional[str] = None
+
+class AudioAnalysisResponse(BaseModel):
+    category: Optional[CategoryResponse] = {}
+    status: Optional[StatusResponse] = {}

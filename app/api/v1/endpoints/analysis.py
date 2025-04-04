@@ -1,14 +1,14 @@
 import base64
 import os
 
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Header, UploadFile, File
 from openai import AsyncOpenAI
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from ....database import get_db
 from ...deps import get_current_user
 from ....models.image import Image
-from ....schemas.image_analysis import ImageAnalysisRequest, ImageAnalysisResponse
+from ....schemas.image_analysis import ImageAnalysisRequest, ImageAnalysisResponse, AudioAnalysisResponse
 from ....services.rabbitmq import publish_event
 from ....services.firebase import FirebaseNotificationService
 from ....utils.erp_db import PostgresDB
@@ -267,6 +267,121 @@ async def process_image_analysis(
         )
 
     return new_image
+
+
+@router.post("/assessment/{assessment_id}/analysis/audio", response_model=AudioAnalysisResponse)
+async def analyze_audio(
+    audio_file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Analyze audio file and return detected category and status
+    """
+    if not audio_file.content_type.startswith("audio/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be an audio file"
+        )
+    response = {
+        "category": {
+            "id": 1539,
+            "name": "Cửa trước phải",
+            "code": "CAR1"
+        },
+        "status": {
+            "id": 25,
+            "name": "Trầy xước",
+            "code": "SCRATCH"
+        }
+    }
+
+    return response
+
+    # # Lưu file tạm thời
+    # with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
+    #     content = await audio_file.read()
+    #     temp_file.write(content)
+    #     temp_path = temp_file.name
+    #
+    # try:
+    #     # Load model whisper
+    #     model = whisper.load_model("base")
+    #
+    #     # Transcribe audio to text
+    #     result = model.transcribe(temp_path)
+    #     transcribed_text = result["text"].lower()
+    #
+    #     # Query để lấy danh sách category và status
+    #     category_query = """
+    #         SELECT id, name, code
+    #         FROM insurance_claim_list_category
+    #         WHERE active = true
+    #     """
+    #     status_query = """
+    #         SELECT id, name, code
+    #         FROM insurance_state_category
+    #         WHERE active = true
+    #     """
+    #
+    #     categories, statuses = await asyncio.gather(
+    #         PostgresDB.execute_query(category_query),
+    #         PostgresDB.execute_query(status_query)
+    #     )
+    #
+    #     # Tìm category và status phù hợp nhất từ text
+    #     matched_category = None
+    #     matched_status = None
+    #
+    #     for category in categories:
+    #         if category["name"].lower() in transcribed_text:
+    #             matched_category = {
+    #                 "id": category["id"],
+    #                 "name": category["name"],
+    #                 "code": category["code"]
+    #             }
+    #             break
+    #
+    #     for status in statuses:
+    #         if status["name"].lower() in transcribed_text:
+    #             matched_status = {
+    #                 "id": status["id"],
+    #                 "name": status["name"],
+    #                 "code": status["code"]
+    #             }
+    #             break
+    #
+    #     if not matched_category or not matched_status:
+    #         raise HTTPException(
+    #             status_code=status.HTTP_404_NOT_FOUND,
+    #             detail="Could not detect category or status from audio"
+    #         )
+    #
+    #     response = {
+    #         "category": {
+    #             "id": 123,
+    #             "name": "Cửa trước phải",
+    #             "code": "abc"
+    #         },
+    #         "status": {
+    #             "id": 456,
+    #             "name": "Trầy xước",
+    #             "code": "def"
+    #         }
+    #     }
+    #
+    #     return response
+    #
+    # except Exception as e:
+    #     logger.error(f"Error analyzing audio: {str(e)}")
+    #     raise HTTPException(
+    #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    #         detail="Error analyzing audio file"
+    #     )
+    # finally:
+    #     # Xóa file tạm
+    #     if os.path.exists(temp_path):
+    #         os.unlink(temp_path)
+
 
 
 async def process_image_with_gpt(image_url: str) -> list:
