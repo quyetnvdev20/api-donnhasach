@@ -1,7 +1,7 @@
 import base64
 import os
 import json
-
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from openai import AsyncOpenAI
 from sqlalchemy.orm import Session
@@ -24,18 +24,70 @@ async def doc_vision(request: DocVisionRequest, current_user: dict = Depends(get
     document_type = await get_document_type()
     json_document_type = {doc["name"]: doc["code"] for doc in document_type}
     json_document_id = {doc["code"]: doc["id"] for doc in document_type}
-    response = await process_image_with_gpt(request.image_url, json_document_type, json_document_id)
-    # Create a response that matches the DocVisionResponse schema
-    response_dict = json.loads(response)
-    formatted_response = {
-        "type": response_dict.get("code", {}),
-        "name": response_dict.get("name", {}),
-        "type_document_id": response_dict.get("id"),
-        "content": response_dict.get("content", {}),
-        "image_url": request.image_url
+    ocr_image_tasks = [process_image_with_gpt(image_url, json_document_type, json_document_id) for image_url in request.list_image_url]
+    ocr_image_results = await asyncio.gather(*ocr_image_tasks)
+    
+    # Khởi tạo response theo cấu trúc DocVisionResponse
+    response = {
+        "name_driver": None,
+        "gplx_no": None,
+        "gplx_level": None,
+        "gplx_effect_date": None,
+        "gplx_expired_date": None,
+        "registry_no": None,
+        "registry_date": None,
+        "registry_expired_date": None,
+        "documents": []
     }
     
-    return formatted_response
+    # Dictionary để gom các ảnh theo loại tài liệu
+    grouped_documents = {}
+    
+    # Phân loại và xử lý kết quả từ các ảnh
+    for result in ocr_image_results:
+        for image_url, content in result.items():
+            try:
+                content_dict = json.loads(content)
+                doc_type = content_dict.get("code")
+                
+                if not doc_type:
+                    continue
+                
+                # Cập nhật thông tin chi tiết theo loại giấy tờ
+                content_details = content_dict.get("content", {})
+                
+                if doc_type == "driving_license" and content_details:
+                    response["gplx_no"] = content_details.get("number")
+                    response["name_driver"] = content_details.get("name")
+                    response["gplx_level"] = content_details.get("class_")
+                    response["gplx_effect_date"] = content_details.get("date")
+                    response["gplx_expired_date"] = content_details.get("expired_date")
+                
+                elif doc_type == "vehicle_registration":
+                    response["registry_no"] = content_details.get("registration_number")
+                    response["registry_date"] = content_details.get("registration_date")
+                    response["registry_expired_date"] = content_details.get("registration_expired_date")
+                
+                # Gom các ảnh theo loại tài liệu
+                if doc_type not in grouped_documents:
+                    grouped_documents[doc_type] = {
+                        "type": doc_type,
+                        "type_document_id": content_dict.get("id"),
+                        "name": content_dict.get("name"),
+                        "images": [image_url]
+                    }
+                else:
+                    # Thêm ảnh vào danh sách ảnh của loại tài liệu này
+                    grouped_documents[doc_type]["images"].append(image_url)
+                
+            except Exception as e:
+                logger.error(f"Error processing result for image {image_url}: {str(e)}")
+    
+    # Thêm các document đã gom ảnh vào response
+    response["documents"] = list(grouped_documents.values())
+    
+    return response
+
 
 async def get_document_type():
     # Get document type from odoo
@@ -76,7 +128,7 @@ Tài liệu cá nhân có thể là, lấy dữ liệu từ danh sách bên dư�
 document_type: {document_type}
 document_id: {document_id}
 
-Nếu loại tài liệu là "Giấy phép lái xe" thì đọc thêm dữ liệu trong ảnh được mô tả như sau:
+Nếu loại tài liệu là "Giấy phép lái xe" (driving_license) thì đọc thêm dữ liệu trong ảnh được mô tả như sau:
 birth_date: ngày sinh
 class_: Hạng/Class
 date: ngày cấp
@@ -84,7 +136,7 @@ expired_date: ngày hết hạn
 name: tên chủ giấy phép lái xe
 number: số giấy phép lái xe
 
-Nếu loại tài liệu là "Đăng kiểm xe" thì đọc thêm dữ liệu trong ảnh được mô tả như sau:
+Nếu loại tài liệu là "Đăng kiểm xe" (vehicle_registration) thì đọc thêm dữ liệu trong ảnh được mô tả như sau:
 registration_number: số đăng kiểm
 registration_date: ngày đăng kiểm
 registration_expired_date: ngày hết hạn
@@ -97,6 +149,7 @@ registration_expired_date: ngày hết hạn
 ** 3. "name": name của tài liệu cá nhân được lấy từ danh sách document_type **
 - Nếu thuộc 2 loại Giấy phép lái xe và Đăng kiểm xe thì thêm trường "content" vào JSON.
 - Không trả ra bất kỳ thông tin nào khác.
+- Nếu không thuộc bất kỳ loại tài liệu nào thì trả về  response rỗng
 """
         client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         response = await client.chat.completions.create(
@@ -118,7 +171,9 @@ registration_expired_date: ngày hết hạn
             ],
             response_format={"type": "json_object"}
         )
-        return response.choices[0].message.content
+        return {image_url: response.choices[0].message.content}
 
     except Exception as e:
+        logger.error(f"Error processing image with GPT: {str(e)}")
         raise e
+    

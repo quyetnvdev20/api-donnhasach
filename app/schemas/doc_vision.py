@@ -6,11 +6,22 @@ from datetime import datetime
 
 # Models for Doc Vision
 class DocVisionRequest(BaseModel):
-    image_url: str
+    list_image_url: List[str]  = []
+
+class Document(BaseModel):
+    type: str = ""
+    type_document_id: Optional[int] = None
+    name: Optional[str] = None
+    images: Optional[List[str]] = None
     
 class DocVisionResponse(BaseModel):
-    type: str
-    name: str
-    type_document_id: int
-    content: dict = {}
-    image_url: str
+    name_driver: Optional[str] = None
+    gplx_no: Optional[str] = None
+    gplx_level: Optional[str] = None
+    gplx_effect_date: Optional[str] = None
+    gplx_expired_date: Optional[str] = None
+    registry_no: Optional[str] = None
+    registry_date: Optional[str] = None
+    registry_expired_date: Optional[str] = None
+    documents: List[Document]
+
