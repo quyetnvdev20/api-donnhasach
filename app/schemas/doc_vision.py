@@ -8,11 +8,20 @@ from datetime import datetime
 class DocVisionRequest(BaseModel):
     list_image_url: List[str]  = []
 
+class ImageDocument(BaseModel):
+    date: Optional[str] = None
+    description: Optional[str] = None
+    id: Optional[int] = None
+    lat: Optional[float] = None
+    long: Optional[float] = None
+    location: Optional[str] = None
+    link: Optional[str] = None
+
 class Document(BaseModel):
     type: str = ""
     type_document_id: Optional[int] = None
     name: Optional[str] = None
-    images: Optional[List[str]] = None
+    images: Optional[List[ImageDocument]] = None
     
 class DocVisionResponse(BaseModel):
     name_driver: Optional[str] = None

@@ -19,7 +19,7 @@ from ....config import settings
 router = APIRouter()
 logger = logging.getLogger(__name__)
     
-@router.post('/', response_model=DocVisionResponse)
+@router.post('', response_model=DocVisionResponse)
 async def doc_vision(request: DocVisionRequest, current_user: dict = Depends(get_current_user)):
     document_type = await get_document_type()
     json_document_type = {doc["name"]: doc["code"] for doc in document_type}
@@ -74,11 +74,27 @@ async def doc_vision(request: DocVisionRequest, current_user: dict = Depends(get
                         "type": doc_type,
                         "type_document_id": content_dict.get("id"),
                         "name": content_dict.get("name"),
-                        "images": [image_url]
+                        "images": [{
+                            "date": None,
+                            "description": None,
+                            "id": None,
+                            "lat": None,
+                            "long": None,
+                            "location": None,
+                            "link": image_url
+                        }]
                     }
                 else:
                     # Thêm ảnh vào danh sách ảnh của loại tài liệu này
-                    grouped_documents[doc_type]["images"].append(image_url)
+                    grouped_documents[doc_type]["images"].append({
+                        "date": None,
+                        "description": None,
+                        "id": None,
+                        "lat": None,
+                        "long": None,
+                        "location": None,
+                        "link": image_url
+                    })
                 
             except Exception as e:
                 logger.error(f"Error processing result for image {image_url}: {str(e)}")
