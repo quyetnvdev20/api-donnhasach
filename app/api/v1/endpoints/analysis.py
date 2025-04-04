@@ -146,6 +146,7 @@ async def process_image_analysis(
             response = await process_image_with_gpt(request.image_url)
             
             if not response:
+                logger.info(f'==================request.image_url: {request.image_url}')
                 raise ValueError("GPT analysis returned no results")
 
             # Update image with results
