@@ -12,6 +12,7 @@ from .db_init import init_db
 from .api.v1.endpoints import analysis, notifications, masterdata, claim_profile, assessment, assessment_detail, collection_document, repair, repair_masterdata, ocr_quote, odoo_test, report, doc_vision, remote_inspection
 from .utils.redis_client import redis_client
 from .exceptions.handlers import validation_exception_handler
+from app.utils.sentry import init_sentry
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -80,6 +81,14 @@ async def startup_event():
         # Initialize Redis connection
         await redis_client.connect()
         logger.info("Redis connection initialized successfully")
+
+        # Khởi tạo Sentry nếu DSN được cung cấp
+        if settings.SENTRY_DSN:
+            init_sentry(
+                dsn=settings.SENTRY_DSN,
+                environment=settings.SENTRY_ENVIRONMENT,
+                traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE
+            )
     except Exception as e:
         logger.error(f"Error during startup: {str(e)}")
 
@@ -98,3 +107,9 @@ async def shutdown_event():
     logger.info("PostgreSQL connection pool closed")
     
     # Clean up other resources here
+
+def create_app() -> FastAPI:
+    # ... existing code ...
+    
+    # ... existing code ...
+    return app
