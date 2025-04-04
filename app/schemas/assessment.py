@@ -104,6 +104,7 @@ class AssessmentDetail(BaseModel):
     insur_claim_id: Optional[int] = None
     user_request: Optional[UserRequest] = {}
     list_remote_inspection: Optional[List[RemoteInspection]] = []
+    list_image_contract: Optional[List[str]] = []
 
 
 # Models for Vehicle Detail Assessment
