@@ -64,6 +64,15 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 async def health_check():
     return {"status": "healthy"}
 
+@app.get("/test-sentry")
+async def test_sentry():
+    try:
+        # Tạo lỗi cố ý để kiểm tra Sentry
+        division_by_zero = 1 / 0
+    except Exception as e:
+        # Sentry sẽ tự động ghi lại lỗi này nếu được cấu hình đúng
+        logger.error(f"Test error for Sentry: {str(e)}")
+        raise HTTPException(status_code=500, detail="Test error for Sentry")
 
 @app.on_event("startup")
 async def startup_event():
@@ -84,11 +93,17 @@ async def startup_event():
 
         # Khởi tạo Sentry nếu DSN được cung cấp
         if settings.SENTRY_DSN:
-            init_sentry(
-                dsn=settings.SENTRY_DSN,
-                environment=settings.SENTRY_ENVIRONMENT,
-                traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE
-            )
+            try:
+                logger.info(f"Initializing Sentry with DSN: {settings.SENTRY_DSN}")
+                init_sentry(
+                    dsn=settings.SENTRY_DSN,
+                    environment=settings.SENTRY_ENVIRONMENT,
+                    traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE
+                )
+            except Exception as e:
+                logger.error(f"Error initializing Sentry: {str(e)}")
+        else:
+            logger.warning("SENTRY_DSN is not configured, skipping Sentry initialization")
     except Exception as e:
         logger.error(f"Error during startup: {str(e)}")
 
