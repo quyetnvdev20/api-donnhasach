@@ -21,7 +21,8 @@ from app.config import ClaimImageStatus, settings
 from app.utils.redis_client import redis_client
 from typing import Annotated
 from ....schemas.common import CommonHeaders
-
+import asyncio
+import tempfile
 
 with open(f'{settings.ROOT_DIR}/app/data/list_name_dict.json', 'r', encoding='utf-8') as f:
     LIST_NAME_DICT = json.load(f)
@@ -276,114 +277,180 @@ async def analyze_audio(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Analyze audio file and return detected category and status
+    Phân tích file âm thanh và trả về hạng mục xe và tình trạng hạng mục được nhận diện
+    
+    - **audio_file**: File ghi âm từ mobile app
+    
+    Trả về:
+    - category: Thông tin hạng mục xe (id, name, code)
+    - status: Thông tin tình trạng hạng mục (id, name, code)
+    - transcription: Nội dung chuyển đổi từ âm thanh sang text
     """
     if not audio_file.content_type.startswith("audio/"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File must be an audio file"
-        )
-    response = {
-        "category": {
-            "id": 1539,
-            "name": "Cửa trước phải",
-            "code": "CAR1"
-        },
-        "status": {
-            "id": 25,
-            "name": "Trầy xước",
-            "code": "SCRATCH"
+        raise "File phải là file âm thanh"
+    
+    try:
+        # Lấy danh sách hạng mục và tình trạng từ database
+        categories, statuses = await get_categories_and_statuses()
+        
+        # Phân tích file âm thanh
+        result = await process_audio_with_gpt(audio_file, categories, statuses)
+        logger.info(f"Kết quả phân tích âm thanh: {result}")
+        
+        # Chuẩn bị dữ liệu hạng mục và tình trạng
+        categories_data = {cat["code"]: {"id": cat["id"], "name": cat["name"], "code": cat["code"]} for cat in categories}
+        statuses_data = {status["code"]: {"id": status["id"], "name": status["name"], "code": status["code"]} for status in statuses}
+        
+        # Lấy mã hạng mục và tình trạng
+        category_code = result.get("category_code")
+        status_code = result.get("status_code")
+        transcription = result.get("transcription", "")
+        
+        # Tìm thông tin chi tiết từ dữ liệu đã lấy
+        category = categories_data.get(category_code, {"id": None, "name": None, "code": category_code})
+        status = statuses_data.get(status_code, {"id": None, "name": None, "code": status_code})
+        
+        # Nếu không tìm thấy, trả về thông báo lỗi
+        if not category["id"] or not status["id"]:
+            logger.warning(f"Không tìm thấy hạng mục hoặc tình trạng phù hợp. Category: {category_code}, Status: {status_code}")
+            raise "Không nhận diện được hạng mục hoặc tình trạng từ file âm thanh"
+        
+        # Trả về kết quả theo định dạng yêu cầu
+        return {
+            "category": category,
+            "status": status,
+            "transcription": transcription
         }
-    }
+    except Exception as e:
+        logger.error(f"Lỗi khi xử lý file âm thanh: {str(e)}")
+        raise e
 
-    return response
+async def process_audio_with_gpt(audio_file: UploadFile, categories: list, statuses: list):
+    """
+    Xử lý file âm thanh bằng OpenAI API
+    
+    Quy trình:
+    1. Đọc file âm thanh và lưu tạm thời
+    2. Sử dụng OpenAI API để phân tích
+    3. Trả về kết quả phân tích
+    """
+    try:
+        # Đọc nội dung file
+        audio_content = await audio_file.read()
+        
+        # Xác định định dạng file để xử lý đúng
+        file_extension = os.path.splitext(audio_file.filename)[1].lower()
+        if not file_extension:
+            file_extension = ".mp3"  # Mặc định nếu không có phần mở rộng
+        
+        # Xử lý đặc biệt cho m4a, chuyển thành mp4 (OpenAI API chấp nhận mp4 cho định dạng này)
+        # if file_extension == ".m4a":
+        #     file_extension = ".mp4"
+        
+        # Tạo file tạm thời để lưu nội dung âm thanh
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as temp_file:
+            temp_file.write(audio_content)
+            temp_path = temp_file.name
+        
+        try:
+            # Trước tiên, phải chuyển đổi âm thanh thành văn bản
+            client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+            
+            with open(temp_path, "rb") as audio_data:
+                transcription_response = await client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_data,
+                    language="vi"
+                )
+            
+            transcription = transcription_response.text
+            logger.info(f"Transcription: {transcription}")
+            
+            # Sau đó, sử dụng GPT-4o để phân tích nội dung văn bản
+            prompt = f"""
+            Bạn là một chuyên gia phân tích trong lĩnh vực bảo hiểm ô tô.
+            Hãy phân tích nội dung văn bản sau đây (được chuyển đổi từ file âm thanh):
+            
+            "{transcription}"
+            
+            Dựa vào nội dung này, hãy nhận diện hai thông tin:
+            1. Hạng mục xe: phần nào của xe bị hư hỏng được nhắc đến
+            2. Tình trạng hạng mục: loại hư hỏng được nhắc đến (ví dụ: trầy xước, móp méo, vỡ...)
+            
+            Danh sách hạng mục xe:
+            {json.dumps([{"id": cat["id"], "name": cat["name"], "code": cat["code"]} for cat in categories], ensure_ascii=False, indent=2)}
+            
+            Danh sách tình trạng hạng mục:
+            {json.dumps([{"id": status["id"], "name": status["name"], "code": status["code"]} for status in statuses], ensure_ascii=False, indent=2)}
+            
+            Hãy trả về kết quả dưới dạng JSON với format:
+            {{
+                "category_code": "Mã hạng mục xe phù hợp nhất",
+                "status_code": "Mã tình trạng hạng mục phù hợp nhất",
+                "transcription": "Nội dung phiên âm từ file ghi âm"
+            }}
+            
+            Chỉ trả về JSON chính xác theo format trên, không kèm giải thích.
+            """
+            
+            analysis_response = await client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                response_format={"type": "json_object"}
+            )
+            
+            result = json.loads(analysis_response.choices[0].message.content)
+            
+            # Đảm bảo thêm transcription vào kết quả
+            if "transcription" not in result:
+                result["transcription"] = transcription
+                
+            return result
+            
+        finally:
+            # Dọn dẹp: xóa file tạm
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+                
+    except Exception as e:
+        logger.error(f"Error processing audio: {str(e)}")
+        raise e
 
-    # # Lưu file tạm thời
-    # with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
-    #     content = await audio_file.read()
-    #     temp_file.write(content)
-    #     temp_path = temp_file.name
-    #
-    # try:
-    #     # Load model whisper
-    #     model = whisper.load_model("base")
-    #
-    #     # Transcribe audio to text
-    #     result = model.transcribe(temp_path)
-    #     transcribed_text = result["text"].lower()
-    #
-    #     # Query để lấy danh sách category và status
-    #     category_query = """
-    #         SELECT id, name, code
-    #         FROM insurance_claim_list_category
-    #         WHERE active = true
-    #     """
-    #     status_query = """
-    #         SELECT id, name, code
-    #         FROM insurance_state_category
-    #         WHERE active = true
-    #     """
-    #
-    #     categories, statuses = await asyncio.gather(
-    #         PostgresDB.execute_query(category_query),
-    #         PostgresDB.execute_query(status_query)
-    #     )
-    #
-    #     # Tìm category và status phù hợp nhất từ text
-    #     matched_category = None
-    #     matched_status = None
-    #
-    #     for category in categories:
-    #         if category["name"].lower() in transcribed_text:
-    #             matched_category = {
-    #                 "id": category["id"],
-    #                 "name": category["name"],
-    #                 "code": category["code"]
-    #             }
-    #             break
-    #
-    #     for status in statuses:
-    #         if status["name"].lower() in transcribed_text:
-    #             matched_status = {
-    #                 "id": status["id"],
-    #                 "name": status["name"],
-    #                 "code": status["code"]
-    #             }
-    #             break
-    #
-    #     if not matched_category or not matched_status:
-    #         raise HTTPException(
-    #             status_code=status.HTTP_404_NOT_FOUND,
-    #             detail="Could not detect category or status from audio"
-    #         )
-    #
-    #     response = {
-    #         "category": {
-    #             "id": 123,
-    #             "name": "Cửa trước phải",
-    #             "code": "abc"
-    #         },
-    #         "status": {
-    #             "id": 456,
-    #             "name": "Trầy xước",
-    #             "code": "def"
-    #         }
-    #     }
-    #
-    #     return response
-    #
-    # except Exception as e:
-    #     logger.error(f"Error analyzing audio: {str(e)}")
-    #     raise HTTPException(
-    #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #         detail="Error analyzing audio file"
-    #     )
-    # finally:
-    #     # Xóa file tạm
-    #     if os.path.exists(temp_path):
-    #         os.unlink(temp_path)
+async def get_categories_and_statuses():
+    # Get categories and statuses from odoo
 
-
+     # Lấy danh sách hạng mục xe từ database
+    categories_query = """
+        SELECT 
+            id, 
+            name, 
+            code 
+        FROM insurance_claim_list_category 
+        LIMIT 1000
+    """
+    
+    # Lấy danh sách tình trạng hạng mục từ database
+    statuses_query = """
+        SELECT 
+            id, 
+            name, 
+            code 
+        FROM insurance_state_category 
+        LIMIT 100
+    """
+    
+    categories, statuses = await asyncio.gather(
+        PostgresDB.execute_query(categories_query), 
+        PostgresDB.execute_query(statuses_query)
+    )
+    
+    return categories, statuses
+            
 
 async def process_image_with_gpt(image_url: str) -> list:
     try:
