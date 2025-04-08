@@ -12,6 +12,7 @@ from .db_init import init_db
 from .api.v1.endpoints import analysis, notifications, masterdata, claim_profile, assessment, assessment_detail, collection_document, repair, repair_masterdata, ocr_quote, odoo_test, report, doc_vision, remote_inspection
 from .utils.redis_client import redis_client
 from .exceptions.handlers import validation_exception_handler
+from app.utils.sentry import init_sentry
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -63,6 +64,15 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 async def health_check():
     return {"status": "healthy"}
 
+@app.get("/test-sentry")
+async def test_sentry():
+    try:
+        # Tạo lỗi cố ý để kiểm tra Sentry
+        division_by_zero = 1 / 0
+    except Exception as e:
+        # Sentry sẽ tự động ghi lại lỗi này nếu được cấu hình đúng
+        logger.error(f"Test error for Sentry: {str(e)}")
+        raise HTTPException(status_code=500, detail="Test error for Sentry")
 
 @app.on_event("startup")
 async def startup_event():
@@ -80,6 +90,20 @@ async def startup_event():
         # Initialize Redis connection
         await redis_client.connect()
         logger.info("Redis connection initialized successfully")
+
+        # Khởi tạo Sentry nếu DSN được cung cấp
+        if settings.SENTRY_DSN:
+            try:
+                logger.info(f"Initializing Sentry with DSN: {settings.SENTRY_DSN}")
+                init_sentry(
+                    dsn=settings.SENTRY_DSN,
+                    environment=settings.SENTRY_ENVIRONMENT,
+                    traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE
+                )
+            except Exception as e:
+                logger.error(f"Error initializing Sentry: {str(e)}")
+        else:
+            logger.warning("SENTRY_DSN is not configured, skipping Sentry initialization")
     except Exception as e:
         logger.error(f"Error during startup: {str(e)}")
 
@@ -98,3 +122,9 @@ async def shutdown_event():
     logger.info("PostgreSQL connection pool closed")
     
     # Clean up other resources here
+
+def create_app() -> FastAPI:
+    # ... existing code ...
+    
+    # ... existing code ...
+    return app
