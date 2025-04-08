@@ -83,6 +83,7 @@ async def get_assessment_list(
         headers: Annotated[CommonHeaders, Header()],
         status: Optional[str] = None,
         search: Optional[str] = None,
+        is_me: Optional[bool] = False,
         offset: int = 0,
         limit: int = 20,
         db: Session = Depends(get_db),
@@ -152,6 +153,10 @@ async def get_assessment_list(
 
     # Use named parameters
     params = {"time_zone": time_zone.key}
+
+    if is_me:
+        query += """ AND gd_chi_tiet.user_id = %(user_id)s"""
+        params["user_id"] = current_user.erp_id
     
     # Khởi tạo status_lst trước
     status_lst = [s.strip() for s in status.split(',')] if status else []
