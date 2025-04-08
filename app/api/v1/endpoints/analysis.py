@@ -304,7 +304,6 @@ async def analyze_audio(
         # Lấy mã hạng mục và tình trạng
         category_code = result.get("category_code")
         status_code = result.get("status_code")
-        transcription = result.get("transcription", "")
         
         # Tìm thông tin chi tiết từ dữ liệu đã lấy
         category = categories_data.get(category_code, {"id": None, "name": None, "code": category_code})
@@ -319,7 +318,6 @@ async def analyze_audio(
         return {
             "category": category,
             "status": status,
-            "transcription": transcription
         }
     except Exception as e:
         logger.error(f"Lỗi khi xử lý file âm thanh: {str(e)}")
