@@ -64,9 +64,9 @@ async def doc_vision(request: DocVisionRequest, current_user: dict = Depends(get
                     response["gplx_expired_date"] = content_details.get("expired_date")
                 
                 elif doc_type == "vehicle_registration":
-                    response["registry_no"] = content_details.get("registration_number")
-                    response["registry_date"] = content_details.get("registration_date")
-                    response["registry_expired_date"] = content_details.get("registration_expired_date")
+                    response["registry_no"] = content_details.get("serial_number")
+                    response["registry_date"] = content_details.get("registry_date")
+                    response["registry_expired_date"] = content_details.get("registry_expired_date")
                 
                 # Gom các ảnh theo loại tài liệu
                 if doc_type not in grouped_documents:
@@ -158,9 +158,9 @@ async def process_image_with_gpt(image_url: str, document_type: dict, document_i
           - name: tên người lái
           - number: số GPLX
           - class_: hạng bằng
-          - date: ngày cấp
-          - expired_date: ngày hết hạn
-          - birth_date: ngày sinh
+          - date: ngày cấp (DD/MM/YYYY)
+          - expired_date: ngày hết hạn (DD/MM/YYYY)
+          - birth_date: ngày sinh (DD/MM/YYYY)
 
         - Nếu là "vehicle_registration_photo", content bao gồm:
           - owner: tên chủ xe
@@ -169,13 +169,13 @@ async def process_image_with_gpt(image_url: str, document_type: dict, document_i
           - engine_number: số máy
           - chassis_number: số khung
           - color: màu sơn
-          - registration_date: ngày đăng ký
-          - registration_expired_date: ngày hết hạn (nếu có)
+          - registration_date: ngày đăng ký (DD/MM/YYYY)
+          - registration_expired_date: ngày hết hạn (nếu có) (DD/MM/YYYY)
 
         - Nếu là "vehicle_registration", content bao gồm:
           - inspection_number: số đăng kiểm
-          - inspection_date: ngày cấp đăng kiểm
-          - inspection_expired_date: hạn kiểm định
+          - registry_date: ngày cấp đăng kiểm (DD/MM/YYYY)
+          - registry_expired_date: Có hiệu lực đến ngày (valid until), Gần dấu đỏ, cạnh lề trái, dưới cả phần chữ ký và con dấu (DD/MM/YYYY)
           - vehicle_type: loại xe
           - brand: nhãn hiệu
           - engine_number: số máy
@@ -183,10 +183,11 @@ async def process_image_with_gpt(image_url: str, document_type: dict, document_i
           - fuel_type: nhiên liệu
           - weight: khối lượng
           - seat_number: số chỗ ngồi
+          - serial_number: số của phôi giấy chứng nhận, giá trị sau cụm từ **"Số sê-ri: (No.)"**, thường có dạng "DB-XXXXXXX"
 
         3. Nếu không xác định được loại giấy tờ, trả về JSON rỗng: {{}}
 
-        **Yêu cầu:** Chỉ trả về JSON object đúng định dạng. Không đưa ra bất kỳ giải thích, mô tả hay nội dung dư thừa nào.
+        **Yêu cầu:** Chỉ trả về JSON object đúng định dạng. Không đưa ra bất kỳ giải thích, mô tả hay nội dung dư thừa nào, Đảm bảo định dạng ngày tháng theo mẫu.
 
         document_type = {document_type}
         document_id = {document_id}"""
