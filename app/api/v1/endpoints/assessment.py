@@ -687,6 +687,16 @@ async def check_distance(
         
         # Get garage coordinates
         location = await geocode_address(assessment_detail[0]['gara_address'])
+        if not location:
+            return {
+                "garage_location": {
+                    'lat': 0,
+                    'lon': 0,
+                },
+                "current_distance": 0,
+                "distance_limit": settings.USER_GARAGE_DISTANCE_LIMIT,
+                "is_within_limit": True
+            }
         
         # Calculate distance
         distance = calculate_distance_haversine(
