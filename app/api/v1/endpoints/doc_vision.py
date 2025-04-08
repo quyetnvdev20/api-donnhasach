@@ -137,40 +137,68 @@ async def process_image_with_gpt(image_url: str, document_type: dict, document_i
         async with httpx.AsyncClient() as client:
             image = await client.get(image_url)
             base64_image = base64.b64encode(image.content).decode('utf-8')
-        
-        prompt = f"""Bạn là một chuyên gia nhận diện các loại tài liệu cá nhân của người dân Việt Nam.
-Hãy nhận diện loại tài liệu cá nhân trong hình ảnh sau đây.
-Tài liệu cá nhân có thể là, lấy dữ liệu từ danh sách bên dưới:
-document_type: {document_type}
-document_id: {document_id}
 
-Nếu loại tài liệu là "Giấy phép lái xe" (driving_license) thì đọc thêm dữ liệu trong ảnh được mô tả như sau:
-birth_date: ngày sinh
-class_: Hạng/Class
-date: ngày cấp
-expired_date: ngày hết hạn
-name: tên chủ giấy phép lái xe
-number: số giấy phép lái xe
+        prompt = f"""Ảnh sau là một loại giấy tờ xe tại Việt Nam. Hãy giúp tôi:
 
-Nếu loại tài liệu là "Đăng kiểm xe" (vehicle_registration) thì đọc thêm dữ liệu trong ảnh được mô tả như sau:
-registration_number: số đăng kiểm
-registration_date: ngày đăng kiểm
-registration_expired_date: ngày hết hạn
+        1. Xác định đây là loại tài liệu nào trong các loại sau:
+           - "driving_license": Giấy phép lái xe
+           - "vehicle_registration_photo": Giấy đăng ký xe (cà-vẹt xe)
+           - "vehicle_registration": Giấy chứng nhận kiểm định (giấy đăng kiểm)
+           - "insurance_certificate": Giấy chứng nhận bảo hiểm
 
-**Output yêu cầu:**
-- Trả về dữ liệu dưới dạng JSON 1 object.
-- JSON bao gồm: 
-** 1. "code": code của tài liệu được lấy từ danh sách document_type ** 
-** 2. "id": id của tài liệu cá nhân được lấy từ danh sách document_id **
-** 3. "name": name của tài liệu cá nhân được lấy từ danh sách document_type **
-- Nếu thuộc 2 loại Giấy phép lái xe và Đăng kiểm xe thì thêm trường "content" vào JSON.
-- Không trả ra bất kỳ thông tin nào khác.
-- Nếu không thuộc bất kỳ loại tài liệu nào thì trả về  response rỗng
-"""
+        2. Nếu nhận diện được, hãy trích xuất dữ liệu theo định dạng JSON dưới đây:
+
+        {{
+          "code": "<code từ danh sách trên>",
+          "id": "<id tương ứng từ document_id>",
+          "name": "<tên đầy đủ loại tài liệu>",
+        }}
+
+        - Nếu là "driving_license", content bao gồm:
+          - name: tên người lái
+          - number: số GPLX
+          - class_: hạng bằng
+          - date: ngày cấp
+          - expired_date: ngày hết hạn
+          - birth_date: ngày sinh
+
+        - Nếu là "vehicle_registration_photo", content bao gồm:
+          - owner: tên chủ xe
+          - plate_number: biển số
+          - brand: nhãn hiệu xe
+          - engine_number: số máy
+          - chassis_number: số khung
+          - color: màu sơn
+          - registration_date: ngày đăng ký
+          - registration_expired_date: ngày hết hạn (nếu có)
+
+        - Nếu là "vehicle_registration", content bao gồm:
+          - inspection_number: số đăng kiểm
+          - inspection_date: ngày cấp đăng kiểm
+          - inspection_expired_date: hạn kiểm định
+          - vehicle_type: loại xe
+          - brand: nhãn hiệu
+          - engine_number: số máy
+          - chassis_number: số khung
+          - fuel_type: nhiên liệu
+          - weight: khối lượng
+          - seat_number: số chỗ ngồi
+
+        3. Nếu không xác định được loại giấy tờ, trả về JSON rỗng: {{}}
+
+        **Yêu cầu:** Chỉ trả về JSON object đúng định dạng. Không đưa ra bất kỳ giải thích, mô tả hay nội dung dư thừa nào.
+
+        document_type = {document_type}
+        document_id = {document_id}"""
+
         client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         response = await client.chat.completions.create(
             model="gpt-4o",
             messages=[
+                {
+                    "role": "system",
+                    "content": "Bạn là một chuyên gia OCR và hiểu rõ các loại giấy tờ xe tại Việt Nam."
+                },
                 {
                     "role": "user",
                     "content": [
