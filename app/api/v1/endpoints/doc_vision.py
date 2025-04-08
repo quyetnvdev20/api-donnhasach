@@ -145,8 +145,18 @@ async def process_image_with_gpt(image_url: str, document_type: dict, document_i
            - "vehicle_registration_photo": Giấy đăng ký xe (cà-vẹt xe)
            - "vehicle_registration": Giấy chứng nhận kiểm định (giấy đăng kiểm)
            - "insurance_certificate": Giấy chứng nhận bảo hiểm
+           
+        2. Xác định mặt giấy tờ là:
+            - `"front"` nếu là mặt chứa thông tin chính như:
+              - Ảnh chân dung, họ tên, số giấy phép (đối với GPLX)
+              - Thông tin kỹ thuật xe, dấu đỏ, số sê-ri (đối với đăng kiểm)
+              - Thông tin chủ xe, biển số, số khung, màu sơn... (đối với đăng ký xe)
+            - `"back"` nếu là mặt còn lại, thường chứa:
+              - Điều khoản (đối với bảo hiểm)
+              - Lịch kiểm định (đối với đăng kiểm)
+              - Các hạng bằng còn lại (đối với GPLX)
 
-        2. Nếu nhận diện được, hãy trích xuất dữ liệu theo định dạng JSON dưới đây:
+        3. Nếu nhận diện được, hãy trích xuất dữ liệu theo định dạng JSON dưới đây:
 
         {{
           "code": "<code từ danh sách trên>",
@@ -154,7 +164,7 @@ async def process_image_with_gpt(image_url: str, document_type: dict, document_i
           "name": "<tên đầy đủ loại tài liệu>",
         }}
 
-        - Nếu là "driving_license", content bao gồm:
+        - Nếu là "driving_license" và mặt giấy tờ là "front", content bao gồm:
           - name: tên người lái
           - number: số GPLX
           - class_: hạng bằng
@@ -172,10 +182,10 @@ async def process_image_with_gpt(image_url: str, document_type: dict, document_i
           - registration_date: ngày đăng ký (DD/MM/YYYY)
           - registration_expired_date: ngày hết hạn (nếu có) (DD/MM/YYYY)
 
-        - Nếu là "vehicle_registration", content bao gồm:
+        - Nếu là "vehicle_registration" và mặt giấy tờ là "front", content bao gồm:
           - inspection_number: số đăng kiểm
           - registry_date: ngày cấp đăng kiểm (DD/MM/YYYY)
-          - registry_expired_date: Có hiệu lực đến ngày (valid until), Gần dấu đỏ, cạnh lề trái, dưới cả phần chữ ký và con dấu (DD/MM/YYYY)
+          - registry_expired_date: Có hiệu lực đến ngày (valid until), phía bên trái dấu đỏ, chữ màu đen in đậm (DD/MM/YYYY)
           - vehicle_type: loại xe
           - brand: nhãn hiệu
           - engine_number: số máy
@@ -185,7 +195,11 @@ async def process_image_with_gpt(image_url: str, document_type: dict, document_i
           - seat_number: số chỗ ngồi
           - serial_number: số của phôi giấy chứng nhận, giá trị sau cụm từ **"Số sê-ri: (No.)"**, thường có dạng "DB-XXXXXXX"
 
-        3. Nếu không xác định được loại giấy tờ, trả về JSON rỗng: {{}}
+        4. Nếu không xác định được loại giấy tờ, trả về JSON rỗng: {{}}
+        
+        5. Nếu mặt giấy tờ là "back":
+           - Vẫn phải trả về đầy đủ các trường: "code", "id", "name", "side"
+           - Trường "content" có thể để rỗng hoặc không có
 
         **Yêu cầu:** Chỉ trả về JSON object đúng định dạng. Không đưa ra bất kỳ giải thích, mô tả hay nội dung dư thừa nào.
 
