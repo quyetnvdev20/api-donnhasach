@@ -187,7 +187,7 @@ async def process_image_with_gpt(image_url: str, document_type: dict, document_i
 
         3. Nếu không xác định được loại giấy tờ, trả về JSON rỗng: {{}}
 
-        **Yêu cầu:** Chỉ trả về JSON object đúng định dạng. Không đưa ra bất kỳ giải thích, mô tả hay nội dung dư thừa nào, Đảm bảo định dạng ngày tháng theo mẫu.
+        **Yêu cầu:** Chỉ trả về JSON object đúng định dạng. Không đưa ra bất kỳ giải thích, mô tả hay nội dung dư thừa nào.
 
         document_type = {document_type}
         document_id = {document_id}"""
