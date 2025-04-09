@@ -162,44 +162,13 @@ async def process_image_with_gpt(image_url: str, document_type: dict, document_i
           "code": "<code từ danh sách trên>",
           "id": "<id tương ứng từ document_id>",
           "name": "<tên đầy đủ loại tài liệu>",
+          "side": "<front | back>",
         }}
-
-        - Nếu là "driving_license" và mặt giấy tờ là "front", content bao gồm:
-          - name: tên người lái
-          - number: số GPLX
-          - class_: hạng bằng
-          - date: ngày cấp (DD/MM/YYYY)
-          - expired_date: ngày hết hạn (DD/MM/YYYY)
-          - birth_date: ngày sinh (DD/MM/YYYY)
-
-        - Nếu là "vehicle_registration_photo", content bao gồm:
-          - owner: tên chủ xe
-          - plate_number: biển số
-          - brand: nhãn hiệu xe
-          - engine_number: số máy
-          - chassis_number: số khung
-          - color: màu sơn
-          - registration_date: ngày đăng ký (DD/MM/YYYY)
-          - registration_expired_date: ngày hết hạn (nếu có) (DD/MM/YYYY)
-
-        - Nếu là "vehicle_registration" và mặt giấy tờ là "front", content bao gồm:
-          - inspection_number: số đăng kiểm
-          - registry_date: ngày cấp đăng kiểm (DD/MM/YYYY)
-          - registry_expired_date: Có hiệu lực đến ngày (valid until), phía bên trái dấu đỏ, chữ màu đen in đậm (DD/MM/YYYY)
-          - vehicle_type: loại xe
-          - brand: nhãn hiệu
-          - engine_number: số máy
-          - chassis_number: số khung
-          - fuel_type: nhiên liệu
-          - weight: khối lượng
-          - seat_number: số chỗ ngồi
-          - serial_number: số của phôi giấy chứng nhận, giá trị sau cụm từ **"Số sê-ri: (No.)"**, thường có dạng "DB-XXXXXXX"
 
         4. Nếu không xác định được loại giấy tờ, trả về JSON rỗng: {{}}
         
         5. Nếu mặt giấy tờ là "back":
            - Vẫn phải trả về đầy đủ các trường: "code", "id", "name", "side"
-           - Trường "content" có thể để rỗng hoặc không có
 
         **Yêu cầu:** Chỉ trả về JSON object đúng định dạng. Không đưa ra bất kỳ giải thích, mô tả hay nội dung dư thừa nào.
 
