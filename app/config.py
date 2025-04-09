@@ -62,6 +62,11 @@ class Settings(BaseSettings):
     SHORTEN_URL_API_URL: str = ""
     SHORTEN_URL_API_KEY: str = ""
 
+    # Sentry configuration
+    SENTRY_DSN: str = ""
+    SENTRY_ENVIRONMENT: str = "development"
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.1
+    SENTRY_PROFILES_SAMPLE_RATE: float = 0.1
 
     # Distance limit
     USER_GARAGE_DISTANCE_LIMIT: float = 0.5
