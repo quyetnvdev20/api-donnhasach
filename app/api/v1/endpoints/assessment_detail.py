@@ -1,5 +1,3 @@
-from os.path import exists
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from ...deps import get_current_user
 from ....schemas.assessment import VehicleDetailAssessment, UpdateAssessmentItemResponse, SceneAttachment, \
