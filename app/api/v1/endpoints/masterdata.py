@@ -168,7 +168,7 @@ async def get_branch_list(
         params = []
         
         if search:
-            query += " AND (LOWER(rb.name) LIKE $1"
+            query += " AND (LOWER(rb.name)) LIKE $1"
             params.append(f"%{search.lower()}%")
         
         # Thêm sắp xếp và phân trang
