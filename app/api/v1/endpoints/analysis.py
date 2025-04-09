@@ -116,25 +116,6 @@ async def process_image_analysis(
     """
     Process image analysis directly without using RabbitMQ
     """
-    # Wait for image to be available, with timeout
-    max_retries = 3
-    retry_delay = 1  # seconds
-    
-    async with httpx.AsyncClient() as client:
-        for attempt in range(max_retries):
-            try:
-                response = await client.head(request.image_url)
-                if response.status_code == 200:
-                    break
-                await asyncio.sleep(retry_delay)
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                        detail="Image URL is not accessible after maximum retries"
-                    )
-                await asyncio.sleep(retry_delay)
-    
     # Check for existing image
     existing_image = db.query(Image).filter(
         Image.analysis_id == str(request.analysis_id or request.image_id),
@@ -291,10 +272,26 @@ async def process_image_analysis(
 
 async def process_image_with_gpt(image_url: str) -> list:
     try:
-        #convert image_url to base64
+
+        # Wait for image to be available, with timeout
+        max_retries = 3
+        retry_delay = 1  # seconds
+
         async with httpx.AsyncClient() as client:
-            image = await client.get(image_url)
-        base64_image = base64.b64encode(image.content).decode('utf-8')
+            for attempt in range(max_retries):
+                try:
+                    image = await client.get(image_url)
+                    if image.status_code == 200 and image.content:
+                        base64_image = base64.b64encode(image.content).decode('utf-8')
+                        break
+                    await asyncio.sleep(retry_delay)
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Image URL is not accessible after maximum retries"
+                        )
+                    await asyncio.sleep(retry_delay)
 
         prompt = f"""Bạn là một chuyên gia giám định xe ô tô hàng đầu thế giới. 
 Hãy phân tích chính xác xem trong hình ảnh sau đây những bộ phận nào của xe ô tô bị tổn thất.
