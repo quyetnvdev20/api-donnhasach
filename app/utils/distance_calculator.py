@@ -730,7 +730,7 @@ async def find_nearby_garages(lat: float, lng: float, garage_list: list, token: 
                     placeholders = ', '.join([f'${i+1}' for i in range(len(garage_ids_to_query))])
 
                     # Query to get coordinates from database
-                    query = f"SELECT id, latitude, longitude FROM res_partner_gara WHERE id IN ({placeholders})"
+                    query = f"SELECT id, latitude, longitude, geocoding_status FROM res_partner_gara WHERE id IN ({placeholders})"
 
                     # Execute query with all garage IDs
                     db_results = await PostgresDB.execute_query(query, garage_ids_to_query)
@@ -738,10 +738,13 @@ async def find_nearby_garages(lat: float, lng: float, garage_list: list, token: 
                     # Create lookup dictionary for fast access
                     db_coords = {}
                     for row in db_results:
-                        garage_id, lat_db, lng_db = row
+                        garage_id, lat_db, lng_db, geocoding_status = row.values()
                         # Only use valid coordinates (not NULL and not 0,0)
                         if lat_db is not None and lng_db is not None and (lat_db != 0 or lng_db != 0):
                             db_coords[garage_id] = (lat_db, lng_db)
+                            continue
+                        if geocoding_status == "failed":
+                            db_coords[garage_id] = (0, 0)
 
                     # Process results and update caches
                     for garage_id, address, address_normalized, name in need_select_db:
@@ -1033,14 +1036,14 @@ async def calculate_distances_batch_from_coords_v2(lat: float, lng: float, addre
                         placeholders = ', '.join([f'${i+1}' for i in range(len(garage_ids))])
                         
                         # Tạo query với placeholders dạng $1, $2, ...
-                        query = f"SELECT id, latitude, longitude FROM res_partner_gara WHERE id IN ({placeholders})"
+                        query = f"SELECT id, latitude, longitude, geocoding_status FROM res_partner_gara WHERE id IN ({placeholders})"
                         
                         # Truyền danh sách các giá trị trực tiếp, không cần dictionary
                         db_results = await PostgresDB.execute_query(query, garage_ids)
                         
                         # Xử lý kết quả từ database
                         for row in db_results:
-                            garage_id, lat_db, lng_db = row
+                            garage_id, lat_db, lng_db, geocoding_status = row.values()
                             
                             # Kiểm tra nếu tọa độ hợp lệ
                             if garage_id in garages_by_id and lat_db and lng_db and lat_db != 0 and lng_db != 0:
@@ -1074,6 +1077,12 @@ async def calculate_distances_batch_from_coords_v2(lat: float, lng: float, addre
                                 
                                 # Đánh dấu gara đã xử lý để không tìm kiếm trên API
                                 del garages_by_id[garage_id]
+                                continue
+
+                            # Nếu gara đồng bộ thất bại, xóa khỏi danh sách
+                            if garage_id in garages_by_id and geocoding_status == "failed":
+                                del garages_by_id[garage_id]
+                                continue
                         
                         # Các gara còn lại cần tìm trên API
                         for garage_id, garage in garages_by_id.items():
