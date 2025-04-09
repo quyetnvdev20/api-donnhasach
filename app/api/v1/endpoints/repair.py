@@ -6,7 +6,7 @@ from ....config import settings, odoo
 from ....database import get_db
 from ....schemas.repair import RepairPlanApprovalRequest, RepairPlanApprovalResponse, RepairPlanListResponse, \
     RepairPlanDetailResponse, RepairPlanApproveRequest, RepairPlanApproveResponse, RepairPlanRejectRequest, \
-    RepairPlanRejectResponse, RepairCategory
+    RepairPlanRejectResponse, RepairCategory, RejectionReason, RejectionReasonListResponse
 import logging
 import asyncio
 from ....utils.erp_db import PostgresDB
@@ -459,3 +459,42 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
             "discount_percentage": int(detail.get('discount_percentage')),
         })
     return repair_plan_details
+
+
+@router.get("/{repair_id}/rejection-reasons",
+            response_model=RejectionReasonListResponse,
+            status_code=status.HTTP_200_OK)
+async def get_repair_rejection_reasons(
+        repair_id: int,
+        db: Session = Depends(get_db),
+        current_user: dict = Depends(get_current_user)
+) -> RejectionReasonListResponse:
+    """
+    Get list of rejection reasons for a repair plan
+    Returns a list of rejection reasons sorted from most recent
+    """
+    query = """
+        SELECT 
+            log.id,
+            log.reason,
+            to_char(log.date + INTERVAL '7 hours', 'dd/MM/yyyy HH24:MI') as rejection_date
+        FROM insurance_claim_history_log log
+        WHERE log.solution_repair_approved_id = $1 
+        AND log.state = 'cancel'
+        ORDER BY log.date DESC
+    """
+    params = [repair_id]
+
+    results = await PostgresDB.execute_query(query, params)
+
+    rejection_reasons = []
+    for res in results:
+        rejection_reasons.append({
+            "id": res.get('id'),
+            "reason": res.get('reason'),
+            "rejection_date": res.get('rejection_date'),
+        })
+
+    return RejectionReasonListResponse(
+        data=rejection_reasons
+    )
