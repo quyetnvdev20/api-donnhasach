@@ -738,7 +738,7 @@ async def find_nearby_garages(lat: float, lng: float, garage_list: list, token: 
                     # Create lookup dictionary for fast access
                     db_coords = {}
                     for row in db_results:
-                        garage_id, lat_db, lng_db, geocoding_status = row
+                        garage_id, lat_db, lng_db, geocoding_status = row.values()
                         # Only use valid coordinates (not NULL and not 0,0)
                         if lat_db is not None and lng_db is not None and (lat_db != 0 or lng_db != 0):
                             db_coords[garage_id] = (lat_db, lng_db)
@@ -1043,7 +1043,7 @@ async def calculate_distances_batch_from_coords_v2(lat: float, lng: float, addre
                         
                         # Xử lý kết quả từ database
                         for row in db_results:
-                            garage_id, lat_db, lng_db, geocoding_status = row
+                            garage_id, lat_db, lng_db, geocoding_status = row.values()
                             
                             # Kiểm tra nếu tọa độ hợp lệ
                             if garage_id in garages_by_id and lat_db and lng_db and lat_db != 0 and lng_db != 0:
