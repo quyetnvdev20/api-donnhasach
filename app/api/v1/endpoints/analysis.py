@@ -519,6 +519,11 @@ Luôn luôn lựa chọn bộ phận và tổn thất chính xác nhất từ da
             ],
             response_format={"type": "json_object"}
         )
+
+        if not response or not response.choices or not response.choices[0].message.content:
+            logger.info('Empty content from image analysis service')
+            return []
+
         response_content = response.choices[0].message.content
         output = json.loads(response_content)["damage_info"]
         output_final = []
