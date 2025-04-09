@@ -54,6 +54,8 @@ class Settings(BaseSettings):
     OCR_SERVICE_URL: str = ""
     OCR_API_KEY: str = ""
     OCR_API_SECRET: str = ""
+    OCR_LICENSE_API_KEY: str = ""
+    OCR_LICENSE_URL: str = ""
 
     # Google Maps API
     GOOGLE_MAPS_API_KEY: str = ""
