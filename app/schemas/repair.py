@@ -155,5 +155,16 @@ class RepairCategoryAppraisal(BaseModel):
     name: str = None
     code: str = None
 
+
 class RepairCategoryResponse(BaseModel):
     data: List[RepairCategoryAppraisal] = []
+
+
+class RejectionReason(BaseModel):
+    id: int
+    reason: Optional[str] = None
+    rejection_date: Optional[str] = None
+
+
+class RejectionReasonListResponse(BaseModel):
+    data: List[RejectionReason] = []
