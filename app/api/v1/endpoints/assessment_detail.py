@@ -214,7 +214,7 @@ async def update_scene_attachment(
         scene_attachment_id = None
         if scene_attachment.id:
             scene_attachment_id = scene_attachment.id
-        if exists_data.get(str(scene_attachment.type_document_id)):
+        elif exists_data.get(str(scene_attachment.type_document_id)):
             scene_attachment_id = exists_data.get(str(scene_attachment.type_document_id))
 
         vals_scene = {
@@ -260,17 +260,22 @@ async def update_scene_attachment(
         'scene_attachment_ids': vals_items
     }
 
-    response = await odoo.update_method(
-        model='insurance.claim.appraisal.detail',
-        record_id=assessment_id,
-        vals=vals,
-        token=current_user.odoo_token,
-    )
+    try:
+        response = await odoo.update_method(
+            model='insurance.claim.appraisal.detail',
+            record_id=assessment_id,
+            vals=vals,
+            token=current_user.odoo_token,
+        )
 
-    if response:
-        return SceneAttachmentResponse(assessment_id=assessment_id, status="Success")
-    else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update assessment detail")
+        if response:
+            return SceneAttachmentResponse(assessment_id=assessment_id, status="Success")
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update assessment detail")
+    except HTTPException as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=e.detail)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
 
 @router.get("/{assessment_id}/scene_attachment")
