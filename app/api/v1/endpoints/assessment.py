@@ -319,6 +319,16 @@ async def get_assessment_detail(
     latitude, longitude = headers.latitude, headers.longitude
     logger.info(f"timezoneeeeeeeeee {time_zone.key}")
     query = f"""
+            WITH contract_image AS (
+                SELECT icp1.id, json_agg(ca.url) as ca_url
+                 FROM contract_attachment ca
+                 JOIN insurance_contract ic1 on ca.contract_id = ic1.id
+                 JOIN insurance_contract_certification icc1 on icc1.contract_id = ic1.id
+                 JOIN insurance_claim_profile icp1 ON icp1.certification_id = icc1.id
+                 JOIN contract_attachment_type cat on ca.attachment_type_id = cat.id
+                 WHERE ca.url ~* '\.(jpg|jpeg|png|gif|bmp|webp|jfif)$'
+                 GROUP BY icp1.id
+            )
             SELECT
                 gd_chi_tiet.name AS case_number,
                 rc.license_plate AS license_plate,
@@ -343,10 +353,12 @@ async def get_assessment_detail(
                 gd_chi_tiet.new_claim_profile_id AS claim_profile_id,
                 icp.name AS claim_profile_name,
                 gd_chi_tiet.insur_claim_id as insur_claim_id,
-                crp.name AS assigned_to
+                crp.name AS assigned_to,
+                contract_image.ca_url as list_image_contract
             FROM insurance_claim_appraisal_detail gd_chi_tiet
             LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
             LEFT JOIN insurance_claim_profile icp ON icp.id = gd_chi_tiet.new_claim_profile_id
+            LEFT JOIN contract_image on icp.id = contract_image.id
             LEFT JOIN res_partner_gara rpg ON rpg.id = gd_chi_tiet.gara_partner_id
             LEFT JOIN res_partner rpg_partner ON rpg.partner_id = rpg_partner.id
             LEFT JOIN res_partner contact ON contact.id = icr.person_contact_id
@@ -469,6 +481,12 @@ async def get_assessment_detail(
 
         assessment_detail['edit_screen'] = edit_screen
         assessment_detail['enable_remote_inspection'] = enable_remote_inspection
+
+        if not assessment_detail.get('list_image_contract'):
+            assessment_detail['list_image_contract'] = []
+        else:
+            assessment_detail['list_image_contract'] = eval(assessment_detail['list_image_contract'])
+
 
         assessment_detail['tasks'] = [{
             "seq": 1,
