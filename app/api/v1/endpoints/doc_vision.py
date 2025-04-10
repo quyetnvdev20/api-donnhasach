@@ -242,7 +242,7 @@ async def get_ocr_license(base64_image, document_type):
                 url,
                 headers=headers,
                 data=payload,
-                timeout=5.0
+                timeout=10.0
             )
 
             if response.status_code != 200:
