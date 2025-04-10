@@ -6,9 +6,10 @@ from ....config import settings, odoo
 from ....database import get_db
 from ....schemas.repair import RepairPlanApprovalRequest, RepairPlanApprovalResponse, RepairPlanListResponse, \
     RepairPlanDetailResponse, RepairPlanApproveRequest, RepairPlanApproveResponse, RepairPlanRejectRequest, \
-    RepairPlanRejectResponse, RepairCategory, RejectionReason, RejectionReasonListResponse
+    RepairPlanRejectResponse, RepairCategory, RejectionReason
 import logging
 import asyncio
+import json
 from ....utils.erp_db import PostgresDB
 
 logger = logging.getLogger(__name__)
@@ -243,7 +244,18 @@ async def get_repair_plan_awaiting_detail(
             a.total_discount,
             a.price_subtotal,
             (select sum(price_unit_gara) from insurance_claim_solution_repair_line where solution_repair_id = a.id) as amount_garage,
-            c.insur_claim_id as insur_claim_id
+            c.insur_claim_id as insur_claim_id,
+            (select 
+                    json_agg(
+                        json_build_object(
+                        'id', log.id,
+                        'reason', log.reason,
+                        'rejection_date', to_char(log.date + INTERVAL '7 hours', 'dd/MM/yyyy HH24:MI')
+                    )
+                ) as rejection_reasons
+                from insurance_claim_history_log log
+                where log.solution_repair_approved_id = a.id
+                and log.state = 'cancel') as rejection_reasons
         from insurance_claim_solution_repair a
         left join insurance_claim_appraisal_detail e on a.detailed_appraisal_id = e.id
         left join res_partner_gara b on a.gara_partner_id = b.id
@@ -271,6 +283,17 @@ async def get_repair_plan_awaiting_detail(
         )
     res = results[0]
 
+    rejection_reasons = res.get('rejection_reasons')
+    list_rejection_reason = []
+
+    if rejection_reasons and rejection_reasons != '[null]':
+        # Nếu rejection_reasons đã là list, sử dụng trực tiếp
+        if isinstance(rejection_reasons, list):
+            list_rejection_reason = rejection_reasons
+        # Nếu rejection_reasons là string JSON, parse nó
+        elif isinstance(rejection_reasons, str):
+            list_rejection_reason = json.loads(rejection_reasons)
+
     # Mock data - replace with actual database query later
     repair_plan_detail = {
         "file_name": res.get('file_name'),
@@ -293,6 +316,8 @@ async def get_repair_plan_awaiting_detail(
             "color_code": STATE_COLOR.get(res.get('repair_state'))[0] if STATE_COLOR.get(
                 res.get('repair_state')) else "#faad14"
         },
+        "rejection_reasons": list_rejection_reason,
+        "btn_rejection": True if list_rejection_reason and res.get('repair_state') == 'rejected' else False,
         "btn_approve": True if res.get('repair_state') not in ('new', 'approved', 'cancel') else False,
         # TODO chưa xử lý phân quyền
         "btn_reject": True if res.get('repair_state') not in ('new', 'approved', 'cancel') else False,
@@ -459,42 +484,3 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
             "discount_percentage": int(detail.get('discount_percentage')),
         })
     return repair_plan_details
-
-
-@router.get("/{repair_id}/rejection-reasons",
-            response_model=RejectionReasonListResponse,
-            status_code=status.HTTP_200_OK)
-async def get_repair_rejection_reasons(
-        repair_id: int,
-        db: Session = Depends(get_db),
-        current_user: dict = Depends(get_current_user)
-) -> RejectionReasonListResponse:
-    """
-    Get list of rejection reasons for a repair plan
-    Returns a list of rejection reasons sorted from most recent
-    """
-    query = """
-        SELECT 
-            log.id,
-            log.reason,
-            to_char(log.date + INTERVAL '7 hours', 'dd/MM/yyyy HH24:MI') as rejection_date
-        FROM insurance_claim_history_log log
-        WHERE log.solution_repair_approved_id = $1 
-        AND log.state = 'cancel'
-        ORDER BY log.date DESC
-    """
-    params = [repair_id]
-
-    results = await PostgresDB.execute_query(query, params)
-
-    rejection_reasons = []
-    for res in results:
-        rejection_reasons.append({
-            "id": res.get('id'),
-            "reason": res.get('reason'),
-            "rejection_date": res.get('rejection_date'),
-        })
-
-    return RejectionReasonListResponse(
-        data=rejection_reasons
-    )
