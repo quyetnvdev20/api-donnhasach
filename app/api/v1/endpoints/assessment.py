@@ -326,8 +326,8 @@ async def get_assessment_detail(
                  JOIN insurance_contract_certification icc1 on icc1.contract_id = ic1.id
                  JOIN insurance_claim_profile icp1 ON icp1.certification_id = icc1.id
                  JOIN contract_attachment_type cat on ca.attachment_type_id = cat.id
-                 where cat.is_object_image = 't'
-                 group by icp1.id
+                 WHERE ca.url ~* '\.(jpg|jpeg|png|gif|bmp|webp|jfif)$'
+                 GROUP BY icp1.id
             )
             SELECT
                 gd_chi_tiet.name AS case_number,
