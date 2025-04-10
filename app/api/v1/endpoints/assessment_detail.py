@@ -211,9 +211,11 @@ async def update_scene_attachment(
         exists_data = eval(results[0].get('id_map'))
 
     for scene_attachment in scene_attachment_dict.documents:
-        scene_attachment_id = exists_data.get(str(scene_attachment.type_document_id))
-        if not scene_attachment_id:
+        scene_attachment_id = None
+        if scene_attachment.id:
             scene_attachment_id = scene_attachment.id
+        if exists_data.get(str(scene_attachment.type_document_id)):
+            scene_attachment_id = exists_data.get(str(scene_attachment.type_document_id))
 
         vals_scene = {
             "date": datetime.now().strftime("%Y-%m-%d"),
