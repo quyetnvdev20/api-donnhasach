@@ -195,7 +195,28 @@ async def update_scene_attachment(
     """
     vals_items = []
 
+    query = """
+        SELECT 
+            detail_scene_attachment_id,
+            json_object_agg(type_document_id, id) AS id_map
+        FROM 
+            insurance_claim_attachment_category
+        WHERE detail_scene_attachment_id = $1
+        GROUP BY 
+            detail_scene_attachment_id;
+    """
+    results = await PostgresDB.execute_query(query, [assessment_id])
+    exists_data = {}
+    if results and results[0]:
+        exists_data = eval(results[0].get('id_map'))
+
     for scene_attachment in scene_attachment_dict.documents:
+        scene_attachment_id = None
+        if scene_attachment.id:
+            scene_attachment_id = scene_attachment.id
+        elif exists_data.get(str(scene_attachment.type_document_id)):
+            scene_attachment_id = exists_data.get(str(scene_attachment.type_document_id))
+
         vals_scene = {
             "date": datetime.now().strftime("%Y-%m-%d"),
             "type_document_id": scene_attachment.type_document_id,
@@ -224,13 +245,13 @@ async def update_scene_attachment(
         if attachment_vals:
             vals_scene.update({'attachment_ids': attachment_vals})
 
-        if scene_attachment.id:
-            vals_items.append((1, scene_attachment.id, vals_scene))
+        if scene_attachment_id:
+            vals_items.append((1, scene_attachment_id, vals_scene))
         elif attachment_vals:
             vals_items.append((0, 0, vals_scene))
 
-        if not scene_attachment.images and scene_attachment.id:
-            vals_items.append((2, scene_attachment.id, False))
+        if not scene_attachment.images and scene_attachment_id:
+            vals_items.append((2, scene_attachment_id, False))
 
     if not vals_items:
         return SceneAttachmentResponse(assessment_id=assessment_id, status="Success")
@@ -239,17 +260,22 @@ async def update_scene_attachment(
         'scene_attachment_ids': vals_items
     }
 
-    response = await odoo.update_method(
-        model='insurance.claim.appraisal.detail',
-        record_id=assessment_id,
-        vals=vals,
-        token=current_user.odoo_token,
-    )
+    try:
+        response = await odoo.update_method(
+            model='insurance.claim.appraisal.detail',
+            record_id=assessment_id,
+            vals=vals,
+            token=current_user.odoo_token,
+        )
 
-    if response:
-        return SceneAttachmentResponse(assessment_id=assessment_id, status="Success")
-    else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update assessment detail")
+        if response:
+            return SceneAttachmentResponse(assessment_id=assessment_id, status="Success")
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update assessment detail")
+    except HTTPException as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=e.detail)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
 
 @router.get("/{assessment_id}/scene_attachment")

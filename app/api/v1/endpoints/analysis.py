@@ -14,6 +14,7 @@ from ....services.firebase import FirebaseNotificationService
 from ....utils.erp_db import PostgresDB
 import httpx
 import json
+import asyncio
 import uuid
 import logging
 from datetime import datetime
@@ -452,10 +453,26 @@ async def get_categories_and_statuses():
 
 async def process_image_with_gpt(image_url: str) -> list:
     try:
-        #convert image_url to base64
+
+        # Wait for image to be available, with timeout
+        max_retries = 3
+        retry_delay = 1  # seconds
+
         async with httpx.AsyncClient() as client:
-            image = await client.get(image_url)
-        base64_image = base64.b64encode(image.content).decode('utf-8')
+            for attempt in range(max_retries):
+                try:
+                    image = await client.get(image_url)
+                    if image.status_code == 200 and image.content:
+                        base64_image = base64.b64encode(image.content).decode('utf-8')
+                        break
+                    await asyncio.sleep(retry_delay)
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Image URL is not accessible after maximum retries"
+                        )
+                    await asyncio.sleep(retry_delay)
 
         prompt = f"""Bạn là một chuyên gia giám định xe ô tô hàng đầu thế giới. 
 Hãy phân tích chính xác xem trong hình ảnh sau đây những bộ phận nào của xe ô tô bị tổn thất.
@@ -502,6 +519,11 @@ Luôn luôn lựa chọn bộ phận và tổn thất chính xác nhất từ da
             ],
             response_format={"type": "json_object"}
         )
+
+        if not response or not response.choices or not response.choices[0].message.content:
+            logger.info('Empty content from image analysis service')
+            return []
+
         response_content = response.choices[0].message.content
         output = json.loads(response_content)["damage_info"]
         output_final = []
