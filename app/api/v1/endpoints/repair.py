@@ -6,9 +6,10 @@ from ....config import settings, odoo
 from ....database import get_db
 from ....schemas.repair import RepairPlanApprovalRequest, RepairPlanApprovalResponse, RepairPlanListResponse, \
     RepairPlanDetailResponse, RepairPlanApproveRequest, RepairPlanApproveResponse, RepairPlanRejectRequest, \
-    RepairPlanRejectResponse, RepairCategory
+    RepairPlanRejectResponse, RepairCategory, RejectionReason
 import logging
 import asyncio
+import json
 from ....utils.erp_db import PostgresDB
 
 logger = logging.getLogger(__name__)
@@ -132,25 +133,22 @@ async def get_repair_plan_awaiting_list(
         left join res_users ru on a.create_uid = ru.id
         left join res_partner rpu on ru.partner_id = rpu.id
         left join reason_table on a.id = reason_table.repair_id
+        left join res_car rc ON rc.id = e.car_id
         where 1 = 1
     """
 
-    params = []
+    params = {}
     state_conditions = []
 
     # If 'all' is in the list, we don't need to filter by state
     if 'all' not in state_list:
-        param_index = 1
-        
         if 'to_do' in state_list:
-            state_conditions.append(f"a.state = ${param_index}")
-            params.append('new')
-            param_index += 1
+            state_conditions.append(f"a.state = %(status)s")
+            params["status"] = 'new'
             
         if 'rejected' in state_list:
-            state_conditions.append(f"a.state = ${param_index}")
-            params.append('rejected')
-            param_index += 1
+            state_conditions.append(f"a.state = %(status)s")
+            params["status"] = 'rejected'
 
         if 'to_do' not in state_list and 'rejected' not in state_list:
             query += " AND (a.state IN ('new', 'rejected'))"
@@ -161,9 +159,18 @@ async def get_repair_plan_awaiting_list(
         query += " AND (a.state IN ('new', 'rejected'))"
 
     if search:
-        search_param_index = len(params) + 1
-        query += f""" AND (a.name ILIKE ${search_param_index} OR c.name ILIKE ${search_param_index} OR a.object_name ILIKE ${search_param_index})"""
-        params.append(f"%{search}%")
+        query += f""" AND (
+                        a.name ILIKE %(search)s
+                        OR c.name ILIKE %(search)s
+                        OR d.name ILIKE %(search)s
+                        OR a.object_name ILIKE %(search)s
+                        OR rc.license_plate ILIKE %(search)s
+                        OR e.vin ILIKE %(search)s
+                        OR e.engine_number ILIKE %(search)s
+                        OR e.name_driver ILIKE %(search)s
+        )"""
+
+        params["search"] = f"%{search}%"
 
     # Add ordering and pagination
     query += f"""
@@ -243,7 +250,18 @@ async def get_repair_plan_awaiting_detail(
             a.total_discount,
             a.price_subtotal,
             (select sum(price_unit_gara) from insurance_claim_solution_repair_line where solution_repair_id = a.id) as amount_garage,
-            c.insur_claim_id as insur_claim_id
+            c.insur_claim_id as insur_claim_id,
+            (select 
+                    json_agg(
+                        json_build_object(
+                        'id', log.id,
+                        'reason', log.reason,
+                        'rejection_date', to_char(log.date + INTERVAL '7 hours', 'dd/MM/yyyy HH24:MI')
+                    )
+                ) as rejection_reasons
+                from insurance_claim_history_log log
+                where log.solution_repair_approved_id = a.id
+                and log.state = 'cancel') as rejection_reasons
         from insurance_claim_solution_repair a
         left join insurance_claim_appraisal_detail e on a.detailed_appraisal_id = e.id
         left join res_partner_gara b on a.gara_partner_id = b.id
@@ -271,6 +289,17 @@ async def get_repair_plan_awaiting_detail(
         )
     res = results[0]
 
+    rejection_reasons = res.get('rejection_reasons')
+    list_rejection_reason = []
+
+    if rejection_reasons and rejection_reasons != '[null]':
+        # Nếu rejection_reasons đã là list, sử dụng trực tiếp
+        if isinstance(rejection_reasons, list):
+            list_rejection_reason = rejection_reasons
+        # Nếu rejection_reasons là string JSON, parse nó
+        elif isinstance(rejection_reasons, str):
+            list_rejection_reason = json.loads(rejection_reasons)
+
     # Mock data - replace with actual database query later
     repair_plan_detail = {
         "file_name": res.get('file_name'),
@@ -293,6 +322,8 @@ async def get_repair_plan_awaiting_detail(
             "color_code": STATE_COLOR.get(res.get('repair_state'))[0] if STATE_COLOR.get(
                 res.get('repair_state')) else "#faad14"
         },
+        "rejection_reasons": list_rejection_reason,
+        "btn_rejection": True if list_rejection_reason and res.get('repair_state') == 'rejected' else False,
         "btn_approve": True if res.get('repair_state') not in ('new', 'approved', 'cancel') else False,
         # TODO chưa xử lý phân quyền
         "btn_reject": True if res.get('repair_state') not in ('new', 'approved', 'cancel') else False,

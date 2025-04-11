@@ -117,6 +117,7 @@ def clean_numeric_value(value):
             status_code=status.HTTP_200_OK)
 async def get_ocr_quote(
         image_url: str,
+        repair_id: Optional[int] = None,
         current_user: dict = Depends(get_current_user)
 ) -> OCRQuoteResponse:
     """
@@ -131,7 +132,24 @@ async def get_ocr_quote(
     - OCR extracted data
     """
 
-    ocr_quote_data = await get_ocr_quote_data(image_url)
+    if repair_id:
+        query = """
+        SELECT 
+            iclc.code
+        FROM 
+            insurance_claim_list_category iclc
+        LEFT JOIN 
+            insurance_claim_attachment_category icac ON icac.category_id = iclc.id
+        where icac.detail_category_id in 
+        (SELECT detailed_appraisal_id from insurance_claim_solution_repair where id=$1)
+        """
+        list_code_category, ocr_quote_data = await asyncio.gather(
+            PostgresDB.execute_query(query, [repair_id]),
+            get_ocr_quote_data(image_url)
+        )
+    else:
+        list_code_category = []
+        ocr_quote_data = await get_ocr_quote_data(image_url)
     data_mapping = {item['repair_item_name']: item for item in LIST_REPAIR_ITEM}
 
     # Xử lý dữ liệu OCR
@@ -189,6 +207,13 @@ async def get_ocr_quote(
                 if data_mapping.get(name):
                     category['code'] = clean_numeric_value(data_mapping.get(name).get('category_code'))
                     category['name'] = clean_numeric_value(data_mapping.get(name).get('category_name'))
+                
+                # Nếu không năm trong danh sách hạng mục của hồ sơ thì để trống
+                if repair_id and category['code'] not in list_code_category:
+                    category = {
+                        'code': None,
+                        'name': None
+                    }
                 
                 result_data.append({
                     'name': name,

@@ -1,31 +1,50 @@
-import base64
-import os
-import json
 import asyncio
-from fastapi import APIRouter, Depends, HTTPException, status, Body
-from openai import AsyncOpenAI
-from sqlalchemy.orm import Session
-from typing import List, Optional
-from ....database import get_db
-from ...deps import get_current_user
-from ....schemas.doc_vision import DocVisionRequest, DocVisionResponse
+import base64
+import json
 import logging
-import httpx
-from .assessment import get_document_type
-from ....utils.erp_db import PostgresDB
-from ....config import settings
+from io import BytesIO
+import time
 
+import httpx
+from PIL import Image
+from fastapi import APIRouter, Depends, HTTPException, status
+from openai import AsyncOpenAI
+
+from .assessment import get_document_type
+from ...deps import get_current_user
+from ....config import settings
+from ....schemas.doc_vision import DocVisionRequest, DocVisionResponse
+from ....utils.erp_db import PostgresDB
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
     
 @router.post('', response_model=DocVisionResponse)
 async def doc_vision(request: DocVisionRequest, current_user: dict = Depends(get_current_user)):
+    if  not request.list_image_url or not request.list_image_url[0]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Image not found."
+        )
+
+    image_url = request.list_image_url[0]
+
+    first_start_time = time.perf_counter()
+    logger.info(f"===============Start time took seconds")
+
     document_type = await get_document_type()
     json_document_type = {doc["name"]: doc["code"] for doc in document_type}
     json_document_id = {doc["code"]: doc["id"] for doc in document_type}
-    ocr_image_tasks = [process_image_with_gpt(image_url, json_document_type, json_document_id) for image_url in request.list_image_url]
-    ocr_image_results = await asyncio.gather(*ocr_image_tasks)
+
+    start_time = time.perf_counter()
+    base64_original, base64_resized = await fetch_and_resize_image_with_retry(image_url)
+    fetch_time = time.perf_counter() - start_time
+    logger.info(f"fetch_and_resize_image_with_retry took {fetch_time:.2f} seconds")
+
+    start_time = time.perf_counter()
+    ocr_image_results = await process_image_with_gpt(base64_resized, json_document_type, json_document_id)
+    gpt_time = time.perf_counter() - start_time
+    logger.info(f"process_image_with_gpt took {gpt_time:.2f} seconds")
     
     # Khởi tạo response theo cấu trúc DocVisionResponse
     response = {
@@ -44,64 +63,71 @@ async def doc_vision(request: DocVisionRequest, current_user: dict = Depends(get
     grouped_documents = {}
     
     # Phân loại và xử lý kết quả từ các ảnh
-    for result in ocr_image_results:
-        for image_url, content in result.items():
-            try:
-                content_dict = json.loads(content)
-                doc_type = content_dict.get("code")
-                
-                if not doc_type:
-                    continue
-                
-                # Cập nhật thông tin chi tiết theo loại giấy tờ
-                content_details = content_dict.get("content", {})
-                
-                if doc_type == "driving_license" and content_details:
-                    response["gplx_no"] = content_details.get("number")
-                    response["name_driver"] = content_details.get("name")
-                    response["gplx_level"] = content_details.get("class_")
-                    response["gplx_effect_date"] = content_details.get("date")
-                    response["gplx_expired_date"] = content_details.get("expired_date")
-                
-                elif doc_type == "vehicle_registration":
-                    response["registry_no"] = content_details.get("serial_number")
-                    response["registry_date"] = content_details.get("registry_date")
-                    response["registry_expired_date"] = content_details.get("registry_expired_date")
-                
-                # Gom các ảnh theo loại tài liệu
-                if doc_type not in grouped_documents:
-                    grouped_documents[doc_type] = {
-                        "type": doc_type,
-                        "type_document_id": content_dict.get("id"),
-                        "name": content_dict.get("name"),
-                        "images": [{
-                            "date": None,
-                            "description": None,
-                            "id": None,
-                            "lat": None,
-                            "long": None,
-                            "location": None,
-                            "link": image_url
-                        }]
-                    }
-                else:
-                    # Thêm ảnh vào danh sách ảnh của loại tài liệu này
-                    grouped_documents[doc_type]["images"].append({
-                        "date": None,
-                        "description": None,
-                        "id": None,
-                        "lat": None,
-                        "long": None,
-                        "location": None,
-                        "link": image_url
-                    })
-                
-            except Exception as e:
-                logger.error(f"Error processing result for image {image_url}: {str(e)}")
+    try:
+        content_dict = json.loads(ocr_image_results)
+        doc_type = content_dict.get("code")
+        side = content_dict.get("side")
+
+        if doc_type == "driving_license" and side == 'front':
+            start_time = time.perf_counter()
+            content_details = await get_ocr_license(base64_original, 'gplx')
+            ocr_time = time.perf_counter() - start_time
+            logger.info(f"get_ocr_license (gplx) took {ocr_time:.2f} seconds")
+            if content_details:
+                response["gplx_no"] = content_details.get("number")
+                response["name_driver"] = content_details.get("name")
+                response["gplx_level"] = content_details.get("class_")
+                response["gplx_effect_date"] = content_details.get("date")
+                response["gplx_expired_date"] = content_details.get("expried_date")
+
+        elif doc_type == "vehicle_registration" and side == 'front':
+            start_time = time.perf_counter()
+            content_details = await get_ocr_license(base64_original, 'dk')
+            ocr_time = time.perf_counter() - start_time
+            logger.info(f"get_ocr_license (dk) took {ocr_time:.2f} seconds")
+            if content_details:
+                month = f"0{content_details.get('month')}" if len(content_details.get('month')) == 1 else content_details.get('month')
+                registry_date = f"{content_details.get('day')}/{month}/{content_details.get('year')}"
+                response["registry_no"] = content_details.get("seri")
+                response["registry_date"] = registry_date
+                response["registry_expired_date"] = content_details.get("expired_date")
+
+        # Gom các ảnh theo loại tài liệu
+        if doc_type not in grouped_documents:
+            grouped_documents[doc_type] = {
+                "type": doc_type,
+                "type_document_id": content_dict.get("id"),
+                "name": content_dict.get("name"),
+                "images": [{
+                    "date": None,
+                    "description": None,
+                    "id": None,
+                    "lat": None,
+                    "long": None,
+                    "location": None,
+                    "link": image_url
+                }]
+            }
+        else:
+            # Thêm ảnh vào danh sách ảnh của loại tài liệu này
+            grouped_documents[doc_type]["images"].append({
+                "date": None,
+                "description": None,
+                "id": None,
+                "lat": None,
+                "long": None,
+                "location": None,
+                "link": image_url
+            })
+
+    except Exception as e:
+        logger.error(f"Error processing result for image {image_url}: {str(e)}")
     
     # Thêm các document đã gom ảnh vào response
     response["documents"] = list(grouped_documents.values())
-    
+
+    end_fetch_time = time.perf_counter() - first_start_time
+    logger.info(f"===============End time took {end_fetch_time:.2f} seconds")
     return response
 
 
@@ -132,12 +158,42 @@ async def get_document_type():
     return result
 
 
-async def process_image_with_gpt(image_url: str, document_type: dict, document_id: dict):
-    try:
-        async with httpx.AsyncClient() as client:
-            image = await client.get(image_url)
-            base64_image = base64.b64encode(image.content).decode('utf-8')
+async def fetch_and_resize_image_with_retry(image_url: str, max_size: tuple = (800, 800), retries: int = 3,
+                                            delay: int = 1):
+    """
+    Tải ảnh từ image_url, thử lại nếu chưa có sẵn, sau đó resize về kích thước max_size và trả về base64.
+    """
+    for attempt in range(retries):
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(image_url)
+                if response.status_code == 200 and response.content:
+                    image_bytes = response.content
+                    # Ảnh gốc
+                    base64_original = base64.b64encode(image_bytes).decode("utf-8")
 
+                    # Resize ảnh bằng Pillow
+                    image = Image.open(BytesIO(image_bytes))
+                    # Chuyển đổi sang RGB nếu ảnh ở chế độ RGBA
+                    if image.mode == 'RGBA':
+                        image = image.convert('RGB')
+                    image.thumbnail(max_size, Image.ANTIALIAS)
+
+                    buffer = BytesIO()
+                    image.save(buffer, format="JPEG", quality=90)
+                    base64_resized = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                    return base64_original, base64_resized
+        except Exception as e:
+            if attempt == retries - 1:
+                raise RuntimeError(f"Không thể tải ảnh sau {retries} lần thử: {e}")
+
+        await asyncio.sleep(delay)
+
+    raise RuntimeError("Ảnh không khả dụng sau khi retry.")
+
+
+async def process_image_with_gpt(base64_image, document_type: dict, document_id: dict):
+    try:
         prompt = f"""Ảnh sau là một loại giấy tờ xe tại Việt Nam. Hãy giúp tôi:
 
         1. Xác định đây là loại tài liệu nào trong các loại sau:
@@ -162,44 +218,13 @@ async def process_image_with_gpt(image_url: str, document_type: dict, document_i
           "code": "<code từ danh sách trên>",
           "id": "<id tương ứng từ document_id>",
           "name": "<tên đầy đủ loại tài liệu>",
+          "side": "<front | back>",
         }}
-
-        - Nếu là "driving_license" và mặt giấy tờ là "front", content bao gồm:
-          - name: tên người lái
-          - number: số GPLX
-          - class_: hạng bằng
-          - date: ngày cấp (DD/MM/YYYY)
-          - expired_date: ngày hết hạn (DD/MM/YYYY)
-          - birth_date: ngày sinh (DD/MM/YYYY)
-
-        - Nếu là "vehicle_registration_photo", content bao gồm:
-          - owner: tên chủ xe
-          - plate_number: biển số
-          - brand: nhãn hiệu xe
-          - engine_number: số máy
-          - chassis_number: số khung
-          - color: màu sơn
-          - registration_date: ngày đăng ký (DD/MM/YYYY)
-          - registration_expired_date: ngày hết hạn (nếu có) (DD/MM/YYYY)
-
-        - Nếu là "vehicle_registration" và mặt giấy tờ là "front", content bao gồm:
-          - inspection_number: số đăng kiểm
-          - registry_date: ngày cấp đăng kiểm (DD/MM/YYYY)
-          - registry_expired_date: Có hiệu lực đến ngày (valid until), phía bên trái dấu đỏ, chữ màu đen in đậm (DD/MM/YYYY)
-          - vehicle_type: loại xe
-          - brand: nhãn hiệu
-          - engine_number: số máy
-          - chassis_number: số khung
-          - fuel_type: nhiên liệu
-          - weight: khối lượng
-          - seat_number: số chỗ ngồi
-          - serial_number: số của phôi giấy chứng nhận, giá trị sau cụm từ **"Số sê-ri: (No.)"**, thường có dạng "DB-XXXXXXX"
 
         4. Nếu không xác định được loại giấy tờ, trả về JSON rỗng: {{}}
         
         5. Nếu mặt giấy tờ là "back":
            - Vẫn phải trả về đầy đủ các trường: "code", "id", "name", "side"
-           - Trường "content" có thể để rỗng hoặc không có
 
         **Yêu cầu:** Chỉ trả về JSON object đúng định dạng. Không đưa ra bất kỳ giải thích, mô tả hay nội dung dư thừa nào.
 
@@ -230,9 +255,44 @@ async def process_image_with_gpt(image_url: str, document_type: dict, document_i
             ],
             response_format={"type": "json_object"}
         )
-        return {image_url: response.choices[0].message.content}
+        return response.choices[0].message.content
 
     except Exception as e:
         logger.error(f"Error processing image with GPT: {str(e)}")
         raise e
-    
+
+
+async def get_ocr_license(base64_image, document_type):
+    url = f"{settings.OCR_LICENSE_URL}/{document_type}"
+    payload = {
+        "image_base64": base64_image,
+    }
+    headers = {
+        'accept': 'application/json',
+        'x-api-key': settings.OCR_LICENSE_API_KEY,
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                url,
+                headers=headers,
+                data=payload,
+                timeout=20.0
+            )
+
+            if response.status_code != 200:
+                return {}
+
+            response_data = response.json()
+            logger.info(f"get_driven_license.cccd_ocr.response={response_data}")
+
+            if len(response_data) > 0:
+                data = response_data.get('data', {})
+                return data
+
+            return {}
+    except Exception as e:
+        logger.error(f"Error in get_driven_license: {str(e)}")
+        return {}
+

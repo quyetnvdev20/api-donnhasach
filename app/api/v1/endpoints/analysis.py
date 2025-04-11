@@ -14,6 +14,7 @@ from ....services.firebase import FirebaseNotificationService
 from ....utils.erp_db import PostgresDB
 import httpx
 import json
+import asyncio
 import uuid
 import logging
 from datetime import datetime
@@ -287,7 +288,10 @@ async def analyze_audio(
     - transcription: Nội dung chuyển đổi từ âm thanh sang text
     """
     if not audio_file.content_type.startswith("audio/"):
-        raise "File phải là file âm thanh"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File phải là file âm thanh"
+        )
     
     try:
         # Lấy danh sách hạng mục và tình trạng từ database
@@ -296,32 +300,44 @@ async def analyze_audio(
         # Phân tích file âm thanh
         result = await process_audio_with_gpt(audio_file, categories, statuses)
         logger.info(f"Kết quả phân tích âm thanh: {result}")
-        
-        # Chuẩn bị dữ liệu hạng mục và tình trạng
-        categories_data = {cat["code"]: {"id": cat["id"], "name": cat["name"], "code": cat["code"]} for cat in categories}
-        statuses_data = {status["code"]: {"id": status["id"], "name": status["name"], "code": status["code"]} for status in statuses}
-        
+
         # Lấy mã hạng mục và tình trạng
         category_code = result.get("category_code")
         status_code = result.get("status_code")
+
+        if not category_code or not status_code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Không nhận diện được hạng mục và tình trạng"
+            )
+        
+        # Chuẩn bị dữ liệu hạng mục và tình trạng
+        categories_data = {cat["code"]: {"id": cat["id"], "name": cat["name"], "code": cat["code"]} for cat in categories}
+        statuses_data = {status["code"]: {"id": status["id"], "name": status["name"], "code": status["code"]} for status in statuses}  
         
         # Tìm thông tin chi tiết từ dữ liệu đã lấy
         category = categories_data.get(category_code, {"id": None, "name": None, "code": category_code})
-        status = statuses_data.get(status_code, {"id": None, "name": None, "code": status_code})
+        status_category = statuses_data.get(status_code, {"id": None, "name": None, "code": status_code})
         
         # Nếu không tìm thấy, trả về thông báo lỗi
         if not category["id"] or not status["id"]:
             logger.warning(f"Không tìm thấy hạng mục hoặc tình trạng phù hợp. Category: {category_code}, Status: {status_code}")
-            raise "Không nhận diện được hạng mục hoặc tình trạng từ file âm thanh"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Không nhận diện được hạng mục hoặc tình trạng từ file âm thanh"
+            )
         
         # Trả về kết quả theo định dạng yêu cầu
         return {
             "category": category,
-            "status": status,
+            "status": status_category,
         }
     except Exception as e:
         logger.error(f"Lỗi khi xử lý file âm thanh: {str(e)}")
-        raise e
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 async def process_audio_with_gpt(audio_file: UploadFile, categories: list, statuses: list):
     """
@@ -389,6 +405,7 @@ async def process_audio_with_gpt(audio_file: UploadFile, categories: list, statu
             }}
             
             Chỉ trả về JSON chính xác theo format trên, không kèm giải thích.
+            Nếu không nhận diện được hạng mục hoặc tình trạng, trả về "category_code": null, "status_code": null
             """
             
             analysis_response = await client.chat.completions.create(
@@ -452,10 +469,26 @@ async def get_categories_and_statuses():
 
 async def process_image_with_gpt(image_url: str) -> list:
     try:
-        #convert image_url to base64
+
+        # Wait for image to be available, with timeout
+        max_retries = 3
+        retry_delay = 1  # seconds
+
         async with httpx.AsyncClient() as client:
-            image = await client.get(image_url)
-        base64_image = base64.b64encode(image.content).decode('utf-8')
+            for attempt in range(max_retries):
+                try:
+                    image = await client.get(image_url)
+                    if image.status_code == 200 and image.content:
+                        base64_image = base64.b64encode(image.content).decode('utf-8')
+                        break
+                    await asyncio.sleep(retry_delay)
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Image URL is not accessible after maximum retries"
+                        )
+                    await asyncio.sleep(retry_delay)
 
         prompt = f"""Bạn là một chuyên gia giám định xe ô tô hàng đầu thế giới. 
 Hãy phân tích chính xác xem trong hình ảnh sau đây những bộ phận nào của xe ô tô bị tổn thất.
@@ -502,6 +535,11 @@ Luôn luôn lựa chọn bộ phận và tổn thất chính xác nhất từ da
             ],
             response_format={"type": "json_object"}
         )
+
+        if not response or not response.choices or not response.choices[0].message.content:
+            logger.info('Empty content from image analysis service')
+            return []
+
         response_content = response.choices[0].message.content
         output = json.loads(response_content)["damage_info"]
         output_final = []

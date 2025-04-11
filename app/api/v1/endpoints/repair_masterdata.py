@@ -26,12 +26,15 @@ async def get_list_category_repair(
         query = """
         SELECT 
             iclc.id,
+            --concat(iclc.name, ' - ', isc.name) as name,
             iclc.name,
             iclc.code
         FROM 
             insurance_claim_list_category iclc
         LEFT JOIN 
             insurance_claim_attachment_category icac ON icac.category_id = iclc.id
+        LEFT JOIN
+			insurance_state_category isc on icac.status = isc.id
         where icac.detail_category_id in 
         (SELECT detailed_appraisal_id from insurance_claim_solution_repair where id=$1)
         """
