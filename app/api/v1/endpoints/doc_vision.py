@@ -233,7 +233,7 @@ async def process_image_with_gpt(base64_image, document_type: dict, document_id:
 
         client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         response = await client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-2024-11-20",
             messages=[
                 {
                     "role": "system",
