@@ -288,7 +288,10 @@ async def analyze_audio(
     - transcription: Nội dung chuyển đổi từ âm thanh sang text
     """
     if not audio_file.content_type.startswith("audio/"):
-        raise "File phải là file âm thanh"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File phải là file âm thanh"
+        )
     
     try:
         # Lấy danh sách hạng mục và tình trạng từ database
@@ -303,7 +306,10 @@ async def analyze_audio(
         status_code = result.get("status_code")
 
         if not category_code or not status_code:
-            raise "Không nhận diện được hạng mục và tình trạng"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Không nhận diện được hạng mục và tình trạng"
+            )
         
         # Chuẩn bị dữ liệu hạng mục và tình trạng
         categories_data = {cat["code"]: {"id": cat["id"], "name": cat["name"], "code": cat["code"]} for cat in categories}
@@ -316,7 +322,10 @@ async def analyze_audio(
         # Nếu không tìm thấy, trả về thông báo lỗi
         if not category["id"] or not status["id"]:
             logger.warning(f"Không tìm thấy hạng mục hoặc tình trạng phù hợp. Category: {category_code}, Status: {status_code}")
-            raise "Không nhận diện được hạng mục hoặc tình trạng từ file âm thanh"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Không nhận diện được hạng mục hoặc tình trạng từ file âm thanh"
+            )
         
         # Trả về kết quả theo định dạng yêu cầu
         return {
@@ -325,7 +334,10 @@ async def analyze_audio(
         }
     except Exception as e:
         logger.error(f"Lỗi khi xử lý file âm thanh: {str(e)}")
-        raise e
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 async def process_audio_with_gpt(audio_file: UploadFile, categories: list, statuses: list):
     """
