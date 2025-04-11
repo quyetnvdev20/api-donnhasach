@@ -180,7 +180,7 @@ async def fetch_and_resize_image_with_retry(image_url: str, max_size: tuple = (8
                     image.thumbnail(max_size, Image.ANTIALIAS)
 
                     buffer = BytesIO()
-                    image.save(buffer, format="JPEG", quality=85)
+                    image.save(buffer, format="JPEG", quality=90)
                     base64_resized = base64.b64encode(buffer.getvalue()).decode("utf-8")
                     return base64_original, base64_resized
         except Exception as e:
