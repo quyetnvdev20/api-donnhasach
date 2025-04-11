@@ -143,10 +143,13 @@ async def get_ocr_quote(
         where icac.detail_category_id in 
         (SELECT detailed_appraisal_id from insurance_claim_solution_repair where id=$1)
         """
-        list_code_category, ocr_quote_data = await asyncio.gather(
+        code_category, ocr_quote_data = await asyncio.gather(
             PostgresDB.execute_query(query, [repair_id]),
             get_ocr_quote_data(image_url)
         )
+        list_code_category = []
+        for category in code_category:
+            list_code_category.append(category.get('code'))
     else:
         list_code_category = []
         ocr_quote_data = await get_ocr_quote_data(image_url)
