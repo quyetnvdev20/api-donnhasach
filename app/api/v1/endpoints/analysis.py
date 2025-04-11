@@ -317,7 +317,7 @@ async def analyze_audio(
         
         # Tìm thông tin chi tiết từ dữ liệu đã lấy
         category = categories_data.get(category_code, {"id": None, "name": None, "code": category_code})
-        status = statuses_data.get(status_code, {"id": None, "name": None, "code": status_code})
+        status_category = statuses_data.get(status_code, {"id": None, "name": None, "code": status_code})
         
         # Nếu không tìm thấy, trả về thông báo lỗi
         if not category["id"] or not status["id"]:
@@ -330,7 +330,7 @@ async def analyze_audio(
         # Trả về kết quả theo định dạng yêu cầu
         return {
             "category": category,
-            "status": status,
+            "status": status_category,
         }
     except Exception as e:
         logger.error(f"Lỗi khi xử lý file âm thanh: {str(e)}")
