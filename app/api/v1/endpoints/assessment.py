@@ -126,29 +126,15 @@ async def get_assessment_list(
 			(select json_agg(status) from insurance_claim_remote_inspection where appraisal_detail_id = gd_chi_tiet.id and status != 'cancel') as remote_inspection
         FROM insurance_claim_appraisal_detail gd_chi_tiet
         LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
+        LEFT JOIN insurance_claim_profile icp ON icp.id = gd_chi_tiet.new_claim_profile_id
         LEFT JOIN res_partner_gara rpg ON rpg.id = gd_chi_tiet.gara_partner_id
         LEFT JOIN res_partner contact ON contact.id = icr.person_contact_id
         LEFT JOIN res_car rc ON rc.id = gd_chi_tiet.car_id
         LEFT JOIN res_car_brand rcb ON rcb.id = rc.car_brand_id
---         LEFT JOIN LATERAL (
---             SELECT * FROM insurance_claim_damage icd 
---             WHERE icd.insur_claim_id = icr.id
---             ORDER BY icd.id
---             LIMIT 1
---         ) AS first_damage ON true
---         LEFT JOIN LATERAL (
---             SELECT * FROM insurance_contract_certification icc 
---             LEFT JOIN insurance_claim_receive_insurance_contract_certification_rel rel on rel.insurance_contract_certification_id = icc.id
---             WHERE rel.insurance_claim_receive_id = icr.id and icc.type = 'vcx'
---             ORDER BY icc.id
---             LIMIT 1
---         ) AS first_certificate ON true
         LEFT JOIN res_province province ON province.id = icr.province_id
         LEFT JOIN res_district district ON district.id = icr.district_id
         LEFT JOIN res_ward ward ON ward.id = icr.ward_id
-        WHERE 
---         icr.car_at_scene = false and first_certificate.id is not null
-        1=1
+        WHERE 1=1
     """
 
     # Use named parameters
@@ -211,7 +197,11 @@ async def get_assessment_list(
         query += """
             AND (
                 gd_chi_tiet.name ILIKE %(search)s
+                OR icp.name ILIKE %(search)s
+                OR icr.name ILIKE %(search)s
                 OR rc.license_plate ILIKE %(search)s
+                OR gd_chi_tiet.vin ILIKE %(search)s
+                OR gd_chi_tiet.engine_number ILIKE %(search)s
                 OR rcb.name ILIKE %(search)s
                 OR gd_chi_tiet.name_driver ILIKE %(search)s
                 OR CONCAT_WS(', ', 
