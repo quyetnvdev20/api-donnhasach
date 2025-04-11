@@ -297,14 +297,17 @@ async def analyze_audio(
         # Phân tích file âm thanh
         result = await process_audio_with_gpt(audio_file, categories, statuses)
         logger.info(f"Kết quả phân tích âm thanh: {result}")
-        
-        # Chuẩn bị dữ liệu hạng mục và tình trạng
-        categories_data = {cat["code"]: {"id": cat["id"], "name": cat["name"], "code": cat["code"]} for cat in categories}
-        statuses_data = {status["code"]: {"id": status["id"], "name": status["name"], "code": status["code"]} for status in statuses}
-        
+
         # Lấy mã hạng mục và tình trạng
         category_code = result.get("category_code")
         status_code = result.get("status_code")
+
+        if not category_code or not status_code:
+            raise "Không nhận diện được hạng mục và tình trạng"
+        
+        # Chuẩn bị dữ liệu hạng mục và tình trạng
+        categories_data = {cat["code"]: {"id": cat["id"], "name": cat["name"], "code": cat["code"]} for cat in categories}
+        statuses_data = {status["code"]: {"id": status["id"], "name": status["name"], "code": status["code"]} for status in statuses}  
         
         # Tìm thông tin chi tiết từ dữ liệu đã lấy
         category = categories_data.get(category_code, {"id": None, "name": None, "code": category_code})
@@ -390,6 +393,7 @@ async def process_audio_with_gpt(audio_file: UploadFile, categories: list, statu
             }}
             
             Chỉ trả về JSON chính xác theo format trên, không kèm giải thích.
+            Nếu không nhận diện được hạng mục hoặc tình trạng, trả về "category_code": null, "status_code": null
             """
             
             analysis_response = await client.chat.completions.create(
