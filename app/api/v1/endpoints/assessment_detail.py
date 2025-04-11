@@ -8,6 +8,7 @@ import logging
 from datetime import datetime
 from app.config import settings, odoo
 import asyncio
+from ....utils.redis_client import redis_client
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -179,6 +180,9 @@ async def update_vehicle_detail_assessment(
     )
 
     if response:
+        if vals_items:
+            assessment_report_preview = f"assessment_report_preview:{assessment_id}"
+            await redis_client.delete(assessment_report_preview)
         return UpdateAssessmentItemResponse(assessment_id=assessment_id, status="Success")
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update assessment detail")
