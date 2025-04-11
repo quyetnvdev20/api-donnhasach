@@ -392,7 +392,7 @@ async def process_audio_with_gpt(audio_file: UploadFile, categories: list, statu
             """
             
             analysis_response = await client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o-2024-11-20",
                 messages=[
                     {
                         "role": "user",
@@ -594,7 +594,7 @@ Chỉ lựa chọn 1 bộ phận và 1 tổn thất.
 """
         client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         response = await client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-2024-11-20",
         messages=[
             {
                 "role": "user",
