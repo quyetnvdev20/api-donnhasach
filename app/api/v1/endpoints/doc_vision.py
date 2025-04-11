@@ -159,7 +159,7 @@ async def get_document_type():
 
 
 async def fetch_and_resize_image_with_retry(image_url: str, max_size: tuple = (800, 800), retries: int = 3,
-                                            delay: int = 1) -> str:
+                                            delay: int = 1):
     """
     Tải ảnh từ image_url, thử lại nếu chưa có sẵn, sau đó resize về kích thước max_size và trả về base64.
     """
@@ -278,7 +278,7 @@ async def get_ocr_license(base64_image, document_type):
                 url,
                 headers=headers,
                 data=payload,
-                timeout=15.0
+                timeout=20.0
             )
 
             if response.status_code != 200:
