@@ -132,25 +132,22 @@ async def get_repair_plan_awaiting_list(
         left join res_users ru on a.create_uid = ru.id
         left join res_partner rpu on ru.partner_id = rpu.id
         left join reason_table on a.id = reason_table.repair_id
+        left join res_car rc ON rc.id = e.car_id
         where 1 = 1
     """
 
-    params = []
+    params = {}
     state_conditions = []
 
     # If 'all' is in the list, we don't need to filter by state
     if 'all' not in state_list:
-        param_index = 1
-        
         if 'to_do' in state_list:
-            state_conditions.append(f"a.state = ${param_index}")
-            params.append('new')
-            param_index += 1
+            state_conditions.append(f"a.state = %(status)s")
+            params["status"] = 'new'
             
         if 'rejected' in state_list:
-            state_conditions.append(f"a.state = ${param_index}")
-            params.append('rejected')
-            param_index += 1
+            state_conditions.append(f"a.state = %(status)s")
+            params["status"] = 'rejected'
 
         if 'to_do' not in state_list and 'rejected' not in state_list:
             query += " AND (a.state IN ('new', 'rejected'))"
@@ -161,9 +158,18 @@ async def get_repair_plan_awaiting_list(
         query += " AND (a.state IN ('new', 'rejected'))"
 
     if search:
-        search_param_index = len(params) + 1
-        query += f""" AND (a.name ILIKE ${search_param_index} OR c.name ILIKE ${search_param_index} OR a.object_name ILIKE ${search_param_index})"""
-        params.append(f"%{search}%")
+        query += f""" AND (
+                        a.name ILIKE %(search)s
+                        OR c.name ILIKE %(search)s
+                        OR d.name ILIKE %(search)s
+                        OR a.object_name ILIKE %(search)s
+                        OR rc.license_plate ILIKE %(search)s
+                        OR e.vin ILIKE %(search)s
+                        OR e.engine_number ILIKE %(search)s
+                        OR e.name_driver ILIKE %(search)s
+        )"""
+
+        params["search"] = f"%{search}%"
 
     # Add ordering and pagination
     query += f"""
