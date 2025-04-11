@@ -78,19 +78,21 @@ async def doc_vision(request: DocVisionRequest, current_user: dict = Depends(get
 
         if doc_type == "driving_license" and side == 'front':
             content_details = await get_ocr_license(base64_image, 'gplx')
-            response["gplx_no"] = content_details.get("number")
-            response["name_driver"] = content_details.get("name")
-            response["gplx_level"] = content_details.get("class_")
-            response["gplx_effect_date"] = content_details.get("date")
-            response["gplx_expired_date"] = content_details.get("expried_date")
+            if content_details:
+                response["gplx_no"] = content_details.get("number")
+                response["name_driver"] = content_details.get("name")
+                response["gplx_level"] = content_details.get("class_")
+                response["gplx_effect_date"] = content_details.get("date")
+                response["gplx_expired_date"] = content_details.get("expried_date")
 
         elif doc_type == "vehicle_registration" and side == 'front':
             content_details = await get_ocr_license(base64_image, 'dk')
-            month = f"0{content_details.get('month')}" if len(content_details.get('month')) == 1 else content_details.get('month')
-            registry_date = f"{content_details.get('day')}/{month}/{content_details.get('year')}"
-            response["registry_no"] = content_details.get("seri")
-            response["registry_date"] = registry_date
-            response["registry_expired_date"] = content_details.get("expired_date")
+            if content_details:
+                month = f"0{content_details.get('month')}" if len(content_details.get('month')) == 1 else content_details.get('month')
+                registry_date = f"{content_details.get('day')}/{month}/{content_details.get('year')}"
+                response["registry_no"] = content_details.get("seri")
+                response["registry_date"] = registry_date
+                response["registry_expired_date"] = content_details.get("expired_date")
 
         # Gom các ảnh theo loại tài liệu
         if doc_type not in grouped_documents:
