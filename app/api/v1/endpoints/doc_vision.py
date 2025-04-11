@@ -1,20 +1,20 @@
-import base64
-import os
-import json
 import asyncio
-from fastapi import APIRouter, Depends, HTTPException, status, Body
-from openai import AsyncOpenAI
-from sqlalchemy.orm import Session
-from typing import List, Optional
-from ....database import get_db
-from ...deps import get_current_user
-from ....schemas.doc_vision import DocVisionRequest, DocVisionResponse
+import base64
+import json
 import logging
-import httpx
-from .assessment import get_document_type
-from ....utils.erp_db import PostgresDB
-from ....config import settings
+from io import BytesIO
+import time
 
+import httpx
+from PIL import Image
+from fastapi import APIRouter, Depends, HTTPException, status
+from openai import AsyncOpenAI
+
+from .assessment import get_document_type
+from ...deps import get_current_user
+from ....config import settings
+from ....schemas.doc_vision import DocVisionRequest, DocVisionResponse
+from ....utils.erp_db import PostgresDB
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -29,30 +29,22 @@ async def doc_vision(request: DocVisionRequest, current_user: dict = Depends(get
 
     image_url = request.list_image_url[0]
 
+    first_start_time = time.perf_counter()
+    logger.info(f"===============Start time took seconds")
+
     document_type = await get_document_type()
     json_document_type = {doc["name"]: doc["code"] for doc in document_type}
     json_document_id = {doc["code"]: doc["id"] for doc in document_type}
 
-    # Wait for image to be available, with timeout
-    max_retries = 3
-    retry_delay = 1  # seconds
-    async with httpx.AsyncClient() as client:
-        for attempt in range(max_retries):
-            try:
-                image = await client.get(image_url)
-                if image.status_code == 200 and image.content:
-                    base64_image = base64.b64encode(image.content).decode('utf-8')
-                    break
-                await asyncio.sleep(retry_delay)
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                        detail="Image URL is not accessible after maximum retries"
-                    )
-                await asyncio.sleep(retry_delay)
+    start_time = time.perf_counter()
+    base64_original, base64_resized = await fetch_and_resize_image_with_retry(image_url)
+    fetch_time = time.perf_counter() - start_time
+    logger.info(f"fetch_and_resize_image_with_retry took {fetch_time:.2f} seconds")
 
-    ocr_image_results = await process_image_with_gpt(base64_image, json_document_type, json_document_id)
+    start_time = time.perf_counter()
+    ocr_image_results = await process_image_with_gpt(base64_resized, json_document_type, json_document_id)
+    gpt_time = time.perf_counter() - start_time
+    logger.info(f"process_image_with_gpt took {gpt_time:.2f} seconds")
     
     # Khởi tạo response theo cấu trúc DocVisionResponse
     response = {
@@ -77,7 +69,10 @@ async def doc_vision(request: DocVisionRequest, current_user: dict = Depends(get
         side = content_dict.get("side")
 
         if doc_type == "driving_license" and side == 'front':
-            content_details = await get_ocr_license(base64_image, 'gplx')
+            start_time = time.perf_counter()
+            content_details = await get_ocr_license(base64_original, 'gplx')
+            ocr_time = time.perf_counter() - start_time
+            logger.info(f"get_ocr_license (gplx) took {ocr_time:.2f} seconds")
             if content_details:
                 response["gplx_no"] = content_details.get("number")
                 response["name_driver"] = content_details.get("name")
@@ -86,7 +81,10 @@ async def doc_vision(request: DocVisionRequest, current_user: dict = Depends(get
                 response["gplx_expired_date"] = content_details.get("expried_date")
 
         elif doc_type == "vehicle_registration" and side == 'front':
-            content_details = await get_ocr_license(base64_image, 'dk')
+            start_time = time.perf_counter()
+            content_details = await get_ocr_license(base64_original, 'dk')
+            ocr_time = time.perf_counter() - start_time
+            logger.info(f"get_ocr_license (dk) took {ocr_time:.2f} seconds")
             if content_details:
                 month = f"0{content_details.get('month')}" if len(content_details.get('month')) == 1 else content_details.get('month')
                 registry_date = f"{content_details.get('day')}/{month}/{content_details.get('year')}"
@@ -127,7 +125,9 @@ async def doc_vision(request: DocVisionRequest, current_user: dict = Depends(get
     
     # Thêm các document đã gom ảnh vào response
     response["documents"] = list(grouped_documents.values())
-    
+
+    end_fetch_time = time.perf_counter() - first_start_time
+    logger.info(f"===============End time took {end_fetch_time:.2f} seconds")
     return response
 
 
@@ -156,6 +156,40 @@ async def get_document_type():
         })
 
     return result
+
+
+async def fetch_and_resize_image_with_retry(image_url: str, max_size: tuple = (800, 800), retries: int = 3,
+                                            delay: int = 1) -> str:
+    """
+    Tải ảnh từ image_url, thử lại nếu chưa có sẵn, sau đó resize về kích thước max_size và trả về base64.
+    """
+    for attempt in range(retries):
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(image_url)
+                if response.status_code == 200 and response.content:
+                    image_bytes = response.content
+                    # Ảnh gốc
+                    base64_original = base64.b64encode(image_bytes).decode("utf-8")
+
+                    # Resize ảnh bằng Pillow
+                    image = Image.open(BytesIO(image_bytes))
+                    # Chuyển đổi sang RGB nếu ảnh ở chế độ RGBA
+                    if image.mode == 'RGBA':
+                        image = image.convert('RGB')
+                    image.thumbnail(max_size, Image.ANTIALIAS)
+
+                    buffer = BytesIO()
+                    image.save(buffer, format="JPEG", quality=85)
+                    base64_resized = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                    return base64_original, base64_resized
+        except Exception as e:
+            if attempt == retries - 1:
+                raise RuntimeError(f"Không thể tải ảnh sau {retries} lần thử: {e}")
+
+        await asyncio.sleep(delay)
+
+    raise RuntimeError("Ảnh không khả dụng sau khi retry.")
 
 
 async def process_image_with_gpt(base64_image, document_type: dict, document_id: dict):
