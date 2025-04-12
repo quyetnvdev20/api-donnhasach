@@ -26,8 +26,7 @@ async def get_list_category_repair(
         query = """
         SELECT 
             iclc.id,
-            --concat(iclc.name, ' - ', isc.name) as name,
-            iclc.name,
+            concat(iclc.name, ' - ', isc.name) as name,
             iclc.code
         FROM 
             insurance_claim_list_category iclc
