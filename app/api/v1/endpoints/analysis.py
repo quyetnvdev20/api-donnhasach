@@ -289,7 +289,7 @@ async def analyze_audio(
     """
     if not audio_file.content_type.startswith("audio/"):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="File phải là file âm thanh"
         )
     
@@ -307,7 +307,7 @@ async def analyze_audio(
 
         if not category_code or not status_code:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Không nhận diện được hạng mục và tình trạng"
             )
         
@@ -323,7 +323,7 @@ async def analyze_audio(
         if not category["id"] or not status["id"]:
             logger.warning(f"Không tìm thấy hạng mục hoặc tình trạng phù hợp. Category: {category_code}, Status: {status_code}")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Không nhận diện được hạng mục hoặc tình trạng từ file âm thanh"
             )
         
@@ -335,7 +335,7 @@ async def analyze_audio(
     except Exception as e:
         logger.error(f"Lỗi khi xử lý file âm thanh: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(e)
         )
 
