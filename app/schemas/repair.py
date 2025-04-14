@@ -56,6 +56,9 @@ class RepairPlanDetailItem(BaseModel):
     garage_price: float = None
     suggested_price: float = None
     discount_percentage: float = None
+    depreciation_percentage: int = None
+    incident_no: int = None
+    solution: str = None
 
 
 class RepairPlanApprovalRequest(BaseModel):
@@ -154,6 +157,12 @@ class RepairCategoryAppraisal(BaseModel):
     id: Optional[int]
     name: str = None
     code: str = None
+    solution: str = None
 
 class RepairCategoryResponse(BaseModel):
     data: List[RepairCategoryAppraisal] = []
+
+
+class Solutions(BaseModel):
+    code: str
+    name: str

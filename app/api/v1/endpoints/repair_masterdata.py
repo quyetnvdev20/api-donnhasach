@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body
-from ....schemas.repair import RepairCategoryResponse
+from sqlalchemy.orm import Session
+from ....schemas.repair import RepairCategoryResponse, Solutions
 from ....utils.erp_db import PostgresDB
-from typing import Optional
+from ...deps import get_current_user
+from ....database import get_db
+from typing import Optional, List
 import logging
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -27,7 +30,8 @@ async def get_list_category_repair(
         SELECT 
             iclc.id,
             concat(iclc.name, ' - ', isc.name) as name,
-            iclc.code
+            iclc.code,
+            icac.solution
         FROM 
             insurance_claim_list_category iclc
         LEFT JOIN 
@@ -49,7 +53,8 @@ async def get_list_category_repair(
             repair_items.append({
                     "id": item.get('id'),
                     "name": item.get('name'),
-                    "code": item.get('code')
+                    "code": item.get('code'),
+                    "solution": item.get('solution')
                 }   
             )
         
@@ -61,4 +66,27 @@ async def get_list_category_repair(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error getting repair items: {str(e)}"
         )
+    
+@router.get("/list-solutions",
+            response_model=List[Solutions],
+            status_code=status.HTTP_200_OK)
+async def get_list_solutions(
+        db: Session = Depends(get_db),
+        current_user: dict = Depends(get_current_user)
+) -> List[Solutions]:
+    """
+    Get repair categories: parts, paint, and labor
+    """
+    solutions = [
+        Solutions(
+            code="repair",
+            name="Sửa chữa",
+        ),
+        Solutions(
+            code="replace",
+            name="Thay thế",
+        )
+    ]
+
+    return solutions
 

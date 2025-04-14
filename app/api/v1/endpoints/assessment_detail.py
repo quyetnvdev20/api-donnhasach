@@ -163,7 +163,7 @@ async def update_vehicle_detail_assessment(
             'listImageRemove': item.listImageRemove,
             'status': item.state.id,
             # TODO: hardcode solution code
-            'solution': 'repair',
+            'solution': item.solution.code,
             'images': val_images
         })
 
