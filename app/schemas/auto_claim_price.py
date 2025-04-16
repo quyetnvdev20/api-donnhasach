@@ -16,10 +16,13 @@ class PartObject(BaseModel):
     code: str
     name: str
     
+class ResponsePartObject(BaseModel):
+    code: str | None = None
+    name: str | None = None
+    
 class GarageObject(BaseModel):
     code: str
     name: str
-    is_origin: bool
 
 class ProvinceObject(BaseModel):
     code: str
@@ -33,5 +36,6 @@ class AutoClaimPriceRequest(BaseModel):
     garage: GarageObject
 
 class AutoClaimPriceResponse(BaseModel):
-    pricelist: str
-    price: float
+    pricelist: str | None = None
+    price: float | None = None
+    parts: ResponsePartObject | None = None
