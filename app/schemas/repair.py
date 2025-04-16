@@ -66,7 +66,7 @@ class RepairPlanApprovalRequest(BaseModel):
     approval_deadline: Optional[str] = None
     status: Status = None
     label: Label = None
-    repair_plan_details: List[RepairPlanDetailItem]
+    repair_plan_details: Optional[List[RepairPlanDetailItem]] = None
 
 
 class RepairPlanApprovalResponse(BaseModel):

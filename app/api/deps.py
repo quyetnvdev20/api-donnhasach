@@ -32,7 +32,8 @@ async def get_current_user(token: str = Depends(api_key_header)) -> dict:
                 'token': token,
                 'client_id': settings.KEYCLOAK_CLIENT_ID,
                 'client_secret': settings.KEYCLOAK_CLIENT_SECRET,
-            }
+            },
+            timeout=10
         )
         
         if response.status_code != 200:
