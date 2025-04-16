@@ -201,36 +201,39 @@ async def process_image_with_gpt(base64_image, document_type: dict, document_id:
            - "vehicle_registration_photo": Giấy đăng ký xe (cà-vẹt xe)
            - "vehicle_registration": Giấy chứng nhận kiểm định (giấy đăng kiểm)
            - "insurance_certificate": Giấy chứng nhận bảo hiểm
-           
-        2. Xác định mặt giấy tờ là:
-            - `"front"` nếu là mặt chứa thông tin chính như:
-              - Ảnh chân dung, họ tên, số giấy phép (đối với GPLX)
-              - Thông tin kỹ thuật xe, dấu đỏ, số sê-ri (đối với đăng kiểm)
-              - Thông tin chủ xe, biển số, số khung, màu sơn... (đối với đăng ký xe)
-            - `"back"` nếu là mặt còn lại, thường chứa:
-              - Điều khoản (đối với bảo hiểm)
-              - Lịch kiểm định (đối với đăng kiểm)
-              - Các hạng bằng còn lại (đối với GPLX)
 
-        3. Nếu nhận diện được, hãy trích xuất dữ liệu theo định dạng JSON dưới đây:
+        2. Xác định mặt giấy tờ là:
+           - `"front"` nếu là mặt chứa thông tin chính như:
+             - Ảnh chân dung, họ tên, số giấy phép (đối với GPLX)
+             - Thông tin kỹ thuật xe, dấu đỏ, số sê-ri, hình ảnh phương tiện (đối với đăng kiểm)
+             - Tên chủ xe, biển số, màu sơn, nhãn hiệu, số khung, số máy (đối với giấy đăng ký xe)
+           - `"back"` nếu là mặt còn lại, thường chứa:
+             - Điều khoản, hướng dẫn sử dụng, bảng kiểm (đối với bảo hiểm hoặc đăng kiểm)
+             - Các hạng bằng còn lại (đối với GPLX)
+
+        3. Gợi ý phân biệt:
+           - Nếu là **giấy đăng ký xe (vehicle_registration_photo)**: có thông tin chủ xe, màu sơn, biển số xe, ngày đăng ký lần đầu, thường không có thông tin kỹ thuật hoặc ảnh xe.
+           - Nếu là **giấy đăng kiểm (vehicle_registration)**: có bảng "THÔNG SỐ KỸ THUẬT", số sê-ri (No.), dấu mộc đỏ, ảnh xe, và đôi khi có dòng "CÓ HIỆU LỰC ĐẾN".
+
+        4. Nếu nhận diện được, hãy trích xuất dữ liệu theo định dạng JSON dưới đây:
 
         {{
           "code": "<code từ danh sách trên>",
           "id": "<id tương ứng từ document_id>",
           "name": "<tên đầy đủ loại tài liệu>",
-          "side": "<front | back>",
+          "side": "<front | back>"
         }}
 
-        4. Nếu không xác định được loại giấy tờ, trả về JSON rỗng: {{}}
-        
-        5. Nếu mặt giấy tờ là "back":
+        5. Nếu không xác định được loại giấy tờ, trả về JSON rỗng: {{}}
+
+        6. Nếu mặt giấy tờ là "back":
            - Vẫn phải trả về đầy đủ các trường: "code", "id", "name", "side"
 
         **Yêu cầu:** Chỉ trả về JSON object đúng định dạng. Không đưa ra bất kỳ giải thích, mô tả hay nội dung dư thừa nào.
 
         document_type = {document_type}
-        document_id = {document_id}"""
-
+        document_id = {document_id}
+        """
         client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         response = await client.chat.completions.create(
             model="gpt-4o-2024-11-20",
