@@ -17,8 +17,8 @@ class PartObject(BaseModel):
     name: str
     
 class ResponsePartObject(BaseModel):
-    code: str | None = None
-    name: str | None = None
+    code: Optional[str] = None
+    name: Optional[str] = None
     
 class GarageObject(BaseModel):
     code: str
@@ -36,6 +36,6 @@ class AutoClaimPriceRequest(BaseModel):
     garage: GarageObject
 
 class AutoClaimPriceResponse(BaseModel):
-    pricelist: str | None = None
-    price: float | None = None
-    parts: ResponsePartObject | None = None
+    pricelist: Optional[str] = None
+    price: Optional[float] = None
+    parts: Optional[ResponsePartObject] = None
