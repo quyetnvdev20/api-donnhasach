@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from ...deps import get_current_user
 from ....config import settings, odoo
 from ....database import get_db
@@ -141,13 +141,38 @@ async def get_data_auto_claim_price(repair_id: int):
         return data[0]
     return None
 
+# Hàm helper để chuẩn bị request tìm kiếm giá
+async def get_price_for_item(category_code: str, category_name: str, category_type_code: str, 
+                             brand: str, model: str, province_code: str, 
+                             province_name: str, garage_code: str, garage_name: str) -> Optional[float]:
+    try:
+        if not (category_code and brand and model and (garage_code or province_name)):
+            return None
+            
+        price_request = AutoClaimPriceRequest(
+            car=CarObject(brand=brand, model=model),
+            part=PartObject(code=category_code, name=category_name),
+            type=category_type_code or 'parts',
+            province=ProvinceObject(code=province_code or "", name=province_name or ""),
+            garage=GarageObject(code=garage_code or "", name=garage_name or "")
+        )
+        
+        price_response = await search_prices(price_request)
+        if price_response and price_response.price:
+            return price_response.price
+            
+        return None
+    except Exception as e:
+        logger.error(f"Error getting price for item {category_code}: {str(e)}")
+        return None
+
 @router.get("/ocr-quote",
             response_model=OCRQuoteResponse,
             status_code=status.HTTP_200_OK)
 async def get_ocr_quote(
         image_url: str,
         repair_id: Optional[int] = None,
-        # current_user: dict = Depends(get_current_user)
+        current_user: dict = Depends(get_current_user)
 ) -> OCRQuoteResponse:
     """
     Get OCR quote from an image URL
@@ -156,11 +181,12 @@ async def get_ocr_quote(
     
     Parameters:
     - image_url: URL of the image to be processed
+    - repair_id: Optional ID of the repair
     
     Returns:
-    - OCR extracted data
+    - OCR extracted data with suggested prices
     """
-
+    
     if repair_id:
         query = """
         SELECT 
@@ -183,22 +209,24 @@ async def get_ocr_quote(
     else:
         list_code_category = []
         ocr_quote_data = await get_ocr_quote_data(image_url)
+        data_auto_claim_price = None
+        
     data_mapping = {item['repair_item_name']: item for item in LIST_REPAIR_ITEM}
 
-
-    # lấy dữ liệu từ bảng insurance_claim_solution_repair
-    brand = data_auto_claim_price.get('brand', None)
-    model = data_auto_claim_price.get('model', None)
-    province_code = data_auto_claim_price.get('province_code', None)
-    province_name = data_auto_claim_price.get('province_name', None)
-    garage_code = data_auto_claim_price.get('garage_code', None)
-    garage_name = data_auto_claim_price.get('garage_name', None)
+    # Lấy dữ liệu từ bảng insurance_claim_solution_repair
+    brand = data_auto_claim_price.get('brand') if data_auto_claim_price else None
+    model = data_auto_claim_price.get('model') if data_auto_claim_price else None
+    province_code = data_auto_claim_price.get('province_code') if data_auto_claim_price else None
+    province_name = data_auto_claim_price.get('province_name') if data_auto_claim_price else None
+    garage_code = data_auto_claim_price.get('garage_code') if data_auto_claim_price else None
+    garage_name = data_auto_claim_price.get('garage_name') if data_auto_claim_price else None
     
     # Xử lý dữ liệu OCR
     result_data = []
     item_names = []
     line_data = []
-            
+    processed_items = []  # List để lưu các item đã xử lý và cần tìm giá
+    
     if ocr_quote_data.get('data') and len(ocr_quote_data.get('data')):
         # Trước tiên, thu thập tất cả các tên hạng mục và dữ liệu tương ứng
         for item in ocr_quote_data.get('data'):
@@ -233,8 +261,13 @@ async def get_ocr_quote(
             category_types = await process_items_batch_with_gpt(item_names)
             logger.info(f"Processed {len(category_types)} items with GPT")
             
-            # Tạo kết quả cuối cùng
-            for data in line_data:
+            # Chuẩn bị list các yêu cầu tìm kiếm giá để gọi bất đồng bộ
+            can_search_price = brand and model and (garage_code or province_name)
+            price_tasks = []
+            item_indices = []  # Danh sách chỉ mục item cần lấy giá
+            
+            # Trước tiên, tạo các item kết quả và thu thập các yêu cầu tìm kiếm giá
+            for i, data in enumerate(line_data):
                 name = data['name']
                 price = data['price']
                 discount = data['discount']
@@ -246,54 +279,73 @@ async def get_ocr_quote(
                     'code': None,
                     'name': None
                 }
+                
                 if data_mapping.get(name):
                     category['code'] = clean_numeric_value(data_mapping.get(name).get('category_code'))
                     category['name'] = clean_numeric_value(data_mapping.get(name).get('category_name'))
                 
-                # Nếu không năm trong danh sách hạng mục của hồ sơ thì để trống
+                # Nếu không nằm trong danh sách hạng mục của hồ sơ thì để trống
                 if repair_id and category['code'] not in list_code_category:
                     category = {
                         'code': None,
                         'name': None
                     }
                 
-                result_data.append({
+                # Tạo item dữ liệu với giá gợi ý mặc định là 0
+                item_data = {
                     'name': name,
                     'quantity': 1,
                     'garage_price': price,
                     'item': category,
                     'discount_percentage': discount,
                     'type': category_type,
-                    'suggestion_price': 0
-                })
+                    'suggestion_price': None
+                }
                 
-                if category.get('name'):
-                    continue
+                result_data.append(item_data)
                 
-                # gọi async search_prices
-                price_response = await search_prices(AutoClaimPriceRequest(
-                    car=CarObject(brand=brand, model=model),
-                    part=PartObject(code=category.get('code'), name=category.get('name')),
-                    type=category_type.get('code', 'parts'),
-                    province=ProvinceObject(code=province_code, name=province_name),
-                    garage=GarageObject(code=garage_code, name=garage_name)
-                ))
-                
-                if price_response and price_response.price:
-                    result_data['suggestion_price'] = price_response.price
-                
+                # Nếu có thể tìm kiếm giá và có mã danh mục, thêm vào danh sách các yêu cầu
+                if can_search_price and category.get('code'):
+                    price_tasks.append(get_price_for_item(
+                        category_code=category.get('code'),
+                        category_name=category.get('name'),
+                        category_type_code=category_type.get('code', 'parts'),
+                        brand=brand,
+                        model=model,
+                        province_code=province_code,
+                        province_name=province_name,
+                        garage_code=garage_code,
+                        garage_name=garage_name
+                    ))
+                    item_indices.append(i)  # Lưu lại chỉ mục để cập nhật kết quả sau
+            
+            # Thực hiện tất cả các yêu cầu tìm kiếm giá cùng một lúc
+            if price_tasks:
+                try:
+                    # Thực hiện tất cả các tác vụ tìm kiếm giá cùng một lúc
+                    price_results = await asyncio.gather(*price_tasks, return_exceptions=True)
+                    
+                    # Cập nhật kết quả tìm kiếm giá vào các mục kết quả
+                    for idx, price in zip(item_indices, price_results):
+                        if isinstance(price, Exception):
+                            logger.error(f"Error in price task: {str(price)}")
+                            continue
+                        if price is not None:
+                            result_data[idx]['suggestion_price'] = price
+                except Exception as e:
+                    logger.error(f"Error in batch price fetching: {str(e)}")
+
     if not result_data or not len(result_data):
-        raise UserError("Không tìm thấy dữ liệu")   
-    
+        raise UserError("Không tìm thấy dữ liệu")
     
     return OCRQuoteResponse(
         url_cvs=image_url,
-        brand=data_auto_claim_price.get('brand'),
-        model=data_auto_claim_price.get('model'),
-        province_code=data_auto_claim_price.get('province_code'),
-        province_name=data_auto_claim_price.get('province_name'),
-        garage_code=data_auto_claim_price.get('garage_code'),
-        garage_name=data_auto_claim_price.get('garage_name'),
+        brand=brand,
+        model=model,
+        province_code=province_code,
+        province_name=province_name,
+        garage_code=garage_code,
+        garage_name=garage_name,
         data=result_data
     )
 
