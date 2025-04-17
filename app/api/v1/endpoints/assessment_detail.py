@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 STATE_COLOR = {
     "wait_approval": ("#faad14", "Chờ phê duyệt"),
     "done": ("#52c41a", "Đã duyệt"),
-    "rejected": ("#f5222d", "Trả lại")
+    "cancel": ("#f5222d", "Trả lại")
 }
 
 
@@ -142,7 +142,20 @@ async def get_vehicle_detail_assessment(
 
     return {
         "assessment_id": int(assessment_id),
-        "items": assessment_detail
+        "items": assessment_detail,
+        "detail_state": [{
+            "code": "wait_approval",
+            "count": 1,
+            "color_code": "#faad14"
+        }, {
+            "code": "done",
+            "count": 1,
+            "color_code": "#52c41a"
+        }, {
+            "code": "cancel",
+            "count": 1,
+            "color_code": "#f5222d"
+        }]
     }
 
 

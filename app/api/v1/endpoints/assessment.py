@@ -523,6 +523,19 @@ async def get_assessment_detail(
                 }
             }
         ]
+        assessment_detail['detail_state'] = [{
+            "code": "wait_approval",
+            "count": 1,
+            "color_code": "#faad14"
+        }, {
+            "code": "done",
+            "count": 1,
+            "color_code": "#52c41a"
+        }, {
+            "code": "cancel",
+            "count": 1,
+            "color_code": "#f5222d"
+        }]
     else:
         assessment_detail = None
     return assessment_detail
