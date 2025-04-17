@@ -275,6 +275,8 @@ async def search_prices(
         
     # Nếu không tìm thấy bảng giá theo garage, tìm bảng giá theo khu vực
     if not pricelist:
+        # replace garage id with None
+        garage_id = None
         province = await get_province_id(request.province.name)
         if province:
             region_id = province['region_id']
