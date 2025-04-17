@@ -39,16 +39,17 @@ async def get_model_id(brand_id: int, model: str):
 # get id of garage
 async def get_garage_id(garage_code: str):
     query = """
-    select rpg.id, rpg.gara_line
+    select rpg.id
     from res_partner_gara rpg 
         left join res_partner rp on rp.id = rpg.partner_id
     where rp.code = $1
+    limit 1
     """
     garage_id = await PostgresDB.execute_query(query, [garage_code])
     if not garage_id:
         return None
     
-    return garage_id[0]
+    return garage_id[0]['id']
 
 
 # get id of province
@@ -97,6 +98,7 @@ async def get_pricelist_id(garage_id: int, region_id: int):
 
 async def get_item_id(item_code: str, item_name: str):
     
+    item = None
     if item_code:
         query = """
         select id, code, name from insurance_claim_list_category where code = $1
