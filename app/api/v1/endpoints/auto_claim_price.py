@@ -39,16 +39,17 @@ async def get_model_id(brand_id: int, model: str):
 # get id of garage
 async def get_garage_id(garage_code: str):
     query = """
-    select rpg.id, rpg.gara_line
+    select rpg.id
     from res_partner_gara rpg 
         left join res_partner rp on rp.id = rpg.partner_id
     where rp.code = $1
+    limit 1
     """
     garage_id = await PostgresDB.execute_query(query, [garage_code])
     if not garage_id:
         return None
     
-    return garage_id[0]
+    return garage_id[0]['id']
 
 
 # get id of province
@@ -62,11 +63,11 @@ async def get_province_id(province_name: str):
     SELECT id, region_id FROM res_province 
     WHERE lower(name) LIKE $1
     """
-    province_id = await PostgresDB.execute_query(query, [search_pattern])
-    if not province_id:
+    province = await PostgresDB.execute_query(query, [search_pattern])
+    if not province:
         return None
     
-    return province_id[0]
+    return province[0]
 
 async def get_pricelist_id(garage_id: int, region_id: int):
     query = """
@@ -84,6 +85,9 @@ async def get_pricelist_id(garage_id: int, region_id: int):
     if region_id:
         query += f" AND region_id = ${param_index}"
         params.append(region_id)
+        
+    if not garage_id and not region_id:
+        return None
     
     pricelist_id = await PostgresDB.execute_query(query, params)
     if not pricelist_id:
@@ -94,6 +98,7 @@ async def get_pricelist_id(garage_id: int, region_id: int):
 
 async def get_item_id(item_code: str, item_name: str):
     
+    item = None
     if item_code:
         query = """
         select id, code, name from insurance_claim_list_category where code = $1
@@ -270,8 +275,10 @@ async def search_prices(
         
     # Nếu không tìm thấy bảng giá theo garage, tìm bảng giá theo khu vực
     if not pricelist:
-        region_id = await get_province_id(request.province.name)
-        pricelist = await get_pricelist_id(garage_id, region_id)
+        province = await get_province_id(request.province.name)
+        if province:
+            region_id = province['region_id']
+            pricelist = await get_pricelist_id(garage_id, region_id)
     
     
     # Nếu không tìm thấy bảng giá, trả về kết quả rỗng

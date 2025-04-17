@@ -13,6 +13,8 @@ import re
 from openai import AsyncOpenAI
 from ....utils.erp_db import PostgresDB
 from ....utils.odoo import UserError
+from ..endpoints.auto_claim_price import search_prices
+from ....schemas.auto_claim_price import AutoClaimPriceRequest, PriceType, CarObject, PartObject, GarageObject, ProvinceObject
 
 logger = logging.getLogger(__name__)
 
@@ -112,13 +114,40 @@ def clean_numeric_value(value):
             return int(cleaned_value)
     return value
 
+
+async def get_data_auto_claim_price(repair_id: int):
+    query = """
+    SELECT 
+        repair.id, 
+        rcb.name as brand, 
+        rcm.name as model, 
+        partner_gara.code as garage_code, 
+        partner_gara.name as garage_name, 
+        province.code as province_code, 
+        province.name as province_name
+    FROM 
+        insurance_claim_solution_repair repair
+        left join res_partner_gara rpg on  repair.gara_partner_id = rpg.id
+        left join res_partner partner_gara on partner_gara.id = rpg.partner_id
+        left join res_province province on province.id = repair.gara_province_id
+        left join res_car rc on rc.id = repair.car_id
+        left join res_car_brand rcb on rcb.id = rc.car_brand_id
+        left join res_car_model rcm on rcm.id = rc.car_model_id
+    where repair.id = $1
+    limit 1
+    """
+    data = await PostgresDB.execute_query(query, [repair_id])
+    if data:
+        return data[0]
+    return None
+
 @router.get("/ocr-quote",
             response_model=OCRQuoteResponse,
             status_code=status.HTTP_200_OK)
 async def get_ocr_quote(
         image_url: str,
         repair_id: Optional[int] = None,
-        current_user: dict = Depends(get_current_user)
+        # current_user: dict = Depends(get_current_user)
 ) -> OCRQuoteResponse:
     """
     Get OCR quote from an image URL
@@ -143,9 +172,10 @@ async def get_ocr_quote(
         where icac.detail_category_id in 
         (SELECT detailed_appraisal_id from insurance_claim_solution_repair where id=$1)
         """
-        code_category, ocr_quote_data = await asyncio.gather(
+        code_category, ocr_quote_data, data_auto_claim_price = await asyncio.gather(
             PostgresDB.execute_query(query, [repair_id]),
-            get_ocr_quote_data(image_url)
+            get_ocr_quote_data(image_url),
+            get_data_auto_claim_price(repair_id)
         )
         list_code_category = []
         for category in code_category:
@@ -155,6 +185,15 @@ async def get_ocr_quote(
         ocr_quote_data = await get_ocr_quote_data(image_url)
     data_mapping = {item['repair_item_name']: item for item in LIST_REPAIR_ITEM}
 
+
+    # lấy dữ liệu từ bảng insurance_claim_solution_repair
+    brand = data_auto_claim_price.get('brand', None)
+    model = data_auto_claim_price.get('model', None)
+    province_code = data_auto_claim_price.get('province_code', None)
+    province_name = data_auto_claim_price.get('province_name', None)
+    garage_code = data_auto_claim_price.get('garage_code', None)
+    garage_name = data_auto_claim_price.get('garage_name', None)
+    
     # Xử lý dữ liệu OCR
     result_data = []
     item_names = []
@@ -224,14 +263,37 @@ async def get_ocr_quote(
                     'garage_price': price,
                     'item': category,
                     'discount_percentage': discount,
-                    'type': category_type
+                    'type': category_type,
+                    'suggestion_price': 0
                 })
-
+                
+                if category.get('name'):
+                    continue
+                
+                # gọi async search_prices
+                price_response = await search_prices(AutoClaimPriceRequest(
+                    car=CarObject(brand=brand, model=model),
+                    part=PartObject(code=category.get('code'), name=category.get('name')),
+                    type=category_type.get('code', 'parts'),
+                    province=ProvinceObject(code=province_code, name=province_name),
+                    garage=GarageObject(code=garage_code, name=garage_name)
+                ))
+                
+                if price_response and price_response.price:
+                    result_data['suggestion_price'] = price_response.price
+                
     if not result_data or not len(result_data):
         raise UserError("Không tìm thấy dữ liệu")   
-            
+    
+    
     return OCRQuoteResponse(
         url_cvs=image_url,
+        brand=data_auto_claim_price.get('brand'),
+        model=data_auto_claim_price.get('model'),
+        province_code=data_auto_claim_price.get('province_code'),
+        province_name=data_auto_claim_price.get('province_name'),
+        garage_code=data_auto_claim_price.get('garage_code'),
+        garage_name=data_auto_claim_price.get('garage_name'),
         data=result_data
     )
 

@@ -273,8 +273,15 @@ class OCRQuoteItem(BaseModel):
     item: OCRCategory
     discount_percentage: float = 0
     type: CategoryType = None
+    suggestion_price: Optional[float] = None
 class OCRQuoteResponse(BaseModel):
     url_cvs: str
+    brand: Optional[str] = None
+    model: Optional[str] = None
+    province_code: Optional[str] = None
+    province_name: Optional[str] = None
+    garage_code: Optional[str] = None
+    garage_name: Optional[str] = None
     data: List[OCRQuoteItem] = []
 
 class AssignAppraisalRequest(BaseModel):
