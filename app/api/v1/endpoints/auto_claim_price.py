@@ -62,11 +62,11 @@ async def get_province_id(province_name: str):
     SELECT id, region_id FROM res_province 
     WHERE lower(name) LIKE $1
     """
-    province_id = await PostgresDB.execute_query(query, [search_pattern])
-    if not province_id:
+    province = await PostgresDB.execute_query(query, [search_pattern])
+    if not province:
         return None
     
-    return province_id[0]
+    return province[0]
 
 async def get_pricelist_id(garage_id: int, region_id: int):
     query = """
@@ -84,6 +84,9 @@ async def get_pricelist_id(garage_id: int, region_id: int):
     if region_id:
         query += f" AND region_id = ${param_index}"
         params.append(region_id)
+        
+    if not garage_id and not region_id:
+        return None
     
     pricelist_id = await PostgresDB.execute_query(query, params)
     if not pricelist_id:
@@ -270,8 +273,10 @@ async def search_prices(
         
     # Nếu không tìm thấy bảng giá theo garage, tìm bảng giá theo khu vực
     if not pricelist:
-        region_id = await get_province_id(request.province.name)
-        pricelist = await get_pricelist_id(garage_id, region_id)
+        province = await get_province_id(request.province.name)
+        if province:
+            region_id = province['region_id']
+            pricelist = await get_pricelist_id(garage_id, region_id)
     
     
     # Nếu không tìm thấy bảng giá, trả về kết quả rỗng
