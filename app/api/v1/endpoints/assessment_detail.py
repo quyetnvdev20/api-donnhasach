@@ -13,6 +13,12 @@ from ....utils.redis_client import redis_client
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+STATE_COLOR = {
+    "wait_approval": ("#faad14", "Chờ phê duyệt"),
+    "done": ("#52c41a", "Đã duyệt"),
+    "rejected": ("#f5222d", "Trả lại")
+}
+
 
 @router.get("/{assessment_id}/detail", response_model=VehicleDetailAssessment)
 async def get_vehicle_detail_assessment(
@@ -118,6 +124,19 @@ async def get_vehicle_detail_assessment(
                     'name': 'Sửa chữa' if item.get('solution_code') == 'repair' else (
                         'Thay thế' if item.get('solution_code') == 'replace' else '')
                 },
+                'state_category': {
+                    "name": STATE_COLOR.get('wait_approval')[1] if STATE_COLOR.get('wait_approval') else "Chờ duyệt",
+                    "code": 'wait_approval',
+                    "color_code": STATE_COLOR.get('wait_approval')[0] if STATE_COLOR.get(
+                        'wait_approval') else "#faad14"
+                },
+                'rejection_reasons': [
+                    {
+                        'id': 1,
+                        'reason': 'Lý do trả lại',
+                        'rejection_date': '17/04/2025 14:33'
+                    }
+                ],
                 'images': list_image
             })
 

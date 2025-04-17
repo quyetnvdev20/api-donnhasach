@@ -157,6 +157,15 @@ class Solution(BaseModel):
     code: Optional[str] = None
     name: str
 
+class StatusCategory(BaseModel):
+    name: str
+    code: str
+    color_code: str
+
+class RejectionReason(BaseModel):
+    id: Optional[int] = None
+    reason: Optional[str] = None
+    rejection_date: Optional[str] = None
 
 # Schema for assessment item
 class AssessmentItem(BaseModel):
@@ -166,6 +175,8 @@ class AssessmentItem(BaseModel):
     solution: Solution = Solution(code='repair', name='Sửa chữa')
     listImageRemove: List[int] = None
     images: List[ImageInfo] = None
+    state_category: StatusCategory = None
+    rejection_reasons: List[RejectionReason] = []
 
 
 class VehicleDetailAssessment(BaseModel):
