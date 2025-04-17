@@ -56,6 +56,9 @@ class RepairPlanDetailItem(BaseModel):
     garage_price: float = None
     suggested_price: float = None
     discount_percentage: float = None
+    depreciation_percentage: int = None
+    incident_no: int = None
+    solution: Optional[str] = None
 
 
 class RepairPlanApprovalRequest(BaseModel):
@@ -97,6 +100,12 @@ class ApprovalHistory(BaseModel):
     approval_time: Optional[str] = None
 
 
+class RejectionReason(BaseModel):
+    id: Optional[int] = None
+    reason: Optional[str] = None
+    rejection_date: Optional[str] = None
+
+
 class RepairPlanAwaitingDetail(BaseModel):
     id: int
     file_name: Optional[str] = None
@@ -118,8 +127,10 @@ class RepairPlanAwaitingDetail(BaseModel):
     amount_untaxed_total: float
     amount_garage: float
     amount_propose: float
+    rejection_reasons: List[RejectionReason] = []
     btn_approve: bool
     btn_reject: bool
+    btn_rejection: bool
 
 
 class RepairPlanDetailResponse(BaseModel):
@@ -154,6 +165,14 @@ class RepairCategoryAppraisal(BaseModel):
     id: Optional[int]
     name: str = None
     code: str = None
+    solution: str = None
+
 
 class RepairCategoryResponse(BaseModel):
     data: List[RepairCategoryAppraisal] = []
+
+
+class Solutions(BaseModel):
+    code: str
+    name: str
+
