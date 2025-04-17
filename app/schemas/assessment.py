@@ -75,6 +75,12 @@ class Location(BaseModel):
     lon: float
 
 
+class DetailState(BaseModel):
+    code: Optional[str] = None
+    count: Optional[int] = None
+    color_code: Optional[str] = None
+
+
 class AssessmentDetail(BaseModel):
     case_number: str
     status: str
@@ -105,6 +111,7 @@ class AssessmentDetail(BaseModel):
     user_request: Optional[UserRequest] = {}
     list_remote_inspection: Optional[List[RemoteInspection]] = []
     list_image_contract: Optional[List[str]] = []
+    detail_state: List[DetailState] = []
 
 
 # Models for Vehicle Detail Assessment
@@ -181,6 +188,7 @@ class AssessmentItem(BaseModel):
 
 class VehicleDetailAssessment(BaseModel):
     items: List[AssessmentItem]
+    detail_state: List[DetailState] = []
 
 class DocumentType(BaseModel):
     id: int
