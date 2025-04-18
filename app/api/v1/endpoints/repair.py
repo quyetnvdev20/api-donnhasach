@@ -474,6 +474,7 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
             line.depreciation_percentage as depreciation_percentage,
             line.incident_no as incident_no,
             line.solution as solution,
+            line.suggestion_price as suggestion_price,
             case 
                 when line.price_paint_propose > 0 then line.price_paint_propose 
                 when line.price_replace_propose > 0 then line.price_replace_propose
@@ -551,7 +552,8 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
                     detail.get('state')) else "#faad14"
             },
             "is_edit": True if detail.get('state') == 'wait_approval' else False,
-            "rejection_reasons": list_rejection_reason
+            "rejection_reasons": list_rejection_reason,
+            "suggestion_price": int(detail.get('suggestion_price')),
         })
     return repair_plan_details
 
