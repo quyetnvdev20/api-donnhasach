@@ -543,7 +543,6 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
             "discount_percentage": int(detail.get('discount_percentage')),
             "depreciation_percentage": detail.get('depreciation_percentage') if detail.get('depreciation_percentage') else 0,
             "incident_no": detail.get('incident_no'),
-            "solution": detail.get('solution'),
             "state": {
                 "name": STATE_PLAN_LINE_COLOR.get(detail.get('state'))[1] if STATE_PLAN_LINE_COLOR.get(
                     detail.get('state')) else "Chờ phê duyệt",
@@ -553,7 +552,8 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
             },
             "is_edit": True if detail.get('state') == 'wait_approval' else False,
             "rejection_reasons": list_rejection_reason,
-            "suggestion_price": int(detail.get('suggestion_price')),
+            "solution": detail.get('solution'),
+            "suggestion_price": int(detail.get('suggestion_price')) if detail.get('suggestion_price') else 0,
         })
     return repair_plan_details
 
