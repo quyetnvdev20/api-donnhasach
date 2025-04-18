@@ -382,6 +382,7 @@ async def get_data_auto_claim_price(repair_id: int):
     
 
 @router.get("/data/{repair_id}", response_model=Dict[str, Any])
-async def get_data(repair_id: int):
+async def get_data(repair_id: int,
+                   current_user: dict = Depends(get_current_user)):
     data = await get_data_auto_claim_price(repair_id)
     return data
