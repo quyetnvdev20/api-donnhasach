@@ -464,6 +464,6 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
             "garage_price": int(detail.get('garage_price')),
             "suggested_price": int(detail.get('suggested_price')),
             "discount_percentage": int(detail.get('discount_percentage')),
-            "suggestion_price": int(detail.get('suggestion_price')),
+            "suggestion_price": int(detail.get('suggestion_price')) if detail.get('suggestion_price') else 0,
         })
     return repair_plan_details
