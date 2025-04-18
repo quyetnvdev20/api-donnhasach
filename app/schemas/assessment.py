@@ -113,6 +113,7 @@ class AssessmentDetail(BaseModel):
     list_remote_inspection: Optional[List[RemoteInspection]] = []
     list_image_contract: Optional[List[str]] = []
     detail_state: List[DetailState] = []
+    is_button_pasc: bool
 
 
 # Models for Vehicle Detail Assessment
