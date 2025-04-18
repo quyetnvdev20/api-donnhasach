@@ -447,6 +447,7 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
             line.depreciation_percentage as depreciation_percentage,
             line.incident_no as incident_no,
             line.solution as solution,
+            line.suggestion_price as suggestion_price,
             case 
                 when line.price_paint > 0 then line.price_paint 
                 when line.price_labor > 0 then line.price_labor
@@ -493,6 +494,7 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
             "discount_percentage": int(detail.get('discount_percentage')),
             "depreciation_percentage": detail.get('depreciation_percentage') if detail.get('depreciation_percentage') else 0,
             "incident_no": detail.get('incident_no'),
-            "solution": detail.get('solution')
+            "solution": detail.get('solution'),
+            "suggestion_price": int(detail.get('suggestion_price')),
         })
     return repair_plan_details
