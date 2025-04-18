@@ -318,6 +318,17 @@ async def get_assessment_detail(
                  JOIN contract_attachment_type cat on ca.attachment_type_id = cat.id
                  WHERE ca.url ~* '\.(jpg|jpeg|png|gif|bmp|webp|jfif)$'
                  GROUP BY icp1.id
+            ),
+            count_pasc AS (
+                SELECT
+                    detailed_appraisal_id,
+                    CASE 
+                        WHEN COUNT(*) > 0 THEN TRUE
+                        ELSE FALSE
+                    END as is_pasc
+                FROM insurance_claim_solution_repair
+                WHERE detailed_appraisal_id = $1
+                GROUP BY detailed_appraisal_id
             )
             SELECT
                 gd_chi_tiet.name AS case_number,
@@ -344,7 +355,11 @@ async def get_assessment_detail(
                 icp.name AS claim_profile_name,
                 gd_chi_tiet.insur_claim_id as insur_claim_id,
                 crp.name AS assigned_to,
-                contract_image.ca_url as list_image_contract
+                contract_image.ca_url as list_image_contract,
+                case
+                    when count_pasc.is_pasc is false and gd_chi_tiet.state = 'done' then true
+                    else false
+                end as is_button_pasc
             FROM insurance_claim_appraisal_detail gd_chi_tiet
             LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
             LEFT JOIN insurance_claim_profile icp ON icp.id = gd_chi_tiet.new_claim_profile_id
@@ -372,6 +387,7 @@ async def get_assessment_detail(
             LEFT JOIN res_province province ON province.id = icr.province_id
             LEFT JOIN res_district district ON district.id = icr.district_id
             LEFT JOIN res_ward ward ON ward.id = icr.ward_id
+            LEFT JOIN count_pasc ON count_pasc.detailed_appraisal_id = gd_chi_tiet.id
             WHERE gd_chi_tiet.id = $1 
 --             and icr.car_at_scene = false 
 --             and first_certificate.id is not null
