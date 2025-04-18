@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from ...deps import get_current_user
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import logging
 from app.schemas.auto_claim_price import AutoClaimPriceRequest, AutoClaimPriceResponse
 from app.utils.erp_db import PostgresDB
@@ -353,3 +353,35 @@ async def search_prices(
             "name": item_name
         }
     )
+    
+async def get_data_auto_claim_price(repair_id: int):
+    query = """
+    SELECT 
+        repair.id, 
+        rcb.name as brand, 
+        rcm.name as model, 
+        partner_gara.code as garage_code, 
+        partner_gara.name as garage_name, 
+        province.code as province_code, 
+        province.name as province_name
+    FROM 
+        insurance_claim_solution_repair repair
+        left join res_partner_gara rpg on  repair.gara_partner_id = rpg.id
+        left join res_partner partner_gara on partner_gara.id = rpg.partner_id
+        left join res_province province on province.id = repair.gara_province_id
+        left join res_car rc on rc.id = repair.car_id
+        left join res_car_brand rcb on rcb.id = rc.car_brand_id
+        left join res_car_model rcm on rcm.id = rc.car_model_id
+    where repair.id = $1
+    limit 1
+    """
+    data = await PostgresDB.execute_query(query, [repair_id])
+    if data:
+        return data[0]
+    return None
+    
+
+@router.get("/data/{repair_id}", response_model=Dict[str, Any])
+async def get_data(repair_id: int):
+    data = await get_data_auto_claim_price(repair_id)
+    return data
