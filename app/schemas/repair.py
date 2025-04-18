@@ -59,6 +59,7 @@ class RepairPlanDetailItem(BaseModel):
     depreciation_percentage: int = None
     incident_no: int = None
     solution: Optional[str] = None
+    suggestion_price: float = None
 
 
 class RepairPlanApprovalRequest(BaseModel):
