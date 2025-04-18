@@ -11,12 +11,22 @@ logger = logging.getLogger(__name__)
 # get id of brand
 async def get_brand_id(brand: str):
     normalized_name = brand.lower().strip()
-    # Construct the search pattern with wildcards
-    search_pattern = f"%{normalized_name}%"
-    query = """
-    SELECT id FROM res_car_brand WHERE lower(name) LIKE $1
+    
+    # First try exact match
+    query_exact = """
+    SELECT id FROM res_car_brand WHERE lower(name) = $1
     """
-    brand_id = await PostgresDB.execute_query(query, [search_pattern])
+    brand_id = await PostgresDB.execute_query(query_exact, [normalized_name])
+    
+    # If exact match not found, try fuzzy search
+    if not brand_id:
+        # Construct the search pattern with wildcards
+        search_pattern = f"%{normalized_name}%"
+        query_fuzzy = """
+        SELECT id FROM res_car_brand WHERE lower(name) LIKE $1
+        """
+        brand_id = await PostgresDB.execute_query(query_fuzzy, [search_pattern])
+    
     if not brand_id:
         return None
     
@@ -25,12 +35,22 @@ async def get_brand_id(brand: str):
 # get id of model
 async def get_model_id(brand_id: int, model: str):
     normalized_name = model.lower().strip()
-    # Construct the search pattern with wildcards
-    search_pattern = f"%{normalized_name}%" 
-    query = """
-    SELECT id FROM res_car_model WHERE car_brand_id = $1 AND lower(name) LIKE $2
+    
+    # First try exact match
+    query_exact = """
+    SELECT id FROM res_car_model WHERE car_brand_id = $1 AND lower(name) = $2
     """
-    model_id = await PostgresDB.execute_query(query, [brand_id, search_pattern])
+    model_id = await PostgresDB.execute_query(query_exact, [brand_id, normalized_name])
+    
+    # If exact match not found, try fuzzy search
+    if not model_id:
+        # Construct the search pattern with wildcards
+        search_pattern = f"%{normalized_name}%"
+        query_fuzzy = """
+        SELECT id FROM res_car_model WHERE car_brand_id = $1 AND lower(name) LIKE $2
+        """
+        model_id = await PostgresDB.execute_query(query_fuzzy, [brand_id, search_pattern])
+    
     if not model_id:
         return None
     
@@ -53,21 +73,41 @@ async def get_garage_id(garage_code: str):
 
 
 # get id of province
-async def get_province_id(province_name: str):
-    # Normalize the input province name
-    normalized_name = province_name.lower().strip()
-    # Construct the search pattern with wildcards
-    search_pattern = f"%{normalized_name}%"
+async def get_province_id(province_code: str=None, province_name: str=None):
+    # First try exact match by code
+    if province_code:
+        query_code = """
+        SELECT id, region_id FROM res_province 
+        WHERE code = $1
+        """
+        province = await PostgresDB.execute_query(query_code, [province_code])
+        if province:
+            return province[0]
     
-    query = """
-    SELECT id, region_id FROM res_province 
-    WHERE lower(name) LIKE $1
-    """
-    province = await PostgresDB.execute_query(query, [search_pattern])
-    if not province:
-        return None
+    # Then try exact match by name
+    if province_name:
+        query_name = """
+        SELECT id, region_id FROM res_province 
+        WHERE lower(name) = $1
+        """
+        normalized_name = province_name.lower().strip()
+        province = await PostgresDB.execute_query(query_name, [normalized_name])
+        if province:
+            return province[0]
     
-    return province[0]
+    # Finally try fuzzy match by name
+    if province_name:
+        normalized_name = province_name.lower().strip()
+        search_pattern = f"%{normalized_name}%"
+        query_fuzzy = """
+        SELECT id, region_id FROM res_province 
+        WHERE lower(name) LIKE $1
+        """
+        province = await PostgresDB.execute_query(query_fuzzy, [search_pattern])
+        if province:
+            return province[0]
+    
+    return None
 
 async def get_pricelist_id(garage_id: int, region_id: int):
     query = """
@@ -173,29 +213,36 @@ async def get_price(pricelist_id: int,
     params = [pricelist_id]
     param_index = 2
     
-    if item_id:
-        query += f" and item_id = ${param_index}"
-        params.append(item_id)
+    # Tạo các điều kiện dựa trên các tham số được truyền vào
+    conditions = []
+    
+    if item_id is not None:
+        conditions.append((f"item_id = ${param_index}", item_id))
         param_index += 1
         
-    if model_id:
-        query += f" and car_model_id = ${param_index}"
-        params.append(model_id)
+    if model_id is not None:
+        conditions.append((f"car_model_id = ${param_index}", model_id))
         param_index += 1
     
-    if item_category_id:
-        query += f" and item_category_id = ${param_index}"
-        params.append(item_category_id)
+    if item_category_id is not None:
+        conditions.append((f"item_category_id = ${param_index}", item_category_id))
         param_index += 1
     
-    if car_category_id:
-        query += f" and car_category_id = ${param_index}"
-        params.append(car_category_id)
+    if car_category_id is not None:
+        conditions.append((f"car_category_id = ${param_index}", car_category_id))
         param_index += 1
     
-    if price_type:
-        query += f" and price_type = ${param_index}"
-        params.append(price_type)
+    if price_type is not None:
+        conditions.append((f"price_type = ${param_index}", price_type))
+        param_index += 1
+    
+    # Nếu có điều kiện, thêm vào câu truy vấn
+    if conditions:
+        for condition, value in conditions:
+            query += f" and {condition}"
+            params.append(value)
+    
+    # Trong trường hợp tất cả các tham số tùy chọn đều là None, chúng ta vẫn sẽ tìm kiếm theo pricelist_id
     
     query += " order by price asc limit 1"
     
@@ -240,7 +287,7 @@ async def search_prices(
     - Thông tin giá phụ tùng
     
     {
-        "pricelist": "B.1. BANG GIA SON GARA NGOAI TASCO 2024- KV HÀ NỘI",
+        "pricelist": "B.1. BANG GIA SON GARA NGOAI TASCO 2024- KV HÀ NỘI",
         "price": 850000,
         "type": "paint",
         "parts": {
@@ -277,7 +324,7 @@ async def search_prices(
     if not pricelist:
         # replace garage id with None
         garage_id = None
-        province = await get_province_id(request.province.name)
+        province = await get_province_id(request.province.code, request.province.name)
         if province:
             region_id = province['region_id']
             pricelist = await get_pricelist_id(garage_id, region_id)
@@ -308,32 +355,33 @@ async def search_prices(
     # Tìm id nhóm hạng mục chuẩn hệ thống
     item_category_id = await get_item_category_id(item_code, item_name)
 
-    # Tìm price từ bảng giá
+    # Tìm giá theo các cách khác nhau, từ chi tiết nhất đến ít chi tiết nhất
+    # Cách 1: Tìm giá dựa vào pricelist_id, item_id, model_id và price_type
     price = await get_price(pricelist_id=pricelist_id, 
-                            item_id=item_id, 
-                            model_id=model_id, 
-                            price_type=request.type)
+                           item_id=item_id, 
+                           model_id=model_id, 
+                           price_type=request.type)
     
-    if not price:
-        # Tìm giá dựa vào nhóm hạng mục chuẩn hệ thống và hiệu xe
+    if not price and item_category_id and model_id:
+        # Cách 2: Tìm giá dựa vào pricelist_id, item_category_id, model_id và price_type
         price = await get_price(pricelist_id=pricelist_id, 
-                                item_category_id=item_category_id, 
-                                model_id=model_id,
-                                price_type=request.type)
+                               item_category_id=item_category_id, 
+                               model_id=model_id,
+                               price_type=request.type)
         
-    if not price:
-        # Tìm giá dựa vào hạng mục chuẩn hệ thống và nhóm dòng xe
+    if not price and item_id and car_category_id:
+        # Cách 3: Tìm giá dựa vào pricelist_id, item_id, car_category_id và price_type
         price = await get_price(pricelist_id=pricelist_id, 
-                                item_id=item_id, 
-                                car_category_id=car_category_id, 
-                                price_type=request.type)
+                               item_id=item_id, 
+                               car_category_id=car_category_id, 
+                               price_type=request.type)
     
-    if not price:
-        # Tìm giá dựa vào nhóm hạng mục chuẩn hệ thống và nhóm dòng xe
+    if not price and item_category_id and car_category_id:
+        # Cách 4: Tìm giá dựa vào pricelist_id, item_category_id, car_category_id và price_type
         price = await get_price(pricelist_id=pricelist_id, 
-                                item_category_id=item_category_id, 
-                                car_category_id=car_category_id, 
-                                price_type=request.type)
+                               item_category_id=item_category_id, 
+                               car_category_id=car_category_id, 
+                               price_type=request.type)
         
     if not price:
         return AutoClaimPriceResponse(
