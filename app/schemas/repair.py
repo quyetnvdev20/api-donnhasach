@@ -56,6 +56,7 @@ class RepairPlanDetailItem(BaseModel):
     garage_price: float = None
     suggested_price: float = None
     discount_percentage: float = None
+    suggestion_price: float = None
 
 
 class RepairPlanApprovalRequest(BaseModel):
