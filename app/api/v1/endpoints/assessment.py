@@ -16,7 +16,7 @@ import httpx
 import logging
 from app.config import settings, odoo
 import asyncio
-from .assessment_task_status import get_assessment_detail_status, get_collection_document_status, get_accident_notification_status, get_assessment_report_status, get_remote_inspection, get_user_request_remote_inspection
+from .assessment_task_status import get_assessment_detail_status, get_collection_document_status, get_accident_notification_status, get_assessment_report_status, get_remote_inspection, get_user_request_remote_inspection, get_detail_state
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -386,7 +386,8 @@ async def get_assessment_detail(
         safe_task(get_accident_notification_status(assessment_id), name="accident_notification_status", return_if_error={}),
         safe_task(get_assessment_report_status(assessment_id), name="assessment_report_status", return_if_error={}),
         safe_task(get_remote_inspection(assessment_id, headers.invitationCode), name="remote_inspection", return_if_error=[]),
-        safe_task(get_user_request_remote_inspection(assessment_id, headers.invitationCode), name="get_user_request_remote_inspection", return_if_error={})
+        safe_task(get_user_request_remote_inspection(assessment_id, headers.invitationCode), name="get_user_request_remote_inspection", return_if_error={}),
+        safe_task(get_detail_state(assessment_id), name="get_detail_state", return_if_error={})
     )
 
     (
@@ -396,7 +397,8 @@ async def get_assessment_detail(
         accident_notification_status,
         assessment_report_status,
         remote_inspection_detail,
-        user_request
+        user_request,
+        detail_state
     ) = results
 
     if assessment_detail:
@@ -465,6 +467,8 @@ async def get_assessment_detail(
             "code": status,
             "color_code": color_code
         }
+
+        assessment_detail['is_readonly'] = True if status == 'wait_approval' else False
         assessment_detail['list_remote_inspection'] = remote_inspection_detail
         if user_request:
             assessment_detail['user_request'] = user_request
@@ -523,17 +527,19 @@ async def get_assessment_detail(
                 }
             }
         ]
+
+        
         assessment_detail['detail_state'] = [{
             "code": "wait_approval",
-            "count": 1,
+            "count": detail_state.get('wait_approval'),
             "color_code": "#faad14"
         }, {
             "code": "done",
-            "count": 1,
+            "count": detail_state.get('done'),
             "color_code": "#52c41a"
         }, {
             "code": "cancel",
-            "count": 1,
+            "count": detail_state.get('cancel'),
             "color_code": "#f5222d"
         }]
     else:

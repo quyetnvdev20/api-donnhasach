@@ -87,6 +87,7 @@ class AssessmentDetail(BaseModel):
     edit_screen: bool
     enable_remote_inspection: bool
     state : State
+    is_readonly: bool
     gara_address: Optional[Location] = None
     gara_distance: Optional[float] = None
     license_plate: Optional[str] = None
