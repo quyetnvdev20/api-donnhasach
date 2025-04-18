@@ -465,3 +465,28 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
             "discount_percentage": int(detail.get('discount_percentage')),
         })
     return repair_plan_details
+
+
+@router.post("/{assessment_id}/create-repair")
+async def create_repair(
+        assessment_id: int,
+        current_user: dict = Depends(get_current_user)
+):
+    """
+    Create repair
+    """
+
+
+    # Tạo phương án sửa chữa
+    response = await odoo.call_method_post(
+        model='insurance.claim.appraisal.detail',
+        record_id=assessment_id,
+        method='create_repair',
+        token=current_user.odoo_token,
+        kwargs={}
+    )
+
+    return {
+        "id": int(response.get('repair_plan_id')),
+        "status": "Success"
+    }
