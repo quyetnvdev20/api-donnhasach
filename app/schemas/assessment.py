@@ -30,6 +30,7 @@ class AssessmentListItem(BaseModel):
     status: Optional[str]
     status_color: Optional[str] = "#212121"
     new_status: Optional[State] = {}
+    tag_object: Optional[Dict[str, Any]] = {}
 
 
 class AssessmentStatus(Enum):

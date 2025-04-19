@@ -220,7 +220,27 @@ async def get_assessment_list(
         LIMIT {limit} OFFSET {offset}
     """
 
-    results = await PostgresDB.execute_query(query, params)
+    latest_cancel_history_query = """
+        SELECT *
+        FROM (
+            SELECT 
+                appraisal_detail_id AS id,
+                state,
+                ROW_NUMBER() OVER (PARTITION BY appraisal_detail_id ORDER BY create_date DESC) as rn
+            FROM insurance_claim_history_log
+            WHERE appraisal_detail_id IS NOT NULL
+        )x
+        WHERE x.rn = 1
+        AND x.state = 'cancel'
+    """
+
+    results, latest_cancel_histories = await asyncio.gather(
+        PostgresDB.execute_query(query, params),
+        PostgresDB.execute_query(latest_cancel_history_query),
+    )
+
+    latest_cancel_history_by_id = {v.get('id'): v for v in latest_cancel_histories}
+
     # Tạo danh sách kết quả
     assessment_list = []
     
@@ -290,6 +310,15 @@ async def get_assessment_list(
             "code": status,
             "color_code": color_code
         }
+
+        tag_object = {}
+        if assessment_item.get('id') in latest_cancel_history_by_id:
+            tag_object = {
+                "name": "Trả lại",
+                "code": "revert",
+                "color_code":"#f5222d"
+            }
+        assessment_item['tag_object'] = tag_object
         
         assessment_list.append(assessment_item)
     
