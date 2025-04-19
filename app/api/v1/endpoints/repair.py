@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
+import json
 from ...deps import get_current_user
 from ....config import settings, odoo
 from ....database import get_db
@@ -26,6 +27,12 @@ CATEGORIES_COLOR = {
     "parts": "#0958d9",
     "labor": "#d46b08",
     "paint": "#531dab",
+}
+
+STATE_PLAN_LINE_COLOR = {
+    "wait_approval": ("#faad14", "Chờ phê duyệt"),
+    "done": ("#52c41a", "Đã duyệt"),
+    "cancel": ("#f5222d", "Trả lại")
 }
 
 
@@ -410,6 +417,21 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
         Dictionary with status information
     """
     query_detail = """
+        with rejection_reasons as (
+            select 
+                line.id as solution_repair_line_id,
+                json_agg(
+                    json_build_object(
+                        'id', log.id,
+                        'reason', log.reason,
+                        'rejection_date', log.date
+                    )
+                ) as reasons
+            from insurance_claim_history_log log
+            left join insurance_claim_solution_repair_line line on log.solution_repair_line_id = line.id
+            where line.solution_repair_id = $1 and log.state = 'cancel'
+            group by line.id
+        )
         select 
             repair.id as repair_id,
             line.id,
@@ -420,20 +442,29 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
             line.price_unit_gara as garage_price,
             line.discount as discount_percentage,
             case 
-                when line.price_paint > 0 then line.price_paint 
+                when line.price_paint_propose > 0 then line.price_paint_propose 
+                when line.price_paint_propose > 0 then line.price_paint_propose
+                when line.price_paint_propose > 0 then line.price_paint_propose
+                else 0 end as suggested_price,
+            case
+                when line.price_paint > 0 then line.price_paint
                 when line.price_labor > 0 then line.price_labor
                 when line.price_replace > 0 then line.price_replace
-                else 0 end as suggested_price,
+                else 0 end as approved_price,
             case 
-                when line.price_paint > 0 then 'paint'
-                when line.price_labor > 0 then 'labor'
-                when line.price_replace > 0 then 'parts'
-                else '' end as category_type
+                when line.price_paint_propose > 0 then 'paint'
+                when line.price_paint_propose > 0 then 'labor'
+                when line.price_paint_propose > 0 then 'parts'
+                else '' end as category_type,
+            line.state as state,
+            rr.reasons
+            
         from insurance_claim_solution_repair_line line
         inner join insurance_claim_solution_repair repair on line.solution_repair_id = repair.id
         inner join product_product pp ON pp.id = line.product_id
         inner join product_template pt ON pt.id = pp.product_tmpl_id
         inner join insurance_claim_list_category category on line.category_id = category.id
+        left join rejection_reasons rr on line.id = rr.solution_repair_line_id
         where repair.id = $1
         order by line.id
     """
@@ -447,6 +478,19 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
     }
 
     for detail in results_detail:
+        # Lấy danh sách lý do trả lại
+        rejection_reasons = detail.get('reasons')
+
+        list_rejection_reason = []
+
+        if rejection_reasons and rejection_reasons != '[null]':
+            # Nếu rejection_reasons đã là list, sử dụng trực tiếp
+            if isinstance(rejection_reasons, list):
+                list_rejection_reason = rejection_reasons
+            # Nếu rejection_reasons là string JSON, parse nó
+            elif isinstance(rejection_reasons, str):
+                list_rejection_reason = json.loads(rejection_reasons)
+
         repair_plan_details.append({
             "name": detail.get('name'),
             "id": detail.get('id'),
@@ -463,6 +507,15 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
             "garage_price": int(detail.get('garage_price')),
             "suggested_price": int(detail.get('suggested_price')),
             "discount_percentage": int(detail.get('discount_percentage')),
+            "state": {
+                "name": STATE_PLAN_LINE_COLOR.get(detail.get('state'))[1] if STATE_PLAN_LINE_COLOR.get(
+                    detail.get('state')) else "Chờ phê duyệt",
+                "code": detail.get('state'),
+                "color_code": STATE_PLAN_LINE_COLOR.get(detail.get('state'))[0] if STATE_PLAN_LINE_COLOR.get(
+                    detail.get('state')) else "#faad14"
+            },
+            "is_edit": True if detail.get('state') == 'wait_approval' else False,
+            "rejection_reasons": list_rejection_reason
         })
     return repair_plan_details
 
