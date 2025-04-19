@@ -48,6 +48,12 @@ class RepairGarageLocation(BaseModel):
     name: Optional[str] = None
 
 
+class RejectionReason(BaseModel):
+    id: Optional[int] = None
+    reason: Optional[str] = None
+    rejection_date: Optional[str] = None
+
+
 class RepairPlanDetailItem(BaseModel):
     id: Optional[int] = None
     name: str
@@ -55,10 +61,14 @@ class RepairPlanDetailItem(BaseModel):
     type: RepairType = None
     garage_price: float = None
     suggested_price: float = None
+    approved_price: float = None
     discount_percentage: float = None
     depreciation_percentage: int = None
     incident_no: int = None
     solution: Optional[str] = None
+    state: Status = None
+    is_edit: bool
+    rejection_reasons: List[RejectionReason] = []
 
 
 class RepairPlanApprovalRequest(BaseModel):
