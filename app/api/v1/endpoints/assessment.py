@@ -584,7 +584,7 @@ async def done_assessment(
     )
 
     return {
-        "id": int(response.get('repair_plan_id')),
+        "id": int(response.get('repair_plan_id')) if response.get('repair_plan_id') else False,
         "status": "Success"
     }
     
