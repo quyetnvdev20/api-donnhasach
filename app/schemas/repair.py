@@ -64,7 +64,7 @@ class RepairPlanDetailItem(BaseModel):
     approved_price: float = None
     discount_percentage: float = None
     state: Status = None
-    is_edit: bool
+    is_edit: bool = None
     rejection_reasons: List[RejectionReason] = []
 
 
