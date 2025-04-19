@@ -252,8 +252,12 @@ async def get_repair_plan_awaiting_list(
             state_conditions.append(f"a.state = %(status)s")
             params["status"] = 'rejected'
 
-        if 'to_do' not in state_list and 'rejected' not in state_list:
-            query += " AND (a.state IN ('new', 'rejected'))"
+        if 'approved' in state_list:
+            state_conditions.append(f"a.state = %(status)s")
+            params["status"] = 'approved'
+
+        if 'to_do' not in state_list and 'rejected' not in state_list and 'approved' not in state_list:
+            query += " AND (a.state IN ('new', 'rejected', 'approved'))"
         
         if state_conditions:
             query += " AND (" + " OR ".join(state_conditions) + ")"
