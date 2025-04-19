@@ -59,17 +59,22 @@ async def get_model_id(brand_id: int, model: str):
 # get id of garage
 async def get_garage_id(garage_code: str):
     query = """
-    select rpg.id
+    select 
+        rpg.id,
+        CASE 
+            WHEN rpg.gara_line = 'genuine' THEN 'authorized'
+            ELSE 'non_authorized'
+        END as garage_type
     from res_partner_gara rpg 
         left join res_partner rp on rp.id = rpg.partner_id
     where rp.code = $1
     limit 1
     """
-    garage_id = await PostgresDB.execute_query(query, [garage_code])
-    if not garage_id:
-        return None
+    garage_data = await PostgresDB.execute_query(query, [garage_code])
+    if not garage_data:
+        return None, 'non_authorized'
     
-    return garage_id[0]['id']
+    return garage_data[0]['id'], garage_data[0]['garage_type']
 
 
 # get id of province
@@ -109,31 +114,83 @@ async def get_province_id(province_code: str=None, province_name: str=None):
     
     return None
 
-async def get_pricelist_id(garage_id: int, region_id: int):
-    query = """
-    SELECT id, name FROM price_list 
-    WHERE active = true
+async def get_pricelist_id(garage_id: int, region_id: int, car_brand_id: int = None, garage_type: str = 'non_authorized'):
     """
-    params = []
-    param_index = 1
+    Tìm bảng giá theo quy tắc:
+    1. Nếu có garage_id, tìm theo garage_id
+    2. Nếu không tìm thấy, tìm theo authorized + region_id
+    3. Nếu không tìm thấy, tìm theo non_authorized + region_id
+    4. Nếu không tìm thấy, tìm theo authorized + car_brand_id
     
-    if garage_id:
-        query += f" AND garage_id = ${param_index}"
-        params.append(garage_id)
-        param_index += 1
-    
-    if region_id:
-        query += f" AND region_id = ${param_index}"
-        params.append(region_id)
+    Args:
+        garage_id: ID của garage
+        region_id: ID của khu vực
+        car_brand_id: ID của hãng xe
+        garage_type: Loại garage (authorized/non_authorized)
         
-    if not garage_id and not region_id:
-        return None
+    Returns:
+        Thông tin bảng giá hoặc None nếu không tìm thấy
+    """
+    # Bước 1: Tìm bảng giá theo garage_id (không quan tâm đến garage_type)
+    if garage_id:
+        query = """
+        SELECT id, name FROM price_list 
+        WHERE active = true AND garage_id = $1
+        LIMIT 1
+        """
+        pricelist = await PostgresDB.execute_query(query, [garage_id])
+        if pricelist and len(pricelist) > 0:
+            return pricelist[0]
     
-    pricelist_id = await PostgresDB.execute_query(query, params)
-    if not pricelist_id:
-        return None
+    # Không tìm thấy bảng giá theo garage_id, tiếp tục tìm theo region_id
+    if region_id:
+        # Bước 2: Tìm bảng giá theo region_id + garage_type
+        query = """
+        SELECT id, name FROM price_list 
+        WHERE active = true 
+        AND region_id = $1
+        AND garage_type = $2
+        LIMIT 1
+        """
+        pricelist = await PostgresDB.execute_query(query, [region_id, garage_type])
+        if pricelist and len(pricelist) > 0:
+            return pricelist[0]
+            
+        # Bước 3: Nếu không tìm thấy với garage_type hiện tại, thử với loại garage khác
+        fallback_garage_type = 'authorized' if garage_type == 'non_authorized' else 'non_authorized'
+        query = """
+        SELECT id, name FROM price_list 
+        WHERE active = true 
+        AND region_id = $1
+        AND garage_type = $2
+        LIMIT 1
+        """
+        pricelist = await PostgresDB.execute_query(query, [region_id, fallback_garage_type])
+        if pricelist and len(pricelist) > 0:
+            return pricelist[0]
     
-    return pricelist_id[0]
+    
+    # Bước 4: Tìm bảng giá theo car_brand_id + garage_type
+    if car_brand_id is not None:  # Đảm bảo car_brand_id không phải None
+        try:
+            # Chuyển đổi car_brand_id thành int nếu cần thiết
+            brand_id = int(car_brand_id)
+            
+            query = """
+            SELECT id, name FROM price_list 
+            WHERE active = true 
+            AND car_brand_id = $1
+            AND garage_type = $2
+            LIMIT 1
+            """
+            pricelist = await PostgresDB.execute_query(query, [brand_id, garage_type])
+            if pricelist and len(pricelist) > 0:
+                return pricelist[0]
+        except (ValueError, TypeError):
+            # Nếu car_brand_id không thể chuyển đổi thành int, bỏ qua bước này
+            pass
+    
+    return None
 
 
 async def get_item_id(item_code: str, item_name: str):
@@ -364,9 +421,7 @@ async def search_prices(
     # Tìm bảng giá đúng
     garage_id = None
     region_id = None
-    # Tìm bảng giá theo garage trước
-    garage_id = await get_garage_id(request.garage.code)
-    pricelist = await get_pricelist_id(garage_id, region_id)
+    garage_type = 'non_authorized'
     
     # Tìm id hạng mục chuẩn hệ thống
     item = await get_item_id(request.part.code, request.part.name)
@@ -383,6 +438,15 @@ async def search_prices(
                 "name": item_name
             }
         )
+    
+    # Tìm giá
+    # Tìm id brand và model
+    brand_id = await get_brand_id(request.car.brand)
+    model_id = await get_model_id(brand_id, request.car.model)
+    
+    # Tìm bảng giá theo garage trước
+    garage_id, garage_type = await get_garage_id(request.garage.code)
+    pricelist = await get_pricelist_id(garage_id, region_id, brand_id, garage_type)
         
     # Nếu không tìm thấy bảng giá theo garage, tìm bảng giá theo khu vực
     if not pricelist:
@@ -391,7 +455,7 @@ async def search_prices(
         province = await get_province_id(request.province.code, request.province.name)
         if province:
             region_id = province['region_id']
-            pricelist = await get_pricelist_id(garage_id, region_id)
+            pricelist = await get_pricelist_id(garage_id, region_id, brand_id, garage_type)
     
     
     # Nếu không tìm thấy bảng giá, trả về kết quả rỗng
@@ -407,11 +471,6 @@ async def search_prices(
     
     pricelist_id = pricelist['id']
     pricelist_name = pricelist['name']
-    
-    # Tìm giá
-    # Tìm id model
-    brand_id = await get_brand_id(request.car.brand)
-    model_id = await get_model_id(brand_id, request.car.model)
     
     # Tìm id nhóm dòng xe
     car_category_id = await get_car_category_id(model_id, pricelist_id)
@@ -475,10 +534,14 @@ async def get_data_auto_claim_price(repair_id: int):
         partner_gara.code as garage_code, 
         partner_gara.name as garage_name, 
         province.code as province_code, 
-        province.name as province_name
+        province.name as province_name,
+        CASE 
+            WHEN rpg.gara_line = 'genuine' THEN 'authorized'
+            ELSE 'non_authorized'
+        END as garage_type
     FROM 
         insurance_claim_solution_repair repair
-        left join res_partner_gara rpg on  repair.gara_partner_id = rpg.id
+        left join res_partner_gara rpg on repair.gara_partner_id = rpg.id
         left join res_partner partner_gara on partner_gara.id = rpg.partner_id
         left join res_province province on province.id = repair.gara_province_id
         left join res_car rc on rc.id = repair.car_id
