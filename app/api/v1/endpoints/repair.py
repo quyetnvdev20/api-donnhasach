@@ -442,6 +442,7 @@ async def get_repair_plan_awaiting_detail(
             "code": "LABEL001",
             "color_code": "#f5222d"
         },
+        "is_edit": True if res.get('repair_state') in ['new', 'rejected'] else False,
         "insur_claim_id": int(res.get('insur_claim_id')) if res.get('insur_claim_id') else None
     }
 
