@@ -13,8 +13,9 @@ import re
 from openai import AsyncOpenAI
 from ....utils.erp_db import PostgresDB
 from ....utils.odoo import UserError
-from ..endpoints.auto_claim_price import search_prices
-from ....schemas.auto_claim_price import AutoClaimPriceRequest, PriceType, CarObject, PartObject, GarageObject, ProvinceObject
+# Tạm thời ẩn import từ kho giá
+# from ..endpoints.auto_claim_price import search_prices
+# from ....schemas.auto_claim_price import AutoClaimPriceRequest, PriceType, CarObject, PartObject, GarageObject, ProvinceObject
 
 logger = logging.getLogger(__name__)
 
@@ -141,30 +142,31 @@ async def get_data_auto_claim_price(repair_id: int):
         return data[0]
     return None
 
-# Hàm helper để chuẩn bị request tìm kiếm giá
-async def get_price_for_item(category_code: str, category_name: str, category_type_code: str, 
-                             brand: str, model: str, province_code: str, 
-                             province_name: str, garage_code: str, garage_name: str) -> Optional[float]:
-    try:
-        if not (category_code and brand and model and (garage_code or province_name)):
-            return None
-            
-        price_request = AutoClaimPriceRequest(
-            car=CarObject(brand=brand, model=model),
-            part=PartObject(code=category_code, name=category_name),
-            type=category_type_code or 'parts',
-            province=ProvinceObject(code=province_code or "", name=province_name or ""),
-            garage=GarageObject(code=garage_code or "", name=garage_name or "")
-        )
-        
-        price_response = await search_prices(price_request)
-        if price_response and price_response.price:
-            return price_response.price
-            
-        return None
-    except Exception as e:
-        logger.error(f"Error getting price for item {category_code}: {str(e)}")
-        return None
+# Tạm thời ẩn hàm tìm kiếm giá
+# # Hàm helper để chuẩn bị request tìm kiếm giá
+# async def get_price_for_item(category_code: str, category_name: str, category_type_code: str, 
+#                              brand: str, model: str, province_code: str, 
+#                              province_name: str, garage_code: str, garage_name: str) -> Optional[float]:
+#     try:
+#         if not (category_code and brand and model and (garage_code or province_name)):
+#             return None
+#             
+#         price_request = AutoClaimPriceRequest(
+#             car=CarObject(brand=brand, model=model),
+#             part=PartObject(code=category_code, name=category_name),
+#             type=category_type_code or 'parts',
+#             province=ProvinceObject(code=province_code or "", name=province_name or ""),
+#             garage=GarageObject(code=garage_code or "", name=garage_name or "")
+#         )
+#         
+#         price_response = await search_prices(price_request)
+#         if price_response and price_response.price:
+#             return price_response.price
+#             
+#         return None
+#     except Exception as e:
+#         logger.error(f"Error getting price for item {category_code}: {str(e)}")
+#         return None
 
 @router.get("/ocr-quote",
             response_model=OCRQuoteResponse,
@@ -225,7 +227,6 @@ async def get_ocr_quote(
     result_data = []
     item_names = []
     line_data = []
-    processed_items = []  # List để lưu các item đã xử lý và cần tìm giá
     
     if ocr_quote_data.get('data') and len(ocr_quote_data.get('data')):
         # Trước tiên, thu thập tất cả các tên hạng mục và dữ liệu tương ứng
@@ -261,10 +262,11 @@ async def get_ocr_quote(
             category_types = await process_items_batch_with_gpt(item_names)
             logger.info(f"Processed {len(category_types)} items with GPT")
             
-            # Chuẩn bị list các yêu cầu tìm kiếm giá để gọi bất đồng bộ
-            can_search_price = brand and model and (garage_code or province_name)
-            price_tasks = []
-            item_indices = []  # Danh sách chỉ mục item cần lấy giá
+            # Tạm thời ẩn việc tìm kiếm giá
+            # # Chuẩn bị list các yêu cầu tìm kiếm giá để gọi bất đồng bộ
+            # can_search_price = brand and model and (garage_code or province_name)
+            # price_tasks = []
+            # item_indices = []  # Danh sách chỉ mục item cần lấy giá
             
             # Trước tiên, tạo các item kết quả và thu thập các yêu cầu tìm kiếm giá
             for i, data in enumerate(line_data):
@@ -299,41 +301,43 @@ async def get_ocr_quote(
                     'item': category,
                     'discount_percentage': discount,
                     'type': category_type,
-                    'suggestion_price': None
+                    'suggestion_price': 0  # Mặc định là 0 thay vì None
                 }
                 
                 result_data.append(item_data)
                 
-                # Nếu có thể tìm kiếm giá và có mã danh mục, thêm vào danh sách các yêu cầu
-                if can_search_price and category.get('code'):
-                    price_tasks.append(get_price_for_item(
-                        category_code=category.get('code'),
-                        category_name=category.get('name'),
-                        category_type_code=category_type.get('code', 'parts'),
-                        brand=brand,
-                        model=model,
-                        province_code=province_code,
-                        province_name=province_name,
-                        garage_code=garage_code,
-                        garage_name=garage_name
-                    ))
-                    item_indices.append(i)  # Lưu lại chỉ mục để cập nhật kết quả sau
+                # Tạm thời ẩn phần tìm kiếm giá
+                # # Nếu có thể tìm kiếm giá và có mã danh mục, thêm vào danh sách các yêu cầu
+                # if can_search_price and category.get('code'):
+                #     price_tasks.append(get_price_for_item(
+                #         category_code=category.get('code'),
+                #         category_name=category.get('name'),
+                #         category_type_code=category_type.get('code', 'parts'),
+                #         brand=brand,
+                #         model=model,
+                #         province_code=province_code,
+                #         province_name=province_name,
+                #         garage_code=garage_code,
+                #         garage_name=garage_name
+                #     ))
+                #     item_indices.append(i)  # Lưu lại chỉ mục để cập nhật kết quả sau
             
-            # Thực hiện tất cả các yêu cầu tìm kiếm giá cùng một lúc
-            if price_tasks:
-                try:
-                    # Thực hiện tất cả các tác vụ tìm kiếm giá cùng một lúc
-                    price_results = await asyncio.gather(*price_tasks, return_exceptions=True)
-                    
-                    # Cập nhật kết quả tìm kiếm giá vào các mục kết quả
-                    for idx, price in zip(item_indices, price_results):
-                        if isinstance(price, Exception):
-                            logger.error(f"Error in price task: {str(price)}")
-                            continue
-                        if price is not None:
-                            result_data[idx]['suggestion_price'] = price
-                except Exception as e:
-                    logger.error(f"Error in batch price fetching: {str(e)}")
+            # Tạm thời ẩn phần tìm kiếm giá
+            # # Thực hiện tất cả các yêu cầu tìm kiếm giá cùng một lúc
+            # if price_tasks:
+            #     try:
+            #         # Thực hiện tất cả các tác vụ tìm kiếm giá cùng một lúc
+            #         price_results = await asyncio.gather(*price_tasks, return_exceptions=True)
+            #         
+            #         # Cập nhật kết quả tìm kiếm giá vào các mục kết quả
+            #         for idx, price in zip(item_indices, price_results):
+            #             if isinstance(price, Exception):
+            #                 logger.error(f"Error in price task: {str(price)}")
+            #                 continue
+            #             if price is not None:
+            #                 result_data[idx]['suggestion_price'] = price
+            #     except Exception as e:
+            #         logger.error(f"Error in batch price fetching: {str(e)}")
 
     if not result_data or not len(result_data):
         raise UserError("Không tìm thấy dữ liệu")
