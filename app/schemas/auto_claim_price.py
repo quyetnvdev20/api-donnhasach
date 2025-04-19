@@ -29,11 +29,11 @@ class ProvinceObject(BaseModel):
     name: Optional[str] = None
 
 class AutoClaimPriceRequest(BaseModel):
-    car: CarObject
-    part: PartObject
-    type: PriceType
-    province: ProvinceObject
-    garage: GarageObject
+    car: CarObject = None
+    part: PartObject = None
+    type: PriceType = None
+    province: ProvinceObject = None
+    garage: GarageObject = None
 
 class AutoClaimPriceResponse(BaseModel):
     pricelist: Optional[str] = None
