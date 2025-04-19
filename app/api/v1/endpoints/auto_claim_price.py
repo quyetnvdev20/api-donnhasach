@@ -157,7 +157,22 @@ async def get_item_id(item_code: str, item_name: str):
     return item[0]
 
 
-async def get_item_category_id(item_code: str, item_name: str):
+async def get_item_category_id(item_code: str, item_name: str, pricelist_id: int = None):
+    """
+    Lấy id nhóm hạng mục từ mã hoặc tên hạng mục.
+    Nếu có nhiều nhóm hạng mục và pricelist_id được cung cấp,
+    thực hiện lookup để tìm item_category_id đầu tiên có giá trong bảng giá.
+    
+    Args:
+        item_code: Mã hạng mục
+        item_name: Tên hạng mục
+        pricelist_id: ID của bảng giá để lookup (nếu có)
+        
+    Returns:
+        ID của nhóm hạng mục, hoặc None nếu không tìm thấy
+    """
+    result = None
+    
     if item_code:
         query = """
         select distinct ic.id
@@ -166,13 +181,9 @@ async def get_item_category_id(item_code: str, item_name: str):
         left join insurance_claim_list_category iclc on icir.insurance_category_id = iclc.id
         where iclc.code = $1
         """
-        item_category_id = await PostgresDB.execute_query(query, [item_code])
-        if not item_category_id:
-            return None
-        
-        return item_category_id[0]['id']
+        result = await PostgresDB.execute_query(query, [item_code])
     
-    if item_name:
+    if not result and item_name:
         query = """
         select distinct ic.id
         from item_category ic 
@@ -180,24 +191,77 @@ async def get_item_category_id(item_code: str, item_name: str):
         left join insurance_claim_list_category iclc on icir.insurance_category_id = iclc.id
         where iclc.name = $1
         """
-        item_category_id = await PostgresDB.execute_query(query, [item_name])
-        if not item_category_id:
-            return None
-        
-        return item_category_id[0]['id']
+        result = await PostgresDB.execute_query(query, [item_name])
     
-    return None
+    if not result:
+        return None
+    
+    # Nếu không cần lookup hoặc chỉ có 1 kết quả
+    if len(result) == 1 or pricelist_id is None:
+        return result[0]['id']
+    
+    # Nếu có nhiều kết quả và có pricelist_id, thực hiện lookup
+    for row in result:
+        item_category_id = row['id']
+        
+        # Kiểm tra xem có dòng giá nào cho item_category_id này không
+        check_query = """
+        select count(*) as count from price_list_line 
+        where pricelist_id = $1 and item_category_id = $2
+        """
+        check_result = await PostgresDB.execute_query(check_query, [pricelist_id, item_category_id])
+        
+        if check_result and check_result[0]['count'] > 0:
+            # Nếu tìm thấy bản ghi trong bảng giá với item_category_id này, trả về nó
+            return item_category_id
+    
+    # Nếu không tìm thấy item_category_id nào có trong bảng giá, trả về item_category_id đầu tiên
+    return result[0]['id']
 
 
-async def get_car_category_id(model_id: int):
+async def get_car_category_id(model_id: int, pricelist_id: int = None):
+    """
+    Lấy id nhóm dòng xe từ model_id.
+    Nếu có nhiều nhóm dòng xe và pricelist_id được cung cấp, 
+    thực hiện lookup để tìm car_category_id đầu tiên có giá trong bảng giá.
+    
+    Args:
+        model_id: ID của model xe
+        pricelist_id: ID của bảng giá để lookup (nếu có)
+        
+    Returns:
+        ID của nhóm dòng xe, hoặc None nếu không tìm thấy
+    """
     query = """
     select car_category_id from car_category_res_car_model_rel ccrcmr where res_car_model_id = $1
     """
-    car_category_id = await PostgresDB.execute_query(query, [model_id])
-    if not car_category_id:
+    result = await PostgresDB.execute_query(query, [model_id])
+    
+    # Nếu không tìm thấy hoặc chỉ có một kết quả
+    if not result:
         return None
     
-    return car_category_id[0]['car_category_id']
+    # Nếu không cần lookup hoặc chỉ có 1 kết quả
+    if len(result) == 1 or pricelist_id is None:
+        return result[0]['car_category_id']
+    
+    # Nếu có nhiều kết quả và có pricelist_id, thực hiện lookup
+    for row in result:
+        car_category_id = row['car_category_id']
+        
+        # Kiểm tra xem có dòng giá nào cho car_category_id này không
+        check_query = """
+        select count(*) as count from price_list_line 
+        where pricelist_id = $1 and car_category_id = $2
+        """
+        check_result = await PostgresDB.execute_query(check_query, [pricelist_id, car_category_id])
+        
+        if check_result and check_result[0]['count'] > 0:
+            # Nếu tìm thấy bản ghi trong bảng giá với car_category_id này, trả về nó
+            return car_category_id
+    
+    # Nếu không tìm thấy car_category_id nào có trong bảng giá, trả về car_category_id đầu tiên
+    return result[0]['car_category_id']
 
 
 async def get_price(pricelist_id: int, 
@@ -350,10 +414,10 @@ async def search_prices(
     model_id = await get_model_id(brand_id, request.car.model)
     
     # Tìm id nhóm dòng xe
-    car_category_id = await get_car_category_id(model_id)
+    car_category_id = await get_car_category_id(model_id, pricelist_id)
     
     # Tìm id nhóm hạng mục chuẩn hệ thống
-    item_category_id = await get_item_category_id(item_code, item_name)
+    item_category_id = await get_item_category_id(item_code, item_name, pricelist_id)
 
     # Tìm giá theo các cách khác nhau, từ chi tiết nhất đến ít chi tiết nhất
     # Cách 1: Tìm giá dựa vào pricelist_id, item_id, model_id và price_type
