@@ -178,7 +178,7 @@ class RepairCategoryAppraisal(BaseModel):
     name: str = None
     code: str = None
     solution: str = None
-
+    color_code: str = None
 
 class RepairCategoryResponse(BaseModel):
     data: List[RepairCategoryAppraisal] = []
