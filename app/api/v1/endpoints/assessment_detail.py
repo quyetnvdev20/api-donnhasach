@@ -37,7 +37,7 @@ async def get_vehicle_detail_assessment(
             iclc.name as category_name,
             ica.status,
             isc.name as status_name,
-            ica.solution as solution_code,
+            ica.proposal_code as solution_code,
             to_char(ica.date, 'dd/mm/YYYY') as date,
             ica.state           
         FROM insurance_claim_attachment_category ica
