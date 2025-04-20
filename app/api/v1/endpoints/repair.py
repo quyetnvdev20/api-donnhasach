@@ -448,8 +448,8 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
             line.discount as discount_percentage,
             case 
                 when line.price_paint_propose > 0 then line.price_paint_propose 
-                when line.price_paint_propose > 0 then line.price_paint_propose
-                when line.price_paint_propose > 0 then line.price_paint_propose
+                when line.price_replace_propose > 0 then line.price_replace_propose
+                when line.price_labor_propose > 0 then line.price_labor_propose
                 else 0 end as suggested_price,
             case
                 when line.price_paint > 0 then line.price_paint
@@ -458,8 +458,8 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
                 else 0 end as approved_price,
             case 
                 when line.price_paint_propose > 0 then 'paint'
-                when line.price_paint_propose > 0 then 'labor'
-                when line.price_paint_propose > 0 then 'parts'
+                when line.price_labor_propose > 0 then 'labor'
+                when line.price_replace_propose > 0 then 'parts'
                 else '' end as category_type,
             line.state as state,
             rr.reasons
