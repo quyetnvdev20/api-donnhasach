@@ -177,7 +177,7 @@ class RepairCategoryAppraisal(BaseModel):
     id: Optional[int]
     name: str = None
     code: str = None
-    solution: str = None
+    solution: Optional[str] = None
     color_code: str = None
 
 class RepairCategoryResponse(BaseModel):
