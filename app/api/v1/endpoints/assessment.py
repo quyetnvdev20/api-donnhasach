@@ -29,6 +29,7 @@ color = {
 
 STATE_COLOR = {
     "wait": ("#2196F3", "Đang xử lý"),
+    "wait_approval": ("#faad14", "Chờ duyệt BBGĐ"),
     "done": ("#4CAF50", "Đã xử lý"),
     "cancel": ("#212121", "Đã hủy")
 }
