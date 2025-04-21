@@ -149,6 +149,8 @@ async def get_and_update_repair_line(repair_id: int):
         )
         if not response:
             logger.warning(f"Failed to update repair line {line['id']}")
+            
+        logger.info(f"Updated repair line {line['id']} with suggestion price {line['suggestion_price']}")
     
     return True
     
