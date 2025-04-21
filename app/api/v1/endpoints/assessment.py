@@ -390,7 +390,7 @@ async def get_assessment_detail(
                 crp.name AS assigned_to,
                 contract_image.ca_url as list_image_contract,
                 case
-                    when count_pasc.is_pasc is false and gd_chi_tiet.state = 'done' then true
+                    when count_pasc.is_pasc is null and gd_chi_tiet.state = 'done' then true
                     else false
                 end as is_button_pasc
             FROM insurance_claim_appraisal_detail gd_chi_tiet
