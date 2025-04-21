@@ -40,19 +40,35 @@ class SuggestionPricelistProcessor:
         asyncio.set_event_loop(self.loop)
 
     async def process_message(self, message: aio_pika.IncomingMessage):
-        try:
-            body = json.loads(message.body.decode())
-            logger.info(f"Processing message: {body}")
+        async with message.process():
+            try:
+                body = json.loads(message.body.decode())
+                logger.info(f"Processing message: {body}")
 
-            body_data = body.get('kwargs')
-            type = body_data.get('event_type', '')
-            if type == 'GET_SUGGESTION_PRICELIST':
-                data = await get_and_update_repair_line(body_data.get('metadata', {}).get('record_id'))
-                logger.info(f"data {data}")
-
-        except Exception as e:
-            logger.error(f"Error processing message: {str(e)}", exc_info=True)
-            raise
+                body_data = body.get('kwargs')
+                type = body_data.get('event_type', '')
+                if type == 'GET_SUGGESTION_PRICELIST':
+                    record_id = body_data.get('metadata', {}).get('record_id')
+                    logger.info(f"Processing record ID: {record_id}")
+                    
+                    # Xử lý dữ liệu và cập nhật lên Odoo
+                    result = await get_and_update_repair_line(record_id)
+                    
+                    if result:
+                        logger.info(f"Successfully updated repair line for record_id {record_id}")
+                    else:
+                        logger.warning(f"Failed to update repair line for record_id {record_id}")
+                else:
+                    logger.warning(f"Unknown event type: {type}")
+                
+                # Message đã được xử lý trong context manager async with message.process()
+                # nên không cần gọi message.ack() ở đây
+                
+            except Exception as e:
+                logger.error(f"Error processing message: {str(e)}", exc_info=True)
+                # Trong trường hợp lỗi, tin nhắn vẫn sẽ được nack tự động bởi context manager
+                # và sẽ được đưa trở lại vào queue để xử lý sau
+                raise
 
     @retry(
         stop=stop_after_attempt(5),
@@ -72,6 +88,9 @@ class SuggestionPricelistProcessor:
         # Connect to RabbitMQ with retry
         connection = await self.connect_to_rabbitmq()
         channel = await connection.channel()
+        
+        # Giới hạn số lượng tin nhắn xử lý đồng thời
+        await channel.set_qos(prefetch_count=1)
 
         # Declare exchange and queue
         exchange = await channel.declare_exchange(
