@@ -153,6 +153,9 @@ async def get_assessment_list(
         has_remote = 'remote_inspection' in status_lst
         has_wait = 'wait' in status_lst
 
+        if has_wait:
+            status_lst.append('wait_approval')
+
         if has_remote or has_wait:
             if has_remote:
                 status_lst.remove('remote_inspection')
