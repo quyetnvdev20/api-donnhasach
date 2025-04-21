@@ -99,7 +99,7 @@ async def get_suggestion_price_with_repair(repair_id: int):
             category_name = line.get('category_name', None)
             category_type = line.get('type', None)
 
-            logger.warning(f"category_code: {category_code}, brand: {brand}, model: {model}")
+            logger.warning(f"category_code: {category_code}, brand: {brand}, model: {model}, type: {category_type}")
 
             if not category_code or not brand or not model:
                 logger.warning(f"Missing required data for item: {category_name}")
@@ -140,19 +140,16 @@ async def get_and_update_repair_line(repair_id: int):
     if not lines:
         logger.warning(f"No lines found for repair_id {repair_id}")
         return {"line_ids": []}
-        
-    vals = {
-        'line_ids': [(1, line['id'], {'suggestion_price': line['suggestion_price']}) for line in lines]
-    }
     
-    logger.info(f"Updating repair lines with values: {vals}")
-    response = await odoo.update_method(
-        model='insurance.claim.solution.repair',
-        record_id=repair_id,
-        vals=vals
-    )
-    if response:
-        return True
-    return False
+    for line in lines:
+        response = await odoo.update_method(
+            model='insurance.claim.solution.repair.line',
+            record_id=line['id'],
+            vals={'suggestion_price': line['suggestion_price']}
+        )
+        if not response:
+            logger.warning(f"Failed to update repair line {line['id']}")
+    
+    return True
     
     
