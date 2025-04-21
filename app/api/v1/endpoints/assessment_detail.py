@@ -62,7 +62,8 @@ async def get_vehicle_detail_assessment(
         SELECT 
             log.id,
             log.reason,
-            to_char(log.date, 'dd/mm/YYYY hh:mm:ss') as date
+            to_char(log.date, 'dd/mm/YYYY hh:mm:ss') as date,
+            log.category_attachment_id
         FROM insurance_claim_history_log log
         WHERE log.category_attachment_id IN (SELECT id FROM category_data) and log.state = 'cancel'
     )   
@@ -94,7 +95,7 @@ async def get_vehicle_detail_assessment(
         ) FILTER (WHERE rr.id IS NOT NULL) as rejection_reasons
     FROM category_data cd
     LEFT JOIN image_data id ON cd.id = id.category_id
-    LEFT JOIN rejection_reasons rr ON cd.id = rr.id
+    LEFT JOIN rejection_reasons rr ON cd.id = rr.category_attachment_id
     GROUP BY cd.id, cd.category_id, cd.category_name, cd.status, cd.status_name, cd.solution_code, cd.date, cd.state
     """
 

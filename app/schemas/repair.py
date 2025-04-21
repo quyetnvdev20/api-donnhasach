@@ -70,6 +70,7 @@ class RepairPlanDetailItem(BaseModel):
     state: Status = None
     is_edit: bool = None
     rejection_reasons: List[RejectionReason] = []
+    suggestion_price: float = None
 
 
 class RepairPlanApprovalRequest(BaseModel):
