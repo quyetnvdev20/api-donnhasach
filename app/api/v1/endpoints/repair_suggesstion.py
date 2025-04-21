@@ -128,7 +128,7 @@ async def get_suggestion_price_with_repair(repair_id: int):
 
         except Exception as e:
             logger.error(f"Error getting suggestion price for item: {str(e)}")
-            line['suggestion_price'] = 1
+            line['suggestion_price'] = 0
             continue
 
     return lines
