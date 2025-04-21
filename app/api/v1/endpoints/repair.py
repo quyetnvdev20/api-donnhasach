@@ -12,7 +12,8 @@ import logging
 import asyncio
 import json
 from ....utils.erp_db import PostgresDB
-
+from ..endpoints.auto_claim_price import search_prices
+from ....schemas.auto_claim_price import AutoClaimPriceRequest, CarObject, PartObject, GarageObject, ProvinceObject
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -37,6 +38,88 @@ STATE_PLAN_LINE_COLOR = {
 }
 
 
+async def get_data_auto_claim_price(repair_id: int):
+    query = """
+    SELECT 
+        repair.id, 
+        rcb.name as brand, 
+        rcm.name as model, 
+        partner_gara.code as garage_code, 
+        partner_gara.name as garage_name, 
+        province.code as province_code, 
+        province.name as province_name
+    FROM 
+        insurance_claim_solution_repair repair
+        left join res_partner_gara rpg on  repair.gara_partner_id = rpg.id
+        left join res_partner partner_gara on partner_gara.id = rpg.partner_id
+        left join res_province province on province.id = repair.gara_province_id
+        left join res_car rc on rc.id = repair.car_id
+        left join res_car_brand rcb on rcb.id = rc.car_brand_id
+        left join res_car_model rcm on rcm.id = rc.car_model_id
+    where repair.id = $1
+    limit 1
+    """
+    data = await PostgresDB.execute_query(query, [repair_id])
+    if data:
+        return data[0]
+    return None
+
+
+async def get_suggestion_price_with_repair(repair_id: int, repair_plan: RepairPlanApprovalRequest):
+
+    data_auto_claim_price = await get_data_auto_claim_price(repair_id)
+
+    # Lấy dữ liệu từ bảng insurance_claim_solution_repair
+    brand = data_auto_claim_price.get('brand') if data_auto_claim_price else None
+    model = data_auto_claim_price.get('model') if data_auto_claim_price else None
+    province_code = data_auto_claim_price.get('province_code') if data_auto_claim_price else None
+    province_name = data_auto_claim_price.get('province_name') if data_auto_claim_price else None
+    garage_code = data_auto_claim_price.get('garage_code') if data_auto_claim_price else None
+    garage_name = data_auto_claim_price.get('garage_name') if data_auto_claim_price else None
+
+    # Lấy danh sách các hạng mục cần sửa chữa
+    repair_plan_details = repair_plan.repair_plan_details
+
+    # Gọi api dữ liệu từ kho giá auto_claim_price
+    for item in repair_plan_details:
+        try:
+            category_code = item.item.code if hasattr(item.item, 'code') else None
+            category_name = item.item.name if hasattr(item.item, 'name') else None
+            category_type = item.type.code if hasattr(item.type, 'code') else 'paint'
+
+            if not category_code or not brand or not model:
+                logger.warning(f"Missing required data for item: {category_name}")
+                continue
+
+            # Tạo đối tượng AutoClaimPriceRequest thay vì dict
+            price_request = AutoClaimPriceRequest(
+                car=CarObject(brand=brand, model=model),
+                part=PartObject(code=category_code, name=category_name),
+                type=category_type,
+                province=ProvinceObject(code=province_code or "", name=province_name or ""),
+                garage=GarageObject(code=garage_code or "", name=garage_name or "")
+            )
+
+            # Gọi hàm search_prices với đối tượng AutoClaimPriceRequest
+            price_response = await search_prices(price_request)
+
+            # Lấy giá từ response và cập nhật vào item
+            if price_response is None:
+                item.suggestion_price = 0
+            elif hasattr(price_response, 'price') and price_response.price is not None:
+                item.suggestion_price = price_response.price
+            else:
+                item.suggestion_price = 0
+                logger.warning(f"No price found for item: {category_name}")
+
+        except Exception as e:
+            logger.error(f"Error getting suggestion price for item: {str(e)}")
+            item.suggestion_price = 0
+            continue
+
+    return repair_plan
+
+
 @router.put("/{repair_id}/submit-repair-plan-approval",
             response_model=RepairPlanApprovalResponse,
             status_code=status.HTTP_200_OK)
@@ -46,6 +129,13 @@ async def submit_repair_plan_approval(
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ) -> dict[str, int]:
+
+    # Lấy thông tin giá gợi ý cho từng hạng mục trong repair_plan
+    repair_plan = await get_suggestion_price_with_repair(repair_id, repair_plan)
+
+    print(repair_plan)
+
+    # Gửi repair_plan đã cập nhật đến Odoo
     response = await odoo.call_method_post(
         record_id=repair_id,
         model='insurance.claim.solution.repair',
@@ -53,6 +143,7 @@ async def submit_repair_plan_approval(
         token=current_user.odoo_token,
         kwargs=repair_plan.model_dump()
     )
+
     if response.get("status_code") == status.HTTP_200_OK:
         return {'id': response.get("data")}
     else:
@@ -68,6 +159,10 @@ async def write_and_approve_repair_plan(
         db: Session = Depends(get_db),
         current_user: dict = Depends(get_current_user)
 ) -> dict[str, int]:
+
+    # Lấy thông tin giá gợi ý cho từng hạng mục trong repair_plan
+    repair_plan = await get_suggestion_price_with_repair(repair_id, repair_plan)
+
     response = await odoo.call_method_post(
         record_id=repair_id,
         model='insurance.claim.solution.repair',
@@ -435,7 +530,6 @@ async def get_repair_categories(
 
     return categories
 
-
 async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
     """
     Check if assessment has assessment report documents.
@@ -474,6 +568,7 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
             line.depreciation_percentage as depreciation_percentage,
             line.incident_no as incident_no,
             line.solution as solution,
+            line.suggestion_price as suggestion_price,
             case 
                 when line.price_paint_propose > 0 then line.price_paint_propose 
                 when line.price_replace_propose > 0 then line.price_replace_propose
@@ -542,7 +637,6 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
             "discount_percentage": int(detail.get('discount_percentage')),
             "depreciation_percentage": detail.get('depreciation_percentage') if detail.get('depreciation_percentage') else 0,
             "incident_no": detail.get('incident_no'),
-            "solution": detail.get('solution'),
             "state": {
                 "name": STATE_PLAN_LINE_COLOR.get(detail.get('state'))[1] if STATE_PLAN_LINE_COLOR.get(
                     detail.get('state')) else "Chờ phê duyệt",
@@ -551,7 +645,9 @@ async def get_repair_plan_line(params: list) -> List[Dict[str, Any]]:
                     detail.get('state')) else "#faad14"
             },
             "is_edit": True if detail.get('state') == 'wait_approval' else False,
-            "rejection_reasons": list_rejection_reason
+            "rejection_reasons": list_rejection_reason,
+            "solution": detail.get('solution'),
+            "suggestion_price": int(detail.get('suggestion_price')) if detail.get('suggestion_price') else 0,
         })
     return repair_plan_details
 
