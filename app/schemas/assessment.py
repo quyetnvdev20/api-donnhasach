@@ -30,6 +30,7 @@ class AssessmentListItem(BaseModel):
     status: Optional[str]
     status_color: Optional[str] = "#212121"
     new_status: Optional[State] = {}
+    tag_object: Optional[Dict[str, Any]] = {}
 
 
 class AssessmentStatus(Enum):
@@ -75,12 +76,19 @@ class Location(BaseModel):
     lon: float
 
 
+class DetailState(BaseModel):
+    code: Optional[str] = None
+    count: Optional[int] = None
+    color_code: Optional[str] = None
+
+
 class AssessmentDetail(BaseModel):
     case_number: str
     status: str
     edit_screen: bool
     enable_remote_inspection: bool
     state : State
+    is_readonly: bool
     gara_address: Optional[Location] = None
     gara_distance: Optional[float] = None
     license_plate: Optional[str] = None
@@ -105,6 +113,8 @@ class AssessmentDetail(BaseModel):
     user_request: Optional[UserRequest] = {}
     list_remote_inspection: Optional[List[RemoteInspection]] = []
     list_image_contract: Optional[List[str]] = []
+    detail_state: List[DetailState] = []
+    is_button_pasc: bool
 
 
 # Models for Vehicle Detail Assessment
@@ -157,6 +167,15 @@ class Solution(BaseModel):
     code: Optional[str] = None
     name: str
 
+class StatusCategory(BaseModel):
+    name: str
+    code: str
+    color_code: str
+
+class RejectionReason(BaseModel):
+    id: Optional[int] = None
+    reason: Optional[str] = None
+    rejection_date: Optional[str] = None
 
 # Schema for assessment item
 class AssessmentItem(BaseModel):
@@ -166,10 +185,13 @@ class AssessmentItem(BaseModel):
     solution: Solution = Solution(code='repair', name='Sửa chữa')
     listImageRemove: List[int] = None
     images: List[ImageInfo] = None
+    state_category: StatusCategory = None
+    rejection_reasons: List[RejectionReason] = []
 
 
 class VehicleDetailAssessment(BaseModel):
     items: List[AssessmentItem]
+    detail_state: List[DetailState] = []
 
 class DocumentType(BaseModel):
     id: int

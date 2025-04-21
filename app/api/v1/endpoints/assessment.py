@@ -16,7 +16,7 @@ import httpx
 import logging
 from app.config import settings, odoo
 import asyncio
-from .assessment_task_status import get_assessment_detail_status, get_collection_document_status, get_accident_notification_status, get_assessment_report_status, get_remote_inspection, get_user_request_remote_inspection
+from .assessment_task_status import get_assessment_detail_status, get_collection_document_status, get_accident_notification_status, get_assessment_report_status, get_remote_inspection, get_user_request_remote_inspection, get_detail_state
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -29,6 +29,7 @@ color = {
 
 STATE_COLOR = {
     "wait": ("#2196F3", "Đang xử lý"),
+    "wait_approval": ("#faad14", "Chờ duyệt BBGĐ"),
     "done": ("#4CAF50", "Đã xử lý"),
     "cancel": ("#212121", "Đã hủy")
 }
@@ -152,6 +153,9 @@ async def get_assessment_list(
         has_remote = 'remote_inspection' in status_lst
         has_wait = 'wait' in status_lst
 
+        if has_wait:
+            status_lst.append('wait_approval')
+
         if has_remote or has_wait:
             if has_remote:
                 status_lst.remove('remote_inspection')
@@ -220,7 +224,27 @@ async def get_assessment_list(
         LIMIT {limit} OFFSET {offset}
     """
 
-    results = await PostgresDB.execute_query(query, params)
+    latest_cancel_history_query = """
+        SELECT *
+        FROM (
+            SELECT 
+                appraisal_detail_id AS id,
+                state,
+                ROW_NUMBER() OVER (PARTITION BY appraisal_detail_id ORDER BY create_date DESC) as rn
+            FROM insurance_claim_history_log
+            WHERE appraisal_detail_id IS NOT NULL
+        )x
+        WHERE x.rn = 1
+        AND x.state = 'cancel'
+    """
+
+    results, latest_cancel_histories = await asyncio.gather(
+        PostgresDB.execute_query(query, params),
+        PostgresDB.execute_query(latest_cancel_history_query),
+    )
+
+    latest_cancel_history_by_id = {v.get('id'): v for v in latest_cancel_histories}
+
     # Tạo danh sách kết quả
     assessment_list = []
     
@@ -290,6 +314,15 @@ async def get_assessment_list(
             "code": status,
             "color_code": color_code
         }
+
+        tag_object = {}
+        if assessment_item.get('id') in latest_cancel_history_by_id:
+            tag_object = {
+                "name": "Trả lại",
+                "code": "revert",
+                "color_code":"#f5222d"
+            }
+        assessment_item['tag_object'] = tag_object
         
         assessment_list.append(assessment_item)
     
@@ -318,6 +351,17 @@ async def get_assessment_detail(
                  JOIN contract_attachment_type cat on ca.attachment_type_id = cat.id
                  WHERE ca.url ~* '\.(jpg|jpeg|png|gif|bmp|webp|jfif)$'
                  GROUP BY icp1.id
+            ),
+            count_pasc AS (
+                SELECT
+                    detailed_appraisal_id,
+                    CASE 
+                        WHEN COUNT(*) > 0 THEN TRUE
+                        ELSE FALSE
+                    END as is_pasc
+                FROM insurance_claim_solution_repair
+                WHERE detailed_appraisal_id = $1
+                GROUP BY detailed_appraisal_id
             )
             SELECT
                 gd_chi_tiet.name AS case_number,
@@ -344,7 +388,11 @@ async def get_assessment_detail(
                 icp.name AS claim_profile_name,
                 gd_chi_tiet.insur_claim_id as insur_claim_id,
                 crp.name AS assigned_to,
-                contract_image.ca_url as list_image_contract
+                contract_image.ca_url as list_image_contract,
+                case
+                    when count_pasc.is_pasc is null and gd_chi_tiet.state = 'done' then true
+                    else false
+                end as is_button_pasc
             FROM insurance_claim_appraisal_detail gd_chi_tiet
             LEFT JOIN insurance_claim_receive icr ON icr.id = gd_chi_tiet.insur_claim_id
             LEFT JOIN insurance_claim_profile icp ON icp.id = gd_chi_tiet.new_claim_profile_id
@@ -372,6 +420,7 @@ async def get_assessment_detail(
             LEFT JOIN res_province province ON province.id = icr.province_id
             LEFT JOIN res_district district ON district.id = icr.district_id
             LEFT JOIN res_ward ward ON ward.id = icr.ward_id
+            LEFT JOIN count_pasc ON count_pasc.detailed_appraisal_id = gd_chi_tiet.id
             WHERE gd_chi_tiet.id = $1 
 --             and icr.car_at_scene = false 
 --             and first_certificate.id is not null
@@ -386,7 +435,8 @@ async def get_assessment_detail(
         safe_task(get_accident_notification_status(assessment_id), name="accident_notification_status", return_if_error={}),
         safe_task(get_assessment_report_status(assessment_id), name="assessment_report_status", return_if_error={}),
         safe_task(get_remote_inspection(assessment_id, headers.invitationCode), name="remote_inspection", return_if_error=[]),
-        safe_task(get_user_request_remote_inspection(assessment_id, headers.invitationCode), name="get_user_request_remote_inspection", return_if_error={})
+        safe_task(get_user_request_remote_inspection(assessment_id, headers.invitationCode), name="get_user_request_remote_inspection", return_if_error={}),
+        safe_task(get_detail_state(assessment_id), name="get_detail_state", return_if_error={})
     )
 
     (
@@ -396,7 +446,8 @@ async def get_assessment_detail(
         accident_notification_status,
         assessment_report_status,
         remote_inspection_detail,
-        user_request
+        user_request,
+        detail_state
     ) = results
 
     if assessment_detail:
@@ -465,6 +516,8 @@ async def get_assessment_detail(
             "code": status,
             "color_code": color_code
         }
+
+        assessment_detail['is_readonly'] = True if status == 'wait_approval' else False
         assessment_detail['list_remote_inspection'] = remote_inspection_detail
         if user_request:
             assessment_detail['user_request'] = user_request
@@ -523,6 +576,21 @@ async def get_assessment_detail(
                 }
             }
         ]
+
+        
+        assessment_detail['detail_state'] = [{
+            "code": "wait_approval",
+            "count": detail_state.get('wait_approval'),
+            "color_code": "#faad14"
+        }, {
+            "code": "done",
+            "count": detail_state.get('done'),
+            "color_code": "#52c41a"
+        }, {
+            "code": "cancel",
+            "count": detail_state.get('cancel'),
+            "color_code": "#f5222d"
+        }]
     else:
         assessment_detail = None
     return assessment_detail
@@ -549,7 +617,7 @@ async def done_assessment(
     )
 
     return {
-        "id": int(response.get('repair_plan_id')),
+        "id": int(response.get('repair_plan_id')) if response.get('repair_plan_id') else 0,
         "status": "Success"
     }
     

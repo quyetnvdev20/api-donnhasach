@@ -199,3 +199,31 @@ async def get_assessment_report_status(assessment_id: int) -> Dict[str, Any]:
         return {"name": "completed"}
     else:
         return {"name": "in_progress"}
+    
+
+async def get_detail_state(assessment_id: int) -> Dict[str, Any]:
+    """
+    Get the detail state of the assessment.
+    
+    Args:
+        assessment_id: The ID of the assessment to check
+
+    Returns:
+        Dictionary with status information
+    """
+    query = """
+        select 
+            state,
+            count(*)
+        from insurance_claim_attachment_category
+        where detail_category_id = $1
+        group by state
+    """
+
+    list_state = {'wait_approval': 0, 'done': 0, 'cancel': 0}
+    res = await PostgresDB.execute_query(query, (assessment_id,))
+    if res:
+        for item in res:
+            if item.get('state') in list_state:
+                list_state[item.get('state')] = item.get('count')
+    return list_state

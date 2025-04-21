@@ -13,6 +13,12 @@ from ....utils.redis_client import redis_client
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+STATE_COLOR = {
+    "wait_approval": ("#faad14", "Chờ phê duyệt"),
+    "done": ("#52c41a", "Đã duyệt"),
+    "cancel": ("#f5222d", "Trả lại")
+}
+
 
 @router.get("/{assessment_id}/detail", response_model=VehicleDetailAssessment)
 async def get_vehicle_detail_assessment(
@@ -31,8 +37,9 @@ async def get_vehicle_detail_assessment(
             iclc.name as category_name,
             ica.status,
             isc.name as status_name,
-            ica.solution as solution_code,
-            to_char(ica.date, 'dd/mm/YYYY') as date           
+            ica.solution_proposal as solution_code,
+            to_char(ica.date, 'dd/mm/YYYY') as date,
+            ica.state           
         FROM insurance_claim_attachment_category ica
         LEFT JOIN insurance_type_document itd ON ica.type_document_id = itd.id
         LEFT JOIN insurance_state_category isc ON ica.status = isc.id
@@ -50,7 +57,15 @@ async def get_vehicle_detail_assessment(
             to_char(ica.date_upload, 'dd/mm/YYYY hh:mm:ss') as date_upload
         FROM insurance_claim_attachment ica
         WHERE ica.category_id IN (SELECT id FROM category_data)
-    )
+    ),
+    rejection_reasons AS (
+        SELECT 
+            log.id,
+            log.reason,
+            to_char(log.date, 'dd/mm/YYYY hh:mm:ss') as date
+        FROM insurance_claim_history_log log
+        WHERE log.category_attachment_id IN (SELECT id FROM category_data) and log.state = 'cancel'
+    )   
     SELECT 
         cd.id,
         cd.category_id,
@@ -59,6 +74,7 @@ async def get_vehicle_detail_assessment(
         cd.status_name,
         cd.solution_code,
         cd.date,
+        cd.state,
         json_agg(
             json_build_object(
                 'id', id.id,
@@ -68,20 +84,48 @@ async def get_vehicle_detail_assessment(
                 'long', id.long,
                 'date', id.date_upload
             )
-        ) FILTER (WHERE id.id IS NOT NULL) as images
+        ) FILTER (WHERE id.id IS NOT NULL) as images,
+        json_agg(
+            json_build_object(
+                'id', rr.id,
+                'reason', rr.reason,
+                'rejection_date', rr.date
+            )
+        ) FILTER (WHERE rr.id IS NOT NULL) as rejection_reasons
     FROM category_data cd
     LEFT JOIN image_data id ON cd.id = id.category_id
-    GROUP BY cd.id, cd.category_id, cd.category_name, cd.status, cd.status_name, cd.solution_code, cd.date
+    LEFT JOIN rejection_reasons rr ON cd.id = rr.id
+    GROUP BY cd.id, cd.category_id, cd.category_name, cd.status, cd.status_name, cd.solution_code, cd.date, cd.state
     """
 
     # Thực thi truy vấn
     results = await PostgresDB.execute_query(query, [assessment_id])
     assessment_detail = []
 
+    list_state = {'wait_approval': 0, 'done': 0, 'cancel': 0}
+
     if results:
         # Xử lý kết quả
         for item in results:
             item_id = item.get('id')
+
+            # Tính số lượng trạng thái
+            state = item.get('state')
+            if state in list_state:
+                list_state[state] += 1
+
+            # Lấy danh sách lý do trả lại
+            rejection_reasons = item.get('rejection_reasons')
+
+            list_rejection_reason = []
+
+            if rejection_reasons and rejection_reasons != '[null]':
+                # Nếu rejection_reasons đã là list, sử dụng trực tiếp
+                if isinstance(rejection_reasons, list):
+                    list_rejection_reason = rejection_reasons
+                # Nếu rejection_reasons là string JSON, parse nó
+                elif isinstance(rejection_reasons, str):
+                    list_rejection_reason = json.loads(rejection_reasons)
 
             # Lấy danh sách hình ảnh từ kết quả JSON và chuyển đổi thành list các dict
             images_json = item.get('images')
@@ -118,12 +162,32 @@ async def get_vehicle_detail_assessment(
                     'name': 'Sửa chữa' if item.get('solution_code') == 'repair' else (
                         'Thay thế' if item.get('solution_code') == 'replace' else '')
                 },
+                'state_category': {
+                    "name": STATE_COLOR.get(item.get('state'))[1] if STATE_COLOR.get(item.get('state')) else "Chờ phê duyệt",
+                    "code": item.get('state'),
+                    "color_code": STATE_COLOR.get(item.get('state'))[0] if STATE_COLOR.get(
+                        item.get('state')) else "#faad14"
+                },
+                'rejection_reasons': list_rejection_reason,
                 'images': list_image
             })
 
     return {
         "assessment_id": int(assessment_id),
-        "items": assessment_detail
+        "items": assessment_detail,
+        "detail_state": [{
+            "code": "wait_approval",
+            "count": list_state.get('wait_approval'),
+            "color_code": "#faad14"
+        }, {
+            "code": "done",
+            "count": list_state.get('done'),
+            "color_code": "#52c41a"
+        }, {
+            "code": "cancel",
+            "count": list_state.get('cancel'),
+            "color_code": "#f5222d"
+        }]
     }
 
 
