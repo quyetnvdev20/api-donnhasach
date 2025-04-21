@@ -63,6 +63,15 @@ def run_session_processor():
     except subprocess.CalledProcessError as e:
         logger.error(f"Lỗi khi chạy Session Processor: {str(e)}")
         sys.exit(1)
+        
+def run_suggestion_pricelist_processor():
+    """Chạy worker xử lý suggestion pricelist"""
+    logger.info("Đang khởi động Suggestion Pricelist Processor worker...")
+    try:
+        subprocess.run([sys.executable, "-m", "app.workers.process_suggestion_pricelist"], check=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Lỗi khi chạy Suggestion Pricelist Processor: {str(e)}")
+        sys.exit(1)
 
 def check_environment():
     """Kiểm tra các biến môi trường cần thiết"""
@@ -97,7 +106,7 @@ def check_dependencies():
 def main():
     """Hàm chính để chạy ứng dụng"""
     parser = argparse.ArgumentParser(description="Chạy các thành phần của ứng dụng")
-    parser.add_argument("--component", choices=["api", "image-processor"],
+    parser.add_argument("--component", choices=["api", "image-processor", "suggestion-pricelist-processor"],
                         default="all", help="Thành phần cần chạy")
     parser.add_argument("--skip-migrations", action="store_true", help="Bỏ qua việc chạy migrations")
     parser.add_argument("--skip-checks", action="store_true", help="Bỏ qua việc kiểm tra môi trường và thư viện")
@@ -122,6 +131,8 @@ def main():
         run_policy_creator()
     elif args.component == "session-processor":
         run_session_processor()
+    elif args.component == "suggestion-pricelist-processor":
+        run_suggestion_pricelist_processor()
     elif args.component == "all":
         logger.warning("Chạy tất cả các thành phần cùng lúc không được khuyến nghị trong môi trường phát triển.")
         logger.warning("Nên chạy từng thành phần riêng biệt trong các terminal khác nhau.")
