@@ -2,28 +2,15 @@ from pydantic_settings import BaseSettings
 from enum import Enum
 from app.utils.odoo import Odoo
 
-class ClaimImageStatus(str, Enum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    SUCCESS = "success"
-    FAILED = "failed"
-
 class Settings(BaseSettings):
     ROOT_DIR: str = '/'.join(__file__.split('/')[:-2])
-    API_PREFIX: str = '/claim-ai'
+    API_PREFIX: str = '/api/v1'
     DATABASE_URL: str
-    OPENAI_API_KEY: str
     RABBITMQ_URL: str
     KEYCLOAK_HOST: str
     KEYCLOAK_REALM: str
     KEYCLOAK_CLIENT_ID: str
     KEYCLOAK_CLIENT_SECRET: str
-
-    # Process
-    INSURANCE_PROCESSING_API_URL: str
-    CLAIM_IMAGE_PROCESS_API_KEY: str
-    CLAIM_IMAGE_PROCESS_TIMEOUT: int = 10
-    CONCURRENT_WORKERS: int = 10
 
     # Firebase configuration
     FIREBASE_API_KEY: str = ""
@@ -38,44 +25,17 @@ class Settings(BaseSettings):
     ODOO_URL: str
     ODOO_TOKEN: str
     ODOO_OAUTH_PROVIDER_ID: int = 4
-    
-    # Report configuration
-    ACCIDENT_NOTIFICATION_TEMPLATE: str = ""
-    ASSESSMENT_REPORT_TEMPLATE: str = ""
-    
-    # Insurance API
-    INSURANCE_API_URL: str = ""
+
+
     
     # Redis configuration
     REDIS_URL: str = ""
     REDIS_DEFAULT_EXPIRY: int = 3600  # 1 hour in seconds
-    
-    # OCR configuration
-    OCR_SERVICE_URL: str = ""
-    OCR_API_KEY: str = ""
-    OCR_API_SECRET: str = ""
-    OCR_LICENSE_API_KEY: str = ""
-    OCR_LICENSE_URL: str = ""
-
-    # Google Maps API
-    GOOGLE_MAPS_API_KEY: str = ""
-    KEYCLOAK_API_KEY: str = ""
-    DEEPLINK_APP: str = ""
-    SHORTEN_URL_API_URL: str = ""
-    SHORTEN_URL_API_KEY: str = ""
 
     # Sentry configuration
     SENTRY_DSN: str = ""
     SENTRY_ENVIRONMENT: str = "development"
     SENTRY_TRACES_SAMPLE_RATE: float = 0.1
-    SENTRY_PROFILES_SAMPLE_RATE: float = 0.1
-
-    # Distance limit
-    USER_GARAGE_DISTANCE_LIMIT: float = 0.5
-    APPRAISAL_IMAGE_TYPE_DOCUMENT: int
-
-    # Here Maps API
-    HERE_MAPS_API_KEY: str = ""
 
     @property
     def DATABASE_URL(self) -> str:
