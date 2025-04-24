@@ -1,4 +1,4 @@
 from .base import Base
-from .image import Image
+from .company import Company
 
-__all__ = ["Base", "Image"] 
+__all__ = ["Base", "company"]
