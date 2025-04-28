@@ -5,8 +5,6 @@ from app.utils.erp_db import PostgresDB
 from fastapi import Depends, HTTPException, status
 from fastapi.security import APIKeyHeader
 from ..config import settings, odoo
-import requests
-from typing import Annotated, Optional
 import logging
 
 
@@ -67,9 +65,6 @@ async def get_current_user(token: str = Depends(api_key_header)) -> dict:
     user_object = UserObject(**token_data)
 
     return user_object
-
-# CurrentUser Annotated
-CurrentUser = Annotated[UserObject, Depends(get_current_user)]
 
 async def ensure_odoo_user(sub: str) -> dict:
     cache_key = f"odoo_user_{sub}"
