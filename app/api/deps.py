@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 def get_token_introspection_url():
     return f"{settings.KEYCLOAK_HOST}/realms/{settings.KEYCLOAK_REALM}/protocol/openid-connect/token/introspect"
 
-async def get_current_user(token: str = Depends(api_key_header)) -> dict:
+async def get_current_user(token: str = Depends(api_key_header)) -> UserObject:
     """
     Validate token bằng Keycloak introspection endpoint
     """
@@ -88,7 +88,10 @@ async def ensure_odoo_user(sub: str) -> dict:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User is not exist",
             )
-        user = user[0]
+        if 'success' in user:
+            user = user['success'][0]
+        else:
+            user = user[0]
         # Cache to redis
         await redis_client_instance.set(cache_key, user)
         return user

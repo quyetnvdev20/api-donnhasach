@@ -7,7 +7,8 @@ from pathlib import Path
 from pydantic import ValidationError
 import logging
 import os
-
+from .api.v1.endpoints import (repair_history
+)
 from .config import settings
 from .services.rabbitmq import publish_event
 from .db_init import init_db
@@ -39,7 +40,7 @@ app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(ValidationError, validation_exception_handler)
 
 # Include routers
-
+app.include_router(repair_history.router, prefix="/repair-history", tags=["repair_history"])
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
