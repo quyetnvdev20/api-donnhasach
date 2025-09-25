@@ -1,26 +1,29 @@
 version: '3.8'
 
 services:
+  # FastAPI Application
   api:
     build: 
       context: .
       dockerfile: Dockerfile
+    container_name: donnhasach-api
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     env_file:
       - .env
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      db:
-        condition: service_healthy
     volumes:
       - .:/app
+      - /app/__pycache__
+    restart: unless-stopped
     command: >
-      sh -c "sleep 5 &&
-             alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
-
-volumes:
-  postgres_data:
-  rabbitmq_data: 
+      sh -c "
+        echo 'Starting FastAPI application...' &&
+        echo 'Connecting to external database and Redis...' &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s 

@@ -1,36 +1,44 @@
 # Build stage
-FROM python:3.9 as builder
+FROM python:3.11-slim as builder
 
 # Set working directory
 WORKDIR /app
 
 # Install build dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc python3-dev && \
-    apt-get install -y ffmpeg libsm6 libxext6 alien libaio1 && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
+    libpq-dev \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
 COPY requirements.txt .
 RUN pip wheel --no-cache-dir --no-deps --wheel-dir /app/wheels -r requirements.txt
 
 # Final stage
-FROM python:3.9
+FROM python:3.11-slim
 
 # Create non-root user for security
-RUN addgroup --system app && adduser --system --group app
+RUN groupadd --system app && useradd --system --group app
+
+# Install runtime dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    libpq5 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # Copy wheels from builder and install
 COPY --from=builder /app/wheels /wheels
 COPY --from=builder /app/requirements.txt .
-RUN pip install --no-cache /wheels/*
+RUN pip install --no-cache /wheels/* && rm -rf /wheels
 
-RUN apt-get update && apt-get install -y ffmpeg libsm6 libxext6 alien libaio1
 # Copy application code
 COPY . .
-COPY reference_full.jpg /app/reference_full.jpg
 
 # Set ownership to non-root user
 RUN chown -R app:app /app
@@ -46,5 +54,9 @@ ENV PYTHONPATH=/app \
 # Expose port
 EXPOSE 8000
 
-# Run application without migrations
-CMD uvicorn app.main:app --host 0.0.0.0 --port 8000
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/docs || exit 1
+
+# Run application
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
