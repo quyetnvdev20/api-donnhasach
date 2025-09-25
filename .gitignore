@@ -92,3 +92,11 @@ poetry.lock
 docker-compose.yml
 
 test.py
+
+# Firebase và Service Account credentials
+**/firebase-service-account.json
+**/service-account*.json
+**/*credentials*.json
+**/*.pem
+**/*.p12
+**/*.key
