@@ -2,14 +2,11 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from fastapi.staticfiles import StaticFiles
-from pathlib import Path
+
 from pydantic import ValidationError
 import logging
-import os
 from .api.v1.endpoints.blog import router as blog_router
 from .config import settings
-from .db_init import init_db
 from .utils.redis_client import redis_client
 from .exceptions.handlers import validation_exception_handler
 from app.utils.sentry import init_sentry
@@ -51,10 +48,6 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 async def startup_event():
     logger.info("Application starting up")
     try:
-        # Initialize database tables
-        init_db()
-        logger.info("Database initialized successfully")
-        
         # Initialize PostgresDB connection pool
         from app.utils.erp_db import PostgresDB
         await PostgresDB.initialize_pool(min_size=10, max_size=50)

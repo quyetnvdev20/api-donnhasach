@@ -5,18 +5,10 @@ from app.utils.odoo import Odoo
 class Settings(BaseSettings):
     ROOT_DIR: str = '/'.join(__file__.split('/')[:-2])
     API_PREFIX: str = '/api/v1'
-    DATABASE_URL: str
-    RABBITMQ_URL: str
-    KEYCLOAK_HOST: str
-    KEYCLOAK_REALM: str
-    KEYCLOAK_CLIENT_ID: str
-    KEYCLOAK_CLIENT_SECRET: str
 
     # Firebase configuration
     FIREBASE_API_KEY: str = ""
     FIREBASE_PROJECT_ID: str = ""
-    FIREBASE_FCM_URL: str = "https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
-    FIREBASE_TOPIC: str = ""
     
     # Database settings
     POSTGRES_DATABASE_URL: str
@@ -24,7 +16,6 @@ class Settings(BaseSettings):
     # Odoo configuration
     ODOO_URL: str
     ODOO_TOKEN: str
-    ODOO_OAUTH_PROVIDER_ID: int = 4
 
 
     

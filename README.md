@@ -32,7 +32,6 @@ pip install -r requirements.txt
 
 4. Tạo file `.env` với các biến môi trường cần thiết:
 ```
-DATABASE_URL=postgresql://postgres:postgres@localhost:5437/acg_xm
 RABBITMQ_URL=amqp://guest:guest@localhost:5672/
 OPENAI_API_KEY=your_openai_api_key
 GOOGLE_API_KEY=your_google_api_key

@@ -25,16 +25,6 @@ def run_api():
     except subprocess.CalledProcessError as e:
         logger.error(f"Lỗi khi chạy API server: {str(e)}")
         sys.exit(1)
-
-def check_environment():
-    """Kiểm tra các biến môi trường cần thiết"""
-    required_vars = ["DATABASE_URL", "RABBITMQ_URL"]
-    missing_vars = [var for var in required_vars if not os.getenv(var)]
-    
-    if missing_vars:
-        logger.error(f"Thiếu các biến môi trường: {', '.join(missing_vars)}")
-        logger.error("Vui lòng tạo file .env với các biến môi trường cần thiết")
-        sys.exit(1)
     
     logger.info("Đã kiểm tra các biến môi trường")
 
@@ -68,8 +58,7 @@ def main():
     # Kiểm tra môi trường và thư viện
     if not args.skip_checks:
         check_dependencies()
-        check_environment()
-    
+
     # Chạy thành phần được chỉ định
     if args.component == "api":
         run_api()
