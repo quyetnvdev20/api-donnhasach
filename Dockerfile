@@ -21,7 +21,7 @@ RUN pip wheel --no-cache-dir --no-deps --wheel-dir /app/wheels -r requirements.t
 FROM python:3.11-slim
 
 # Create non-root user for security
-RUN groupadd --system app && useradd --system --group app
+RUN groupadd --system app && useradd --system --gid app app
 
 # Install runtime dependencies
 RUN apt-get update && \
@@ -49,14 +49,14 @@ USER app
 # Set environment variables
 ENV PYTHONPATH=/app \
     PYTHONUNBUFFERED=1 \
-    PORT=8000
+    PORT=8888
 
 # Expose port
-EXPOSE 8000
+EXPOSE 8888
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/docs || exit 1
+    CMD curl -f http://localhost:8888/docs || exit 1
 
 # Run application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8888"]
