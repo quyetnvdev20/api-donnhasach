@@ -10,28 +10,29 @@ router = APIRouter()
 
 @router.get("/posts", summary="Lấy danh sách bài viết blog")
 async def get_blog_posts(
-    page: int = Query(1, ge=1, description="Số trang (bắt đầu từ 1)"),
-    limit: int = Query(10, ge=1, le=100, description="Số bài viết mỗi trang (tối đa 100)"),
-    status: Optional[str] = Query("published", description="Trạng thái bài viết (published, draft)"),
-    search: Optional[str] = Query(None, description="Từ khóa tìm kiếm trong tiêu đề, phụ đề, nội dung")
+        search: Optional[str] = None,
+        limit: int = 10,
+        page: int = 1,
 ):
     """
     Lấy danh sách bài viết blog từ Odoo
     
     - **page**: Trang hiện tại (mặc định: 1)
     - **limit**: Số bài viết mỗi trang (mặc định: 10, tối đa: 100)
-    - **status**: Trạng thái bài viết (mặc định: published)
     - **search**: Từ khóa tìm kiếm (tùy chọn)
     
     Returns:
-        - posts: Danh sách bài viết
-        - pagination: Thông tin phân trang
+        - success: Trạng thái thành công
+        - data: Danh sách bài viết
+        - current_page: Trang hiện tại
+        - limit: Số bài viết mỗi trang
+        - total: Tổng số bài viết
+        - total_pages: Tổng số trang
     """
     try:
         result = await BlogService.get_blog_posts(
             page=page,
             limit=limit,
-            status=status,
             search=search
         )
         
@@ -44,7 +45,11 @@ async def get_blog_posts(
         return {
             "success": True,
             "message": "Lấy danh sách bài viết thành công",
-            "data": result["data"]
+            "data": result["data"],
+            "current_page": result["current_page"],
+            "limit": result["limit"],
+            "total": result["total"],
+            "total_pages": result["total_pages"]
         }
         
     except HTTPException:
@@ -67,7 +72,8 @@ async def get_blog_post_detail(
     - **post_id**: ID của bài viết cần lấy chi tiết
     
     Returns:
-        - post: Thông tin chi tiết bài viết
+        - success: Trạng thái thành công
+        - data: Thông tin chi tiết bài viết
         - related_posts: Danh sách bài viết liên quan (nếu có)
     """
     try:
@@ -86,7 +92,7 @@ async def get_blog_post_detail(
                     detail=result["error"]
                 )
         
-        post = result["data"]["post"]
+        post = result["data"]
         
         # Lấy bài viết liên quan (nếu có blog_id)
         related_posts = []
@@ -100,10 +106,8 @@ async def get_blog_post_detail(
         return {
             "success": True,
             "message": "Lấy chi tiết bài viết thành công",
-            "data": {
-                "post": post,
-                "related_posts": related_posts
-            }
+            "data": post,
+            "related_posts": related_posts
         }
         
     except HTTPException:
@@ -126,7 +130,10 @@ async def get_popular_posts(
     - **limit**: Số bài viết phổ biến cần lấy (mặc định: 10, tối đa: 50)
     
     Returns:
-        - posts: Danh sách bài viết phổ biến
+        - success: Trạng thái thành công
+        - data: Danh sách bài viết phổ biến
+        - total: Tổng số bài viết
+        - limit: Số bài viết được lấy
     """
     try:
         posts = await BlogService.get_popular_posts(limit=limit)
@@ -134,10 +141,9 @@ async def get_popular_posts(
         return {
             "success": True,
             "message": "Lấy bài viết phổ biến thành công",
-            "data": {
-                "posts": posts,
-                "total": len(posts)
-            }
+            "data": posts,
+            "total": len(posts),
+            "limit": limit
         }
         
     except Exception as e:
@@ -148,27 +154,31 @@ async def get_popular_posts(
         )
 
 
-@router.get("/search", summary="Tìm kiếm bài viết")
-async def search_blog_posts(
-    q: str = Query(..., min_length=1, description="Từ khóa tìm kiếm"),
+@router.get("/category/{category_id}/posts", summary="Lấy bài viết theo category")
+async def get_posts_by_category(
+    category_id: int = Path(..., gt=0, description="ID của category"),
     page: int = Query(1, ge=1, description="Số trang"),
     limit: int = Query(10, ge=1, le=100, description="Số bài viết mỗi trang")
 ):
     """
-    Tìm kiếm bài viết theo từ khóa
+    Lấy bài viết theo category
     
-    - **q**: Từ khóa tìm kiếm (bắt buộc)
+    - **category_id**: ID của category
     - **page**: Trang hiện tại (mặc định: 1)
     - **limit**: Số bài viết mỗi trang (mặc định: 10, tối đa: 100)
     
     Returns:
-        - posts: Danh sách bài viết tìm được
-        - pagination: Thông tin phân trang
-        - search_term: Từ khóa đã tìm kiếm
+        - success: Trạng thái thành công
+        - data: Danh sách bài viết theo category
+        - category_id: ID của category
+        - current_page: Trang hiện tại
+        - limit: Số bài viết mỗi trang
+        - total: Tổng số bài viết
+        - total_pages: Tổng số trang
     """
     try:
-        result = await BlogService.search_posts(
-            keyword=q,
+        result = await BlogService.get_posts_by_category(
+            category_id=category_id,
             page=page,
             limit=limit
         )
@@ -181,18 +191,88 @@ async def search_blog_posts(
         
         return {
             "success": True,
-            "message": f"Tìm kiếm bài viết với từ khóa '{q}' thành công",
-            "data": {
-                **result["data"],
-                "search_term": q
-            }
+            "message": f"Lấy bài viết theo category {category_id} thành công",
+            "data": result["data"],
+            "category_id": category_id,
+            "current_page": result["current_page"],
+            "per_page": result["per_page"],
+            "total": result["total"],
+            "total_pages": result["total_pages"],
+            "has_next": result["has_next"],
+            "has_prev": result["has_prev"]
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in search_blog_posts: {str(e)}")
+        logger.error(f"Error in get_posts_by_category: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail="Có lỗi xảy ra khi tìm kiếm bài viết"
+            detail="Có lỗi xảy ra khi lấy bài viết theo category"
+        )
+
+
+@router.get("/posts/trending", summary="Lấy bài viết trending")
+async def get_trending_posts(
+    days: int = Query(7, ge=1, le=30, description="Số ngày gần đây (tối đa 30)"),
+    limit: int = Query(10, ge=1, le=50, description="Số bài viết (tối đa 50)")
+):
+    """
+    Lấy bài viết trending trong X ngày gần đây
+    
+    - **days**: Số ngày gần đây (mặc định: 7, tối đa: 30)
+    - **limit**: Số bài viết (mặc định: 10, tối đa: 50)
+    
+    Returns:
+        - success: Trạng thái thành công
+        - data: Danh sách bài viết trending
+        - total: Tổng số bài viết
+        - days: Số ngày đã lọc
+        - limit: Số bài viết được lấy
+    """
+    try:
+        posts = await BlogService.get_trending_posts(days=days, limit=limit)
+        
+        return {
+            "success": True,
+            "message": f"Lấy bài viết trending {days} ngày gần đây thành công",
+            "data": posts,
+            "total": len(posts),
+            "days": days,
+            "limit": limit
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in get_trending_posts: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi lấy bài viết trending"
+        )
+
+
+@router.get("/stats/categories", summary="Thống kê theo category")
+async def get_category_stats():
+    """
+    Lấy thống kê bài viết theo category
+    
+    Returns:
+        - success: Trạng thái thành công
+        - data: Thống kê theo từng category
+        - total_categories: Tổng số categories
+    """
+    try:
+        stats = await BlogService.get_category_stats()
+        
+        return {
+            "success": True,
+            "message": "Lấy thống kê category thành công",
+            "data": stats,
+            "total_categories": len(stats)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in get_category_stats: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi lấy thống kê category"
         ) 

@@ -8,7 +8,7 @@ services:
       dockerfile: Dockerfile
     container_name: donnhasach-api
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "${API_PORT:-8000}:8888"
     env_file:
       - .env
     volumes:

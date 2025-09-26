@@ -21,7 +21,7 @@ def run_api():
     logger.info("Đang khởi động API server...")
     try:
         # Sử dụng module thay vì lệnh trực tiếp
-        subprocess.run([sys.executable, "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8079", "--reload"], check=True)
+        subprocess.run([sys.executable, "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8888", "--reload"], check=True)
     except subprocess.CalledProcessError as e:
         logger.error(f"Lỗi khi chạy API server: {str(e)}")
         sys.exit(1)
