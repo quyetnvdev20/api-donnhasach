@@ -6,8 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: donnhasach-api
-    ports:
-      - "${API_PORT:-8888}:8888"
+    # ports: không cần với network_mode: host
     env_file:
       - .env
     volumes:
@@ -25,4 +24,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 20s 
+      start_period: 20s
+    network_mode: "host"
+
+
+
+networks:
+  donnhasach-network:
+    driver: bridge 
