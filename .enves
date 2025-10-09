@@ -1,0 +1,11 @@
+FIREBASE_API_KEY=AIzaSyC_05j6DaxQb5MK3E0pOkw1kuQthrF7Jdg
+FIREBASE_PROJECT_ID=ticc-5c20e
+POSTGRES_DATABASE_URL=postgresql://admin:admin@localhost:5432/donnhasachdb
+
+ODOO_URL=http://192.168.225.18:8069
+ODOO_TOKEN=b6be449d07d1486ebcb23879d49e06c3
+API_PREFIX=/api
+## Redis configuration
+REDIS_URL=redis://localhost:6379/4
+REDIS_DEFAULT_EXPIRY=3600
+SENTRY_DSN=
