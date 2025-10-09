@@ -287,7 +287,7 @@ class Odoo(RequestOdoo):
         return await self.post(url=url, data=data)
 
     async def authenticate(self, login, password):
-        url = '{0}/api/authenticate?login={1}&password={2}'.format(self.config['ODOO_URL'], login, password)
+        url = '{0}/api/user/get_token?login={1}&password={2}'.format(self.config['ODOO_URL'], login, password)
         return await self.get(url)
 
     async def reset_password(self, login, password):

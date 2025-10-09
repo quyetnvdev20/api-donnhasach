@@ -1,7 +1,10 @@
-from fastapi import APIRouter, HTTPException, Query, Path
+from fastapi import APIRouter, HTTPException, Query, Path,Depends,Header
 from typing import Optional
 import logging
-from app.services.blog_service import BlogService
+from app.api.deps import verify_signature
+from .blog_service import BlogService
+from typing import List, Optional, Dict, Any, Annotated
+from app.schemas.common_schema import CommonHeaderPortal
 
 logger = logging.getLogger(__name__)
 
@@ -10,17 +13,19 @@ router = APIRouter()
 
 @router.get("/posts", summary="Lấy danh sách bài viết blog")
 async def get_blog_posts(
+        headers: Annotated[CommonHeaderPortal, Header()],
         search: Optional[str] = None,
         limit: int = 10,
         page: int = 1,
+        _=Depends(verify_signature),
 ):
     """
     Lấy danh sách bài viết blog từ Odoo
-    
+
     - **page**: Trang hiện tại (mặc định: 1)
     - **limit**: Số bài viết mỗi trang (mặc định: 10, tối đa: 100)
     - **search**: Từ khóa tìm kiếm (tùy chọn)
-    
+
     Returns:
         - success: Trạng thái thành công
         - data: Danh sách bài viết
@@ -35,13 +40,13 @@ async def get_blog_posts(
             limit=limit,
             search=search
         )
-        
+
         if not result["success"]:
             raise HTTPException(
                 status_code=500,
                 detail=result["error"]
             )
-        
+
         return {
             "success": True,
             "message": "Lấy danh sách bài viết thành công",
@@ -51,7 +56,7 @@ async def get_blog_posts(
             "total": result["total"],
             "total_pages": result["total_pages"]
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:

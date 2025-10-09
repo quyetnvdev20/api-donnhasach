@@ -7,13 +7,9 @@ class UserPermission(BaseModel):
     code: str
 
 class UserObject(BaseModel):
-    access_token: str
-    sub: str
-    username: str
-    erp_id: int
     odoo_token: str
-    uid: str
-    perms: Optional[List[UserPermission]] = None
+    uid: int
+    partner_id: int
 
     def get(self, key: str, default=None):
         """Allow dictionary-style access with .get() method"""
@@ -24,6 +20,3 @@ class UserObject(BaseModel):
     def __getitem__(self, key: str):
         """Allow dictionary-style access with [] operator"""
         return self.get(key)
-    
-    def has_permission(self, permission: str) -> bool:
-        return any(perm.code == permission for perm in self.perms)

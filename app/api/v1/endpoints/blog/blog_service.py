@@ -7,37 +7,37 @@ logger = logging.getLogger(__name__)
 
 class BlogService:
     """Service xử lý business logic cho blog posts từ Odoo"""
-    
+
     @staticmethod
     async def get_blog_posts(
-        page: int = 1,
-        limit: int = 10,
-        search: Optional[str] = None
+            page: int = 1,
+            limit: int = 10,
+            search: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Lấy danh sách bài viết blog
-        
+
         Args:
             page: Trang hiện tại (bắt đầu từ 1)
             limit: Số bài viết mỗi trang
             search: Từ khóa tìm kiếm
-            
+
         Returns:
             Dict chứa danh sách bài viết và metadata
         """
         try:
             # Tính offset
             offset = (page - 1) * limit
-            
+
             # Build query điều kiện
             where_clause = "1=1"
-            
+
             if search:
                 search_escaped = search.replace("'", "''")  # Escape single quotes
                 where_clause += " AND (bp.name ->> 'vi_VN' ILIKE '%{}%' OR bp.subtitle ->> 'vi_VN' ILIKE '%{}%' OR bp.content ->> 'vi_VN' ILIKE '%{}%')".format(
                     search_escaped, search_escaped, search_escaped
                 )
-            
+
             # Query lấy danh sách bài viết
             posts_query = '''
                 SELECT 
@@ -50,53 +50,39 @@ class BlogService:
                     TO_CHAR(bp.write_date, 'DD/MM/YYYY HH24:MI') as write_date,
                     bp.visits,
                     bt.name ->> 'vi_VN' as blog_name,
-                    bt.id as blog_id
+                    bt.id as blog_id,
+                    bp.image_url
                 FROM blog_post bp
                 LEFT JOIN blog_blog bt ON bp.blog_id = bt.id
                 WHERE {}
                 ORDER BY bp.published_date DESC NULLS LAST, bp.create_date DESC
                 LIMIT {} OFFSET {}
             '''.format(where_clause, limit, offset)
-            
+
             # Query đếm tổng số bài viết
             count_query = '''
                 SELECT COUNT(*) as total
                 FROM blog_post bp
                 WHERE {}
             '''.format(where_clause)
-            
+
             # Thực hiện queries
             posts_result = await PostgresDB.execute_query(posts_query)
-            result = []
-            for item in posts_result:
-                vals = {
-                    'id': item.get('id'),
-                    'title': item.get('title'),
-                    'subtitle': item.get('subtitle'),
-                    'content': item.get('content'),
-                    'create_date': item.get('create_date'),
-                    'write_date': item.get('write_date'),
-                    'published_date': item.get('published_date'),
-                    'blog_id': item.get('blog_id'),
-                    'blog_name': item.get('blog_name'),
-                    'visits': item.get('visits'),
-                }
-                result.append(vals)
 
             count_result = await PostgresDB.execute_query(count_query)
-            
+
             total = count_result[0]["total"] if count_result else 0
             total_pages = (total + limit - 1) // limit
-            
+
             return {
                 "success": True,
-                "data": result,
+                "data": posts_result,
                 "current_page": page,
                 "limit": limit,
                 "total": total,
                 "total_pages": total_pages,
             }
-            
+
         except Exception as e:
             logger.error(f"Error getting blog posts: {str(e)}")
             return {
@@ -104,15 +90,15 @@ class BlogService:
                 "error": f"Lỗi khi lấy danh sách bài viết: {str(e)}",
                 "data": None
             }
-    
+
     @staticmethod
     async def get_blog_post_detail(post_id: int) -> Dict[str, Any]:
         """
         Lấy chi tiết bài viết blog theo ID
-        
+
         Args:
             post_id: ID của bài viết
-            
+
         Returns:
             Dict chứa thông tin chi tiết bài viết
         """
@@ -129,31 +115,32 @@ class BlogService:
                     TO_CHAR(bp.write_date, 'DD/MM/YYYY HH24:MI') as write_date,
                     bp.visits,
                     bt.name ->> 'vi_VN' as blog_name,
-                    bt.id as blog_id
+                    bt.id as blog_id,
+                    bp.image_url
                 FROM blog_post bp
                 LEFT JOIN blog_blog bt ON bp.blog_id = bt.id
                 WHERE bp.id = {}
             '''.format(post_id)
-            
+
             result = await PostgresDB.execute_query(detail_query)
-            
+
             if not result:
                 return {
                     "success": False,
                     "error": "Không tìm thấy bài viết",
                     "data": None
                 }
-            
+
             post = result[0]
-            
+
             # Tăng lượt xem (optional)
             await BlogService._increment_visits(post_id)
-            
+
             return {
                 "success": True,
                 "data": post
             }
-            
+
         except Exception as e:
             logger.error(f"Error getting blog post detail: {str(e)}")
             return {
@@ -161,17 +148,17 @@ class BlogService:
                 "error": f"Lỗi khi lấy chi tiết bài viết: {str(e)}",
                 "data": None
             }
-    
+
     @staticmethod
     async def get_related_posts(post_id: int, blog_id: int, limit: int = 5) -> List[Dict[str, Any]]:
         """
         Lấy bài viết liên quan
-        
+
         Args:
             post_id: ID bài viết hiện tại
             blog_id: ID blog
             limit: Số bài viết liên quan
-            
+
         Returns:
             List bài viết liên quan
         """
@@ -187,7 +174,8 @@ class BlogService:
                     TO_CHAR(bp.write_date, 'DD/MM/YYYY HH24:MI') as write_date,
                     bp.visits,
                     bt.name ->> 'vi_VN' as blog_name,
-                    bt.id as blog_id
+                    bt.id as blog_id,
+                    bp.image_url
                 FROM blog_post bp
                 WHERE bp.blog_id = {} 
                     AND bp.id != {}
@@ -195,22 +183,22 @@ class BlogService:
                 ORDER BY bp.published_date DESC
                 LIMIT {}
             '''.format(blog_id, post_id, limit)
-            
+
             result = await PostgresDB.execute_query(query)
             return result
-            
+
         except Exception as e:
             logger.error(f"Error getting related posts: {str(e)}")
             return []
-    
+
     @staticmethod
     async def get_popular_posts(limit: int = 10) -> List[Dict[str, Any]]:
         """
         Lấy bài viết phổ biến (theo lượt xem)
-        
+
         Args:
             limit: Số bài viết
-            
+
         Returns:
             List bài viết phổ biến
         """
@@ -226,7 +214,8 @@ class BlogService:
                     TO_CHAR(bp.write_date, 'DD/MM/YYYY HH24:MI') as write_date,
                     bp.visits,
                     bt.name ->> 'vi_VN' as blog_name,
-                    bt.id as blog_id
+                    bt.id as blog_id,
+                    bp.image_url
                 FROM blog_post bp
                 LEFT JOIN blog_blog bt ON bp.blog_id = bt.id
                 WHERE bp.website_published = true
@@ -234,19 +223,19 @@ class BlogService:
                 ORDER BY bp.visits DESC
                 LIMIT {}
             '''.format(limit)
-            
+
             result = await PostgresDB.execute_query(query)
             return result
-            
+
         except Exception as e:
             logger.error(f"Error getting popular posts: {str(e)}")
             return []
-    
+
     @staticmethod
     async def _increment_visits(post_id: int) -> None:
         """
         Tăng lượt xem bài viết
-        
+
         Args:
             post_id: ID bài viết
         """
@@ -257,33 +246,33 @@ class BlogService:
                     write_date = NOW()
                 WHERE id = {}
             '''.format(post_id)
-            
+
             await PostgresDB.execute_query(update_query)
-            
+
         except Exception as e:
             logger.error(f"Error incrementing visits for post {post_id}: {str(e)}")
 
     @staticmethod
     async def get_posts_by_category(
-        category_id: int,
-        page: int = 1,
-        limit: int = 10
+            category_id: int,
+            page: int = 1,
+            limit: int = 10
     ) -> Dict[str, Any]:
         """
         Lấy bài viết theo category
-        
+
         Args:
             category_id: ID của category
             page: Trang hiện tại
             limit: Số bài viết mỗi trang
-            
+
         Returns:
             Dict chứa danh sách bài viết theo category
         """
         try:
             # Tính offset
             offset = (page - 1) * limit
-            
+
             # Query lấy danh sách bài viết theo category
             posts_query = '''
                 SELECT 
@@ -296,28 +285,29 @@ class BlogService:
                     TO_CHAR(bp.write_date, 'DD/MM/YYYY HH24:MI') as write_date,
                     bp.visits,
                     bt.name ->> 'vi_VN' as blog_name,
-                    bt.id as blog_id
+                    bt.id as blog_id,
+                    bp.image_url
                 FROM blog_post bp
                 LEFT JOIN blog_blog bt ON bp.blog_id = bt.id
                 WHERE bp.blog_id = {}
                 ORDER BY bp.published_date DESC NULLS LAST, bp.create_date DESC
                 LIMIT {} OFFSET {}
             '''.format(category_id, limit, offset)
-            
+
             # Query đếm tổng số bài viết theo category
             count_query = '''
                 SELECT COUNT(*) as total
                 FROM blog_post bp
                 WHERE bp.blog_id = {}
             '''.format(category_id)
-            
+
             # Thực hiện queries
             posts_result = await PostgresDB.execute_query(posts_query)
             count_result = await PostgresDB.execute_query(count_query)
-            
+
             total = count_result[0]["total"] if count_result else 0
             total_pages = (total + limit - 1) // limit
-            
+
             # Format response
             return {
                 "success": True,
@@ -329,7 +319,7 @@ class BlogService:
                 "has_next": page < total_pages,
                 "has_prev": page > 1
             }
-            
+
         except Exception as e:
             logger.error(f"Error getting posts by category: {str(e)}")
             return {
@@ -342,11 +332,11 @@ class BlogService:
     async def get_trending_posts(days: int = 7, limit: int = 10) -> List[Dict[str, Any]]:
         """
         Lấy bài viết trending trong X ngày gần đây
-        
+
         Args:
             days: Số ngày gần đây
             limit: Số bài viết
-            
+
         Returns:
             List bài viết trending
         """
@@ -369,10 +359,10 @@ class BlogService:
                 ORDER BY trending_score DESC
                 LIMIT {}
             '''.format(days, limit)
-            
+
             result = await PostgresDB.execute_query(query)
             return result
-            
+
         except Exception as e:
             logger.error(f"Error getting trending posts: {str(e)}")
             return []
@@ -381,7 +371,7 @@ class BlogService:
     async def get_category_stats() -> List[Dict[str, Any]]:
         """
         Thống kê theo category
-        
+
         Returns:
             List thống kê category
         """
@@ -398,10 +388,10 @@ class BlogService:
                 GROUP BY bt.id, bt.name
                 ORDER BY total_posts DESC
             '''
-            
+
             result = await PostgresDB.execute_query(query)
             return result
-            
+
         except Exception as e:
             logger.error(f"Error getting category stats: {str(e)}")
-            return [] 
+            return []

@@ -6,6 +6,9 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 import logging
 from .api.v1.endpoints.blog import router as blog_router
+from .api.v1.endpoints.authorization import router as authorization_router
+from .api.v1.endpoints.category import router as category_router
+from .api.v1.endpoints.partner import router as partner_router
 from .config import settings
 from .utils.redis_client import redis_client
 from .exceptions.handlers import validation_exception_handler
@@ -36,6 +39,9 @@ app.add_exception_handler(ValidationError, validation_exception_handler)
 
 # Include routers
 app.include_router(blog_router, prefix="/blog", tags=["blog"])
+app.include_router(authorization_router, prefix="/authorization", tags=["authorization"])
+app.include_router(category_router, prefix="/category", tags=["category"])
+app.include_router(partner_router, prefix="/partner", tags=["partner"])
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):

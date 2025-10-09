@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     # Odoo configuration
     ODOO_URL: str
     ODOO_TOKEN: str
+    TOKEN_PREFIX: str
 
 
     
@@ -27,6 +28,8 @@ class Settings(BaseSettings):
     SENTRY_DSN: str = ""
     SENTRY_ENVIRONMENT: str = "development"
     SENTRY_TRACES_SAMPLE_RATE: float = 0.1
+
+    PORTAL_KEY : str
 
     @property
     def DATABASE_URL(self) -> str:
