@@ -4,4 +4,4 @@ from zoneinfo import ZoneInfo
 
 
 class CommonHeaderPortal(BaseModel):
-    x_portal_key: str = None
+    xportalkey: str = None

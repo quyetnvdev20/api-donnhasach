@@ -49,7 +49,7 @@ async def verify_signature(
     headers = request.headers
     logger.info(f"header: {headers}")
     logger.info(f"request: {request}")
-    authorization = headers.get("x_portal_key")
+    authorization = headers.get("xportalkey")
     PORTAL_KEY = settings.PORTAL_KEY
 
     logger.info(f"Authorization: {authorization}")
