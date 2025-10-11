@@ -117,6 +117,9 @@ class RequestOdoo():
             else:
                 _logger.error('post.error.message={}'.format(error_data.get('message')))
                 raise UserError(error_data.get('message'), description=error_data.get('debug'))
+        if 'success' in res:
+            res_data = res.get('success')
+            return res_data
         return res
 
 
