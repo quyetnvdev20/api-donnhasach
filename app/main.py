@@ -10,6 +10,7 @@ from .api.v1.endpoints.authorization import router as authorization_router
 from .api.v1.endpoints.category import router as category_router
 from .api.v1.endpoints.partner import router as partner_router
 from .api.v1.endpoints.employee import router as employee_router
+from .api.v1.endpoints.booking import router as booking_router
 from .config import settings
 from .utils.redis_client import redis_client
 from .exceptions.handlers import validation_exception_handler
@@ -45,6 +46,7 @@ app.include_router(category_router, prefix="/category", tags=["category"])
 app.include_router(partner_router, prefix="/partner", tags=["partner"])
 
 app.include_router(employee_router, prefix="/employee", tags=["employee"])
+app.include_router(booking_router, prefix="/booking", tags=["booking"])
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):

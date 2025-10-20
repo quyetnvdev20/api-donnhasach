@@ -37,3 +37,31 @@ async def get_info_me(
             status_code=500,
             detail="Có lỗi xảy ra khi lấy thông tin khách hàng đang đăng nhập"
         )
+
+@router.get("/contact", summary="Lấy danh sách thông tin liên hệ khách hàng")
+async def get_contact_partner(
+        current_user=Depends(get_current_user),
+):
+    try:
+        result = await PartnerService.get_current_partner(current_user)
+
+        if not result["success"]:
+            raise HTTPException(
+                status_code=500,
+                detail=result["error"]
+            )
+
+        return {
+            "success": True,
+            "message": "Lấy danh sách thông tin liên hệ khách hàng",
+            "data": result["data"],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in category: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi lấy danh sách thông tin liên hệ khách hàng"
+        )
