@@ -43,7 +43,7 @@ async def get_contact_partner(
         current_user=Depends(get_current_user),
 ):
     try:
-        result = await PartnerService.get_current_partner(current_user)
+        result = await PartnerService.get_add_partner(current_user)
 
         if not result["success"]:
             raise HTTPException(
