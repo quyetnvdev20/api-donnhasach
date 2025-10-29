@@ -45,6 +45,6 @@ async def authorization_login(
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Lỗi đăng nhập: {str(e)}"
+            detail=f"Lỗi đăng nhập: Thông tin tài khoản không chính xác"
         )
 

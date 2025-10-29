@@ -60,6 +60,7 @@ async def verify_signature(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid signature"
         )
+    return True
 
 async def get_value_fields_selection(model, fields):
     result = await odoo.call_method_not_record(
