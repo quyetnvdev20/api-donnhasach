@@ -6,6 +6,8 @@ from datetime import datetime
 from .masterdatas_service import MasterdatasService
 from app.api.deps import verify_signature
 from app.schemas.common_schema import CommonHeaderPortal
+from app.config import BOOKING_HOURS, APPOINTMENT_DURATION, QUANTITY, TIME_OPTIONS, EMPLOYEE_QUANTITY
+from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -67,4 +69,125 @@ async def get_booking(
         raise HTTPException(
             status_code=500,
             detail="Có lỗi xảy ra khi lấy danh sách tỉnh thành phố"
+        )
+
+@router.get("/hours", summary="Lấy danh sách giờ dịch vụ")
+async def get_booking_hours(
+        current_user=Depends(get_current_user),
+):
+    try:
+        return {
+            "success": True,
+            "message": "Lấy danh sách giờ dịch vụ thành công",
+            "data": BOOKING_HOURS,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in category: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi lấy danh sách giờ dịch vụ"
+        )
+
+@router.get("/duration", summary="Lấy danh sách thời gian dịch vụ")
+async def get_booking_duration(
+        current_user=Depends(get_current_user),
+):
+    try:
+        return {
+            "success": True,
+            "message": "Lấy danh sách thời gian dịch vụ",
+            "data": APPOINTMENT_DURATION,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in category: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi lấy danh sách thời gian dịch vụ"
+        )
+
+@router.get("/quantity", summary="Lấy danh sách số lượng")
+async def get_booking_quantity(
+        current_user=Depends(get_current_user),
+):
+    try:
+        return {
+            "success": True,
+            "message": "Lấy danh sách số lượng",
+            "data": QUANTITY,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in category: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi lấy danh sách số lượng"
+        )
+
+
+@router.get("/recurring-unit", summary="Lấy danh sách đơn vị lịch hẹn")
+async def get_booking_quantity(
+        current_user=Depends(get_current_user),
+):
+    try:
+        return {
+            "success": True,
+            "message": "Lấy danh sách đơn vị lịch hẹn",
+            "data": TIME_OPTIONS,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in category: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi lấy danh sách đơn vị lịch hẹn"
+        )
+
+@router.get("/recurring-unit", summary="Lấy danh sách đơn vị lịch hẹn")
+async def get_booking_quantity(
+        current_user=Depends(get_current_user),
+):
+    try:
+        return {
+            "success": True,
+            "message": "Lấy danh sách đơn vị lịch hẹn",
+            "data": TIME_OPTIONS,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in category: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi lấy danh sách đơn vị lịch hẹn"
+        )
+    
+@router.get("/employee-quantity", summary="Lấy danh sách số lượng nhân viên")
+async def get_employee_quantity(
+        current_user=Depends(get_current_user),
+):
+    try:
+        return {
+            "success": True,
+            "message": "Lấy danh sách số lượng nhân viên",
+            "data": EMPLOYEE_QUANTITY,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in category: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi lấy danh sách số lượng nhân viên"
         )

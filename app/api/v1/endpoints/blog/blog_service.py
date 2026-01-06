@@ -44,14 +44,15 @@ class BlogService:
                     bp.id,
                     bp.name ->> 'vi_VN' as title,
                     bp.subtitle ->> 'vi_VN' as subtitle,
-                    bp.content ->> 'vi_VN' as content,
+                    bp.subtitle ->> 'vi_VN' as content,
                     TO_CHAR(bp.published_date, 'DD/MM/YYYY HH24:MI') as published_date,
                     TO_CHAR(bp.create_date, 'DD/MM/YYYY HH24:MI') as create_date,
                     TO_CHAR(bp.write_date, 'DD/MM/YYYY HH24:MI') as write_date,
                     bp.visits,
                     bt.name ->> 'vi_VN' as blog_name,
                     bt.id as blog_id,
-                    bp.image_url
+                    bp.image_url,
+                    bp.website_url
                 FROM blog_post bp
                 LEFT JOIN blog_blog bt ON bp.blog_id = bt.id
                 WHERE {}
@@ -116,7 +117,8 @@ class BlogService:
                     bp.visits,
                     bt.name ->> 'vi_VN' as blog_name,
                     bt.id as blog_id,
-                    bp.image_url
+                    bp.image_url,
+                    bp.website_url
                 FROM blog_post bp
                 LEFT JOIN blog_blog bt ON bp.blog_id = bt.id
                 WHERE bp.id = {}

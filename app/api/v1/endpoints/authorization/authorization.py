@@ -33,18 +33,8 @@ async def authorization_login(
         headers: Annotated[CommonHeaderPortal, Header()],
         request: LoginRequest =Body(...),
 ):
-    try:
-        logger.info(f"Starting login for phone: {request.phone}")
-        result = await AuthorizationService.login_user(request.dict())
-        logger.info(f"Login successful for phone: {request.phone}")
-        return result
-    except Exception as e:
-        logger.error(f"Login error for phone {request.phone}: {str(e)}")
-        logger.error(f"Exception type: {type(e).__name__}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Lỗi đăng nhập: Thông tin tài khoản không chính xác"
-        )
+    logger.info(f"Starting login for phone: {request.phone}")
+    result = await AuthorizationService.login_user(request.dict())
+    logger.info(f"Login successful for phone: {request.phone}")
+    return result
 

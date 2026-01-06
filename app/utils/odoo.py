@@ -64,6 +64,11 @@ class RequestOdoo():
                 raise UserError("Bạn không có quyền thực hiện hành động này", description=res_data.get('debug'))
             elif res_data.get('exception_type') == 'UserError':
                 raise UserError(res_data.get('error'), description=res_data.get('debug'))
+            elif res_data.get('exception_type') == 'UserPasswordNotFound':
+                raise UnauthorizedError(res_data.get('error'))
+            else:
+                raise UserError(res_data.get('error'), description=res_data.get('debug'))
+
             res_error = res_data['error']
             if res_error == 'Invalid User Token':
                 raise UnauthorizedError("Invalid User Token")
@@ -106,6 +111,8 @@ class RequestOdoo():
                 res_data = result.get('success')
                 return res_data
         if 'error' in res:
+            if isinstance(res.get('error'), str):
+                raise UserError(res.get('error'))
             error_data = res.get('error').get('data')
             exception_type = error_data.get('exception_type')
             if exception_type == 'access_error':

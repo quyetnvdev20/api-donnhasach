@@ -2,6 +2,7 @@ import logging
 from typing import List, Optional, Dict, Any
 from app.utils.erp_db import PostgresDB
 from app.schemas.user import UserObject
+from app.config import settings, odoo
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,8 @@ class PartnerService:
         rcs.name as state_name,
         rp.is_default as is_default,
         rp.street as street,
-        CONCAT_WS(', ', rp.street, rcw.name, rcs.name) AS contact_address
+        CONCAT_WS(', ', rp.street, rcw.name, rcs.name) AS contact_address,
+        rp.phone as phone
         from res_partner rp
         LEFT JOIN res_country_ward rcw ON rp.ward_id = rcw.id
         LEFT JOIN res_country_state rcs ON rp.state_id = rcs.id
@@ -69,7 +71,7 @@ class PartnerService:
         data = []
         if responses:
             for response in responses:
-                data = {
+                data.append({
                     'id': response.get('contact_id'),
                     'name': response.get('contact_name'),
                     'address': response.get('contact_address'),
@@ -82,9 +84,10 @@ class PartnerService:
                     'state': {
                         'id': response.get('state_id'),
                         'name': response.get('state_name'),
-                    }
+                    },
+                    'phone': response.get('phone'),
 
-                }
+                })
 
         result = {
             'success': True,
@@ -92,3 +95,32 @@ class PartnerService:
         }
 
         return result
+
+
+    @classmethod
+    async def create_contact_partner(cls, data: dict, current_user: UserObject):
+        data.update({
+            'partner_id': current_user.partner_id
+        })
+        result = await odoo.call_method_not_record(
+            model='res.partner',
+            method='create_contract_partner_api',
+            token=settings.ODOO_TOKEN,
+            kwargs=data,
+        )
+        return result
+
+    @classmethod
+    async def update_contact_partner(cls, data: dict, contact_id: int, current_user: UserObject):
+        data.update({
+            'partner_id': current_user.partner_id,
+            'id': contact_id
+        })
+        result = await odoo.call_method_not_record(
+            model='res.partner',
+            method='update_contract_partner_api',
+            token=settings.ODOO_TOKEN,
+            kwargs=data,
+        )
+        return result
+

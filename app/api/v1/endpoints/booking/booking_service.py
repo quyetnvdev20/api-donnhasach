@@ -65,7 +65,8 @@ class BookingService:
                         rcs2.id as contact_state_id,
                         rpc.phone as contact_phone,
                         rpc.name as contact_name,
-                        CONCAT_WS(', ', rpc.street, rcw2.name, rcs2.name) AS contact_address
+                        CONCAT_WS(', ', rpc.street, rcw2.name, rcs2.name) AS contact_address,
+                        coalesce((select rp.phone from res_company rc join res_partner rp on rc.partner_id = rp.id limit 1), '') as company_phone
                     FROM calendar_event ce
                          JOIN product_product pp ON ce.service_product_id = pp.id
                          JOIN product_template pt ON pp.product_tmpl_id = pt.id
@@ -148,7 +149,8 @@ class BookingService:
                         'ward_id': item.get('contact_ward_id'),
                         'state_id': item.get('contact_state_id'),
                         'address': item.get('contact_address'),
-                    }
+                    },
+                    'phone_company': item.get('phone_company'),
                 }
                 data.append(vals)
 
@@ -205,7 +207,8 @@ class BookingService:
                         rcs2.id as contact_state_id,
                         rpc.phone as contact_phone,
                         rpc.name as contact_name,
-                        CONCAT_WS(', ', rpc.street, rcw2.name, rcs2.name) AS contact_address
+                        CONCAT_WS(', ', rpc.street, rcw2.name, rcs2.name) AS contact_address,
+                        coalesce((select rp.phone from res_company rc join res_partner rp on rc.partner_id = rp.id limit 1), '') as company_phone
                     FROM calendar_event ce
                          JOIN product_product pp ON ce.service_product_id = pp.id
                          JOIN product_template pt ON pp.product_tmpl_id = pt.id
@@ -304,3 +307,21 @@ class BookingService:
             kwargs=data,
         )
         return result
+
+    @classmethod
+    async def create_event(cls, data: dict, current_user: UserObject):
+        data.update({
+            'partner_id': current_user.partner_id
+        })
+        result = await odoo.call_method_not_record(
+            model='calendar.event',
+            method='create_booking',
+            token=settings.ODOO_TOKEN,
+            kwargs=data,
+        )
+        return result
+
+    @classmethod
+    async def get_value_state(cls):
+        leaning_state = await get_value_fields_selection('calendar.event', 'cleaning_state')
+        return leaning_state

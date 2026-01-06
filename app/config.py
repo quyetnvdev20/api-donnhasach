@@ -54,6 +54,7 @@ odoo_config = {
 odoo = Odoo(config=odoo_config)
 
 BOOKING_HOURS = [
+    {"key": 7, "value": "07:00"},
     {"key": 8, "value": "08:00"},
     {"key": 9, "value": "09:00"},
     {"key": 10, "value": "10:00"},
@@ -72,12 +73,30 @@ BOOKING_HOURS = [
 ]
 
 APPOINTMENT_DURATION = [
-    {"key": 1, "value": "1 Giờ"},
-    {"key": 2, "value": "2 Giờ"},
-    {"key": 3, "value": "3 Giờ"},
-    {"key": 4, "value": "4 Giờ"},
-    {"key": 5, "value": "5 Giờ"},
-    {"key": 6, "value": "6 Giờ"},
-    {"key": 7, "value": "7 Giờ"},
-    {"key": 8, "value": "8 Giờ"}
+    {"key": 2, "value": "2 Giờ", "description": "Tối đa 60m2 sàn" },
+    {"key": 3, "value": "3 Giờ", "description": "Tối đa 90m2 sàn"},
+    {"key": 4, "value": "4 Giờ", "description": "Tối đa 120m2 sàn"},
+    {"key": 5, "value": "5 Giờ", "description": "Tối đa 150m2 sàn"},
+]
+
+QUANTITY = [
+    {"key": 1, "value": "1"},
+    {"key": 2, "value": "2"},
+    {"key": 3, "value": "3"},
+    {"key": 4, "value": "4"},
+    {"key": 5, "value": "5"},
+    {"key": 6, "value": "6"},
+    {"key": 7, "value": "7"},
+    {"key": 8, "value": "8"}
+]
+
+TIME_OPTIONS = [
+    {"key": "days", "value": "Ngày"},
+    {"key": "weeks", "value": "Tuần"},
+    {"key": "months", "value": "Tháng"},
+]
+
+EMPLOYEE_QUANTITY = [
+    {"key": 1, "value": "1 Nhân viên"},
+    {"key": 2, "value": "2 Nhân viên"},
 ]

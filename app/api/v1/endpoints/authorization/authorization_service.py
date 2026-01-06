@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Header, Depends, Body
+from fastapi import APIRouter, Header, Depends, Body, HTTPException, status
 from typing import Optional
 import logging
 from app.config import settings, odoo
@@ -44,6 +44,12 @@ class AuthorizationService:
     @classmethod
     async def register_user_portal(cls, data: dict):
 
+        user  = await cls.check_user_info_exits(data)
+        if user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Số điện thoại của bạn đã tồn tại"
+            )
         await odoo.call_method_not_record(
             model='res.users',
             method='create_users_portal',
@@ -58,6 +64,22 @@ class AuthorizationService:
                 "user": data
             }
         }
+
+    @classmethod
+    async def check_user_info_exits(cls, data: dict):
+        sql = f"""
+        select id, login from res_users where login = '{data['phone']}'
+                  """
+        result = {}
+        user_data = await PostgresDB.execute_query(sql)
+        if user_data:
+            result = {
+                'id': user_data[0].get('id'),
+                'name': user_data[0].get('name'),
+            }
+        return result
+
+
 
     @classmethod
     async def get_device_by_phone_user(cls, data: dict):
