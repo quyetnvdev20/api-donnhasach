@@ -5,11 +5,11 @@ from datetime import datetime
 class RegisterRequest(BaseModel):
     name: str
     phone: str
-    email: str
+    email: Optional[str] = None
     password: str
-    street: str
-    ward_id: int
-    state_id: int
+    street: Optional[str] = None
+    ward_id: Optional[int] = None
+    state_id: Optional[int] = None
 
 class DeviceLoginRequest(BaseModel):
     phone: str
