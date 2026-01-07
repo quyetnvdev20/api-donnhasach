@@ -6,7 +6,7 @@ from app.api.deps import get_current_user
 from .booking_service import BookingService
 from datetime import datetime
 from app.config import BOOKING_HOURS, APPOINTMENT_DURATION, QUANTITY, TIME_OPTIONS, EMPLOYEE_QUANTITY
-from app.schemas.booking_schema import BookingCalculateRequest,BookingCreateRequest
+from app.schemas.booking_schema import BookingCalculateRequest,BookingCreateRequest, BookingCancelRequest
 
 logger = logging.getLogger(__name__)
 
@@ -150,5 +150,27 @@ async def get_blog_post_detail(
         raise HTTPException(
             status_code=500,
             detail="Có lỗi xảy ra khi lấy chi tiết lịch hẹn"
+        )
+
+@router.post("/cancel", summary="Hủy đặt lịch dọn dẹp")
+async def cancel_booking_post(
+        current_user=Depends(get_current_user),
+        request: BookingCancelRequest = Body(...),
+):
+    try:
+        result = await BookingService.cancel_booking(request.dict())
+        return {
+            "success": True,
+            "message": "Hủy đặt lịch thành công",
+            "data": result,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in calculate: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi hủy đặt lịch"
         )
 

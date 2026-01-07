@@ -29,3 +29,6 @@ class BookingCreateRequest(BaseModel):
 
 
     description: Optional[str] = None
+
+class BookingCancelRequest(BaseModel):
+    booking_id: int

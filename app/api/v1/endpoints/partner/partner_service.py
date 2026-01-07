@@ -17,16 +17,29 @@ class PartnerService:
                 ru.id,
                 rp.name,
                 ru.login,
-                rp.id as partner_id,
-                (COALESCE(rp.street, '') 
-                 || CASE WHEN rcw.name IS NOT NULL THEN ', ' || rcw.name ELSE '' END
-                 || CASE WHEN rcs.name IS NOT NULL THEN ', ' || rcs.name ELSE '' END
-                ) AS full_address
+                rp.id AS partner_id,
+                (
+                    COALESCE(rp.street, '') 
+                    || CASE WHEN rcw.name IS NOT NULL THEN ', ' || rcw.name ELSE '' END
+                    || CASE WHEN rcs.name IS NOT NULL THEN ', ' || rcs.name ELSE '' END
+                ) AS full_address,
+                TO_CHAR(rp.create_date + interval '7 hours', 'HH24:MI DD-MM-YYYY') AS create_date,
+                COUNT(ce.id) AS total_calendar_event
             FROM res_users ru
             LEFT JOIN res_partner rp ON ru.partner_id = rp.id
             LEFT JOIN res_country_ward rcw ON rp.ward_id = rcw.id
             LEFT JOIN res_country_state rcs ON rp.state_id = rcs.id
+            LEFT JOIN calendar_event ce ON ce.partner_id = rp.id
             where ru.id = {}
+            GROUP BY
+                ru.id,
+                rp.name,
+                ru.login,
+                rp.id,
+                rp.street,
+                rcw.name,
+                rcs.name,
+                rp.create_date;
             '''.format(int(current_user.uid))
         response = await PostgresDB.execute_query(query)
         data = {}
@@ -38,6 +51,8 @@ class PartnerService:
                 'address': response.get('full_address'),
                 'login': response.get('login'),
                 'partner_id': response.get('partner_id'),
+                'create_date': response.get('create_date'),
+                'total_calendar_event': response.get('total_calendar_event'),
             }
 
         result = {

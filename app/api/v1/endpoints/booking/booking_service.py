@@ -66,7 +66,8 @@ class BookingService:
                         rpc.phone as contact_phone,
                         rpc.name as contact_name,
                         CONCAT_WS(', ', rpc.street, rcw2.name, rcs2.name) AS contact_address,
-                        coalesce((select rp.phone from res_company rc join res_partner rp on rc.partner_id = rp.id limit 1), '') as company_phone
+                        coalesce((select rp.phone from res_company rc join res_partner rp on rc.partner_id = rp.id limit 1), '') as company_phone,
+                        ce.estimated_total
                     FROM calendar_event ce
                          JOIN product_product pp ON ce.service_product_id = pp.id
                          JOIN product_template pt ON pp.product_tmpl_id = pt.id
@@ -80,7 +81,7 @@ class BookingService:
                          left join res_country_state rcs2 on rcs2.id = rpc.state_id 
                     where  {}
                     GROUP BY ce.id, ce.cleaning_state, ce.amount_subtotal, pt.name, rcw.name, rcs.name, rc.phone, 
-                    pp.id, rpc.id, rcw2.id, rcs2.id, rpc.phone, rpc.name, rpc.street, rcw2.name, rcs2.name
+                    pp.id, rpc.id, rcw2.id, rcs2.id, rpc.phone, rpc.name, rpc.street, rcw2.name, rcs2.name,ce.estimated_total
                     LIMIT {} OFFSET {}
                 '''.format(where_clause, limit, offset)
 
@@ -130,7 +131,7 @@ class BookingService:
                     },
                     'amount_subtotal': item.get('amount_subtotal'),
                     'amount_tax': item.get('amount_tax'),
-                    'amount_total': item.get('amount_total'),
+                    'amount_total': item.get('amount_total') if item.get('amount_total') else item.get('estimated_total'),
                     'product_service':{
                         'id': item.get('product_id'),
                         'name': item.get('product_name'),
@@ -185,9 +186,14 @@ class BookingService:
                 SELECT
                         ce.id,
                         ce.cleaning_state,
+                        ce.price_per_hour,
                         ce.amount_subtotal,
                         ce.amount_tax,
                         ce.amount_total,
+                        ce.estimated_price,
+                        ce.estimated_tax,
+                        ce.estimated_total,
+                        ce.appointment_duration,
                         pp.id as product_id,
                         
                         COALESCE(pt.name ->> 'vi_VN', pt.name ->> 'en_US') AS product_name,
@@ -222,7 +228,7 @@ class BookingService:
                          left join res_country_state rcs2 on rcs2.id = rpc.state_id
                     where  ce.id = {}
                     GROUP BY ce.id, ce.cleaning_state, ce.amount_subtotal, pt.name, rcw.name, rcs.name, rc.phone, 
-                    pp.id, rpc.id, rcw2.id, rcs2.id, rpc.phone, rpc.name, rpc.street, rcw2.name, rcs2.name
+                    pp.id, rpc.id, rcw2.id, rcs2.id, rpc.phone, rpc.name, rpc.street, rcw2.name, rcs2.name, ce.price_per_hour,ce.estimated_price, ce.estimated_tax,ce.estimated_total
             '''.format(booking_id)
 
             result = await PostgresDB.execute_query(detail_query)
@@ -256,9 +262,15 @@ class BookingService:
                     'key': item.get('cleaning_state'),
                     'value': leaning_state.get(item.get('cleaning_state'), ''),
                 },
+                'price_per_hour': item.get('price_per_hour'),
+                'appointment_duration': item.get('appointment_duration'),
                 'amount_subtotal': item.get('amount_subtotal'),
                 'amount_tax': item.get('amount_tax'),
                 'amount_total': item.get('amount_total'),
+                'estimated_price': item.get('estimated_price'),
+                'estimated_tax': item.get('estimated_tax'),
+                'estimated_total': item.get('estimated_total'),
+                'discount_amount': 0,
                 'product_service': {
                     'id': item.get('product_id'),
                     'name': item.get('product_name'),
@@ -277,7 +289,7 @@ class BookingService:
                     'ward_id': item.get('contact_ward_id'),
                     'state_id': item.get('contact_state_id'),
                     'address': item.get('contact_address'),
-                }
+                },
             }
 
 
@@ -325,3 +337,15 @@ class BookingService:
     async def get_value_state(cls):
         leaning_state = await get_value_fields_selection('calendar.event', 'cleaning_state')
         return leaning_state
+
+    @classmethod
+    async def cancel_booking(cls, data: dict):
+        result = await odoo.call_method_not_record(
+            model='calendar.event',
+            method='cancel_event_api',
+            token=settings.ODOO_TOKEN,
+            kwargs=data,
+        )
+        return {
+            'id': data.get('booking_id'),
+        }
