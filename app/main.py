@@ -12,6 +12,7 @@ from .api.v1.endpoints.partner import router as partner_router
 from .api.v1.endpoints.employee import router as employee_router
 from .api.v1.endpoints.booking import router as booking_router
 from .api.v1.endpoints.masterdatas import router as masterdata_router
+from .api.v1.endpoints.pricelist import router as pricelist_router
 from .config import settings
 from .utils.redis_client import redis_client
 from .exceptions.handlers import validation_exception_handler
@@ -48,6 +49,7 @@ app.include_router(partner_router, prefix="/partner", tags=["partner"])
 
 app.include_router(employee_router, prefix="/employee", tags=["employee"])
 app.include_router(booking_router, prefix="/booking", tags=["booking"])
+app.include_router(pricelist_router, prefix="/pricelist", tags=["pricelist"])
 
 app.include_router(masterdata_router, prefix="/masterdatas", tags=["masterdatas"])
 
