@@ -3,7 +3,9 @@
 ## Thông tin Server
 - **IP**: 171.244.139.130
 - **OS**: Ubuntu
-- **Domain**: api.donnhasach.vn
+- **Domains**: 
+  - `api.donnhasach.vn` → FastAPI (cổng 8888)
+  - `api.cleanhome.vn` → FastAPI (cổng 8888) - cùng project
 - **Port**: 8888
 
 ## Các bước Deploy (Thủ công)
@@ -17,18 +19,28 @@ sudo systemctl enable nginx
 sudo systemctl start nginx
 ```
 
-### 2. Copy file cấu hình Nginx
+### 2. Copy file cấu hình Nginx cho api.donnhasach.vn
 
 ```bash
-cd /home/quyetnv/DonNhaSachProject/fastapi/api-donnhasach
+cd /home/Api/api-donnhasach
 sudo cp nginx/api.donnhasach.vn.conf /etc/nginx/sites-available/api.donnhasach.vn.conf
+```
+
+### 2b. Copy file cấu hình Nginx cho api.cleanhome.vn
+
+```bash
+cd /home/Api/api-donnhasach
+sudo cp nginx/api.cleanhome.vn.conf /etc/nginx/sites-available/api.cleanhome.vn.conf
 ```
 
 ### 3. Kích hoạt cấu hình Nginx
 
 ```bash
-# Tạo symbolic link để kích hoạt site
+# Kích hoạt api.donnhasach.vn
 sudo ln -s /etc/nginx/sites-available/api.donnhasach.vn.conf /etc/nginx/sites-enabled/api.donnhasach.vn.conf
+
+# Kích hoạt api.cleanhome.vn
+sudo ln -s /etc/nginx/sites-available/api.cleanhome.vn.conf /etc/nginx/sites-enabled/api.cleanhome.vn.conf
 ```
 
 ### 4. Kiểm tra cấu hình Nginx
@@ -194,9 +206,10 @@ python run.py --component api
 ## Cấu trúc File
 
 ```
-/home/quyetnv/DonNhaSachProject/fastapi/api-donnhasach/
+/home/Api/api-donnhasach/
 ├── nginx/
-│   └── api.donnhasach.vn.conf    # Cấu hình nginx
+│   ├── api.donnhasach.vn.conf    # Cấu hình nginx cho api.donnhasach.vn
+│   └── api.cleanhome.vn.conf     # Cấu hình nginx cho api.cleanhome.vn
 └── README_DEPLOY.md              # File này
 ```
 
