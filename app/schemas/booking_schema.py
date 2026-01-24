@@ -10,6 +10,8 @@ class BookingCalculateRequest(BaseModel):
     categ_id: int
     contact_id: int
     employee_quantity: int
+    program_id: Optional[int] = None
+    card_id: Optional[int] = None
 
 
 
@@ -26,8 +28,8 @@ class BookingCreateRequest(BaseModel):
     recurring_interval: Optional[int] = None
     recurring_unit: Optional[str] = None
     assigned_staff_ids: Optional[List[int]] = None
-
-
+    program_id: Optional[int] = None
+    card_id: Optional[int] = None
     description: Optional[str] = None
 
 class BookingCancelRequest(BaseModel):

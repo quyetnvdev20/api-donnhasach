@@ -187,12 +187,18 @@ class BookingService:
                         ce.id,
                         ce.cleaning_state,
                         ce.price_per_hour,
+                        ce.amount_before_discount,
                         ce.amount_subtotal,
                         ce.amount_tax,
                         ce.amount_total,
                         ce.estimated_price,
                         ce.estimated_tax,
                         ce.estimated_total,
+                        ce.discount_amount,
+                        ce.discount_percent,
+                        ce.estimated_amount_before_discount,
+                        ce.estimated_discount_amount,
+                        ce.estimated_discount_percent,
                         ce.appointment_duration,
                         pp.id as product_id,
                         
@@ -228,7 +234,7 @@ class BookingService:
                          left join res_country_state rcs2 on rcs2.id = rpc.state_id
                     where  ce.id = {}
                     GROUP BY ce.id, ce.cleaning_state, ce.amount_subtotal, pt.name, rcw.name, rcs.name, rc.phone, 
-                    pp.id, rpc.id, rcw2.id, rcs2.id, rpc.phone, rpc.name, rpc.street, rcw2.name, rcs2.name, ce.price_per_hour,ce.estimated_price, ce.estimated_tax,ce.estimated_total
+                    pp.id, rpc.id, rcw2.id, rcs2.id, rpc.phone, rpc.name, rpc.street, rcw2.name, rcs2.name, ce.price_per_hour,ce.estimated_price, ce.estimated_tax,ce.estimated_total, ce.discount_amount, ce.discount_percent, ce.estimated_discount_amount, ce.estimated_discount_percent, ce.amount_before_discount, ce.estimated_amount_before_discount
             '''.format(booking_id)
 
             result = await PostgresDB.execute_query(detail_query)
@@ -255,6 +261,20 @@ class BookingService:
             date_to_string = start_dt.strftime("%A, %d tháng %m, %Y").replace(" 0", " ")
             time_to_string = f"{start_dt.strftime('%H:%M')} - {stop_dt.strftime('%H:%M')}"
 
+            # Lấy discount: ưu tiên discount_amount, nếu không có thì dùng estimated_discount_amount
+            discount_amount = item.get('discount_amount')
+            discount_percent = item.get('discount_percent')
+            estimated_discount_amount = item.get('estimated_discount_amount')
+            estimated_discount_percent = item.get('estimated_discount_percent')
+            
+            # Xác định discount cuối cùng (ưu tiên không estimate)
+            final_discount_amount = discount_amount if (discount_amount is not None and discount_amount > 0) else (estimated_discount_amount if (estimated_discount_amount is not None and estimated_discount_amount > 0) else 0)
+            final_discount_percent = discount_percent if (discount_percent is not None and discount_percent > 0) else (estimated_discount_percent if (estimated_discount_percent is not None and estimated_discount_percent > 0) else 0)
+            
+            # Tính tiền trước discount: tiền sau discount + discount
+            # Lấy amount_subtotal hoặc estimated_price (tiền sau discount)
+            amount_before_discount = item.get('amount_before_discount') if item.get('amount_before_discount') else item.get('estimated_amount_before_discount')
+
             data = {
 
                 'id': item.get('id'),
@@ -270,7 +290,13 @@ class BookingService:
                 'estimated_price': item.get('estimated_price'),
                 'estimated_tax': item.get('estimated_tax'),
                 'estimated_total': item.get('estimated_total'),
-                'discount_amount': 0,
+                'discount_amount': discount_amount,
+                'discount_percent': discount_percent,
+                'estimated_discount_amount': estimated_discount_amount,
+                'estimated_discount_percent': int(estimated_discount_percent),
+                'final_discount_amount': final_discount_amount,
+                'final_discount_percent': int(final_discount_percent),
+                'amount_before_discount': amount_before_discount,
                 'product_service': {
                     'id': item.get('product_id'),
                     'name': item.get('product_name'),

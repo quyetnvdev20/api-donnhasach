@@ -25,7 +25,7 @@ class CategoryService:
                 where_clause += " AND pc.name  ILIKE '%{}%' ".format( search )
 
             query = '''
-                select pc.id, pc.name, pc.active, pc.icon, pc.url_image, is_recurring_service from product_category pc where pc.is_service_main is true and {}
+                select pc.id, pc.name, pc.active, pc.icon, pc.url_image, is_recurring_service, description_detail from product_category pc where pc.is_service_main is true and {}
                 LIMIT {} OFFSET {}
             '''.format(where_clause, limit, offset)
 
