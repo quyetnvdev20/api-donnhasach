@@ -50,3 +50,37 @@ async def get_category(
             status_code=500,
             detail="Có lỗi xảy ra khi lấy danh sách danh mục dịch vụ"
         )
+
+
+@router.get("/product-extra", summary="Lấy danh sách sản phẩm dịch vụ thêm")
+async def get_product_extra(
+        headers: Annotated[CommonHeaderPortal, Header()],
+        category_id: int = Query(..., description="ID của category"),
+        _=Depends(verify_signature),
+):
+    try:
+        result = await CategoryService.get_product_extra_service(
+            category_id=category_id
+        )
+
+        if not result["success"]:
+            raise HTTPException(
+                status_code=500,
+                detail=result["error"]
+            )
+
+        return {
+            "success": True,
+            "message": "Lấy danh sách dịch vụ thêm thành công",
+            "data": result["data"]
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in product-extra: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi lấy danh sách dịch vụ thêm"
+        )
+

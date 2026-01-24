@@ -1,6 +1,11 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 from datetime import datetime
+
+
+class ExtraProductItem(BaseModel):
+    product_id: int
+    quantity: int
 
 
 class BookingCalculateRequest(BaseModel):
@@ -12,6 +17,7 @@ class BookingCalculateRequest(BaseModel):
     employee_quantity: int
     program_id: Optional[int] = None
     card_id: Optional[int] = None
+    extra_data: Optional[List[ExtraProductItem]] = None
 
 
 
@@ -31,6 +37,7 @@ class BookingCreateRequest(BaseModel):
     program_id: Optional[int] = None
     card_id: Optional[int] = None
     description: Optional[str] = None
+    extra_data: Optional[List[ExtraProductItem]] = None
 
 class BookingCancelRequest(BaseModel):
     booking_id: int

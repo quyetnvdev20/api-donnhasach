@@ -59,3 +59,36 @@ class CategoryService:
                 "error": f"Lỗi khi lấy danh sách dịch vụ: {str(e)}",
                 "data": None
             }
+
+    @staticmethod
+    async def get_product_extra_service(
+            category_id: int
+    ) -> Dict[str, Any]:
+        try:
+            query = '''
+                SELECT 
+                    pp.id,
+                    pt.name ->> 'vi_VN' as name,
+                    COALESCE(pt.is_add_quantity, false) as is_add_quantity,
+                    COALESCE(pt.list_price, 0) as list_price
+                FROM product_category_product_product_extra_rel pcpp
+                JOIN product_product pp ON pcpp.product_id = pp.id
+                    join product_template pt on pp.product_tmpl_id = pt.id
+                WHERE pcpp.category_id = {}
+                ORDER BY pt.name
+            '''.format(category_id)
+
+            result = await PostgresDB.execute_query(query)
+
+            return {
+                "success": True,
+                "data": result,
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting product extra: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Lỗi khi lấy danh sách dịch vụ thêm: {str(e)}",
+                "data": None
+            }
