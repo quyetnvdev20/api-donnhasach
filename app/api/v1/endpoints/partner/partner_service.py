@@ -67,20 +67,21 @@ class PartnerService:
 
         query = '''
         SELECT 
-        rp.id as contact_id,
-        rp.name as contact_name,
+        ca.id as contact_id,
+        ca.name as contact_name,
         rcw.id as ward_id,
         rcs.id as state_id,
         rcw.name as ward_name,
         rcs.name as state_name,
-        rp.is_default as is_default,
-        rp.street as street,
-        CONCAT_WS(', ', rp.street, rcw.name, rcs.name) AS contact_address,
-        rp.phone as phone
-        from res_partner rp
-        LEFT JOIN res_country_ward rcw ON rp.ward_id = rcw.id
-        LEFT JOIN res_country_state rcs ON rp.state_id = rcs.id
-        where rp.parent_id = {}
+        ca.is_default as is_default,
+        ca.street as street,
+        CONCAT_WS(', ', ca.street, rcw.name, rcs.name) AS contact_address,
+        ca.phone as phone
+        from customer_address ca
+        LEFT JOIN res_country_ward rcw ON ca.ward_id = rcw.id
+        LEFT JOIN res_country_state rcs ON ca.state_id = rcs.id
+        where ca.partner_id = {}
+        ORDER BY ca.is_default DESC, ca.id DESC
         '''.format(int(current_user.partner_id))
         responses = await PostgresDB.execute_query(query)
         data = []
