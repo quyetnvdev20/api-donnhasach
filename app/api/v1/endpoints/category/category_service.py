@@ -92,3 +92,86 @@ class CategoryService:
                 "error": f"Lỗi khi lấy danh sách dịch vụ thêm: {str(e)}",
                 "data": None
             }
+
+    @staticmethod
+    async def get_cleaning_script_service(
+            category_id: int
+    ) -> Dict[str, Any]:
+        try:
+            # Lấy cleaning_script_id từ category
+            category_query = '''
+                SELECT cleaning_script_id
+                FROM product_category
+                WHERE id = {}
+            '''.format(category_id)
+            
+            category_result = await PostgresDB.execute_query(category_query)
+            
+            if not category_result or not category_result[0].get('cleaning_script_id'):
+                return {
+                    "success": True,
+                    "data": None,
+                }
+            
+            script_id = category_result[0]['cleaning_script_id']
+            
+            # Chỉ lấy các phòng (children của root) - bậc 2
+            # Không lấy root (bậc 1) và không lấy children của phòng (bậc 3)
+            query = '''
+                SELECT 
+                    cst.id,
+                    cst.name,
+                    cst.sequence,
+                    cst.property_type,
+                    cst.parent_id,
+                    cst.is_room,
+                    COALESCE(cst.task_items, '') as task_items
+                FROM cleaning_script_template cst
+                WHERE cst.parent_id = {}
+                ORDER BY cst.sequence, cst.id
+            '''.format(script_id)
+            
+            result = await PostgresDB.execute_query(query)
+            
+            if not result:
+                return {
+                    "success": True,
+                    "data": [],
+                }
+            
+            # Chuyển đổi task_items từ string sang mảng
+            # Format: mỗi dòng là một công việc, có thể bắt đầu bằng "+" hoặc "-"
+            rooms_data = []
+            for row in result:
+                task_items_list = []
+                if row['task_items']:
+                    # Tách theo dòng và lọc bỏ dòng trống
+                    lines = [line.strip() for line in row['task_items'].split('\n') if line.strip()]
+                    for line in lines:
+                        # Bỏ dấu "+" hoặc "-" ở đầu nếu có
+                        task = line.lstrip('+-').strip()
+                        if task:
+                            task_items_list.append(task)
+                
+                rooms_data.append({
+                    'id': row['id'],
+                    'name': row['name'],
+                    'sequence': row['sequence'],
+                    'property_type': row['property_type'],
+                    'is_room': row['is_room'],
+                    'task_items': task_items_list,
+                    'parent_id': row.get('parent_id')
+                })
+            
+            return {
+                "success": True,
+                "data": rooms_data,
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting cleaning script: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Lỗi khi lấy kịch bản dọn nhà: {str(e)}",
+                "data": None
+            }

@@ -84,3 +84,36 @@ async def get_product_extra(
             detail="Có lỗi xảy ra khi lấy danh sách dịch vụ thêm"
         )
 
+
+@router.get("/cleaning-script", summary="Lấy kịch bản dọn nhà theo category")
+async def get_cleaning_script(
+        headers: Annotated[CommonHeaderPortal, Header()],
+        category_id: int = Query(..., description="ID của category"),
+        _=Depends(verify_signature),
+):
+    try:
+        result = await CategoryService.get_cleaning_script_service(
+            category_id=category_id
+        )
+
+        if not result["success"]:
+            raise HTTPException(
+                status_code=500,
+                detail=result["error"]
+            )
+
+        return {
+            "success": True,
+            "message": "Lấy kịch bản dọn nhà thành công",
+            "data": result["data"]
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in cleaning-script: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi lấy kịch bản dọn nhà"
+        )
+
