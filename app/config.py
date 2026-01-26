@@ -96,6 +96,16 @@ TIME_OPTIONS = [
     {"key": "months", "value": "Tháng"},
 ]
 
+WEEKDAYS = [
+    {"key": 0, "label": "Thứ 2"},
+    {"key": 1, "label": "Thứ 3"},
+    {"key": 2, "label": "Thứ 4"},
+    {"key": 3, "label": "Thứ 5"},
+    {"key": 4, "label": "Thứ 6"},
+    {"key": 5, "label": "Thứ 7"},
+    {"key": 6, "label": "Chủ nhật"},
+]
+
 EMPLOYEE_QUANTITY = [
     {"key": 1, "value": "1 Nhân viên"},
     {"key": 2, "value": "2 Nhân viên"},

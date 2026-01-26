@@ -6,7 +6,13 @@ from app.api.deps import get_current_user
 from .booking_service import BookingService
 from datetime import datetime
 from app.config import BOOKING_HOURS, APPOINTMENT_DURATION, QUANTITY, TIME_OPTIONS, EMPLOYEE_QUANTITY
-from app.schemas.booking_schema import BookingCalculateRequest,BookingCreateRequest, BookingCancelRequest
+from app.schemas.booking_schema import (
+    BookingCalculateRequest,
+    BookingCreateRequest, 
+    BookingCancelRequest,
+    CalculateCleaningDatesRequest,
+    PeriodicPricingRequest
+)
 
 logger = logging.getLogger(__name__)
 
@@ -172,5 +178,59 @@ async def cancel_booking_post(
         raise HTTPException(
             status_code=500,
             detail="Có lỗi xảy ra khi hủy đặt lịch"
+        )
+
+@router.post("/periodic/calculate-dates", summary="Tính các ngày dọn dẹp định kỳ")
+async def calculate_cleaning_dates(
+        current_user=Depends(get_current_user),
+        request: CalculateCleaningDatesRequest = Body(...),
+):
+    try:
+        result = await BookingService.calculate_cleaning_dates(
+            weekday=request.weekday,
+            package_id=request.package_id,
+            start_date=request.start_date
+        )
+        
+        if not result.get("success"):
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("error", "Có lỗi xảy ra khi tính ngày dọn dẹp")
+            )
+        
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in calculate_cleaning_dates: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi tính ngày dọn dẹp"
+        )
+
+@router.post("/periodic/calculate-pricing", summary="Tính giá cho lịch định kỳ")
+async def calculate_periodic_pricing(
+        current_user=Depends(get_current_user),
+        request: PeriodicPricingRequest = Body(...),
+):
+    try:
+        result = await BookingService.calculate_periodic_pricing(request.dict(), current_user)
+        
+        if not result.get("success"):
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("error", "Có lỗi xảy ra khi tính giá định kỳ")
+            )
+        
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in calculate_periodic_pricing: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi tính giá định kỳ"
         )
 

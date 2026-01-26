@@ -6,7 +6,7 @@ from datetime import datetime
 from .masterdatas_service import MasterdatasService
 from app.api.deps import verify_signature
 from app.schemas.common_schema import CommonHeaderPortal
-from app.config import BOOKING_HOURS, APPOINTMENT_DURATION, QUANTITY, TIME_OPTIONS, EMPLOYEE_QUANTITY
+from app.config import BOOKING_HOURS, APPOINTMENT_DURATION, QUANTITY, TIME_OPTIONS, EMPLOYEE_QUANTITY, WEEKDAYS
 from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -190,4 +190,48 @@ async def get_employee_quantity(
         raise HTTPException(
             status_code=500,
             detail="Có lỗi xảy ra khi lấy danh sách số lượng nhân viên"
+        )
+
+@router.get("/periodic-packages", summary="Lấy danh sách gói định kỳ")
+async def get_periodic_packages(
+        current_user=Depends(get_current_user),
+):
+    try:
+        result = await MasterdatasService.get_periodic_packages()
+        
+        if not result["success"]:
+            raise HTTPException(
+                status_code=500,
+                detail=result.get("error", "Có lỗi xảy ra khi lấy danh sách gói định kỳ")
+            )
+        
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in get_periodic_packages: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi lấy danh sách gói định kỳ"
+        )
+
+@router.get("/weekdays", summary="Lấy danh sách thứ trong tuần")
+async def get_weekdays(
+        current_user=Depends(get_current_user),
+):
+    try:
+        return {
+            "success": True,
+            "message": "Lấy danh sách thứ trong tuần thành công",
+            "data": WEEKDAYS,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in get_weekdays: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi lấy danh sách thứ trong tuần"
         )

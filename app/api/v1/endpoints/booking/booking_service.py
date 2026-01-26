@@ -375,3 +375,102 @@ class BookingService:
         return {
             'id': data.get('booking_id'),
         }
+
+    @staticmethod
+    async def calculate_cleaning_dates(
+            weekday: int,
+            package_id: int,
+            start_date: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Tính các ngày dọn dẹp dựa trên thứ trong tuần và gói"""
+        try:
+            from datetime import datetime, timedelta
+            from dateutil.relativedelta import relativedelta
+            
+            # Lấy thông tin gói từ database
+            package_query = '''
+                SELECT id, name, duration_months, min_booking_count
+                FROM periodic_package
+                WHERE id = {} AND active = true
+            '''.format(package_id)
+            package_result = await PostgresDB.execute_query(package_query)
+            
+            if not package_result:
+                return {
+                    "success": False,
+                    "error": "Không tìm thấy gói định kỳ"
+                }
+            
+            package = package_result[0]
+            duration_months = package['duration_months']
+            min_booking_count = package['min_booking_count']
+            
+            # Parse ngày bắt đầu
+            if start_date:
+                try:
+                    start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+                except:
+                    start_date_obj = datetime.now().date()
+            else:
+                start_date_obj = datetime.now().date()
+            
+            # Chuyển đổi weekday: 0=Thứ 2 -> 0 (Monday), 6=CN -> 6 (Sunday)
+            python_weekday = weekday if weekday < 6 else 6
+            
+            # Tìm ngày đầu tiên có thứ trùng với weekday
+            current_weekday = start_date_obj.weekday()  # 0=Monday, 6=Sunday
+            days_ahead = python_weekday - current_weekday
+            if days_ahead < 0:  # Ngày đã qua trong tuần này
+                days_ahead += 7
+            first_cleaning_date = start_date_obj + timedelta(days=days_ahead)
+            
+            # Tính ngày kết thúc (start_date + duration_months tháng)
+            end_date = start_date_obj + relativedelta(months=duration_months)
+            
+            # Lấy tất cả các ngày có thứ trùng với weekday trong khoảng thời gian
+            cleaning_dates = []
+            weekday_names = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật']
+            
+            current_cleaning_date = first_cleaning_date
+            while current_cleaning_date <= end_date:
+                cleaning_dates.append({
+                    'date': current_cleaning_date.strftime('%Y-%m-%d'),
+                    'weekday': current_cleaning_date.weekday(),
+                    'weekday_name': weekday_names[current_cleaning_date.weekday()]
+                })
+                current_cleaning_date += timedelta(days=7)  # Tuần sau
+            
+            # Kiểm tra số lượng tối thiểu
+            if len(cleaning_dates) < min_booking_count:
+                return {
+                    'success': False,
+                    'error': f'Gói {package["name"]} yêu cầu ít nhất {min_booking_count} lần đặt, nhưng chỉ có {len(cleaning_dates)} ngày'
+                }
+            
+            return {
+                'success': True,
+                'data': cleaning_dates,
+                'total_dates': len(cleaning_dates),
+                'package_name': package['name'],
+                'duration_months': duration_months
+            }
+        except Exception as e:
+            logger.error(f"Error calculating cleaning dates: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Lỗi khi tính ngày dọn dẹp: {str(e)}"
+            }
+
+    @classmethod
+    async def calculate_periodic_pricing(cls, data: dict, current_user: UserObject):
+        """Tính giá cho lịch định kỳ"""
+        data.update({
+            'partner_id': current_user.partner_id
+        })
+        result = await odoo.call_method_not_record(
+            model='calendar.event',
+            method='calculate_periodic_booking_price_api',
+            token=settings.ODOO_TOKEN,
+            kwargs=data,
+        )
+        return result

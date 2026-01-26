@@ -122,3 +122,33 @@ class MasterdatasService:
                 "error": f"Lỗi khi lấy danh sách TP: {str(e)}",
                 "data": None
             }
+
+    @staticmethod
+    async def get_periodic_packages() -> Dict[str, Any]:
+        """Lấy danh sách gói định kỳ"""
+        try:
+            query = '''
+                SELECT 
+                    id,
+                    name,
+                    duration_months,
+                    COALESCE(description, '') as description,
+                    min_booking_count
+                FROM periodic_package
+                WHERE active = true
+                ORDER BY duration_months
+            '''
+            
+            result = await PostgresDB.execute_query(query)
+            
+            return {
+                "success": True,
+                "data": result,
+            }
+        except Exception as e:
+            logger.error(f"Error getting periodic packages: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Lỗi khi lấy danh sách gói định kỳ: {str(e)}",
+                "data": None
+            }
