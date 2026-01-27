@@ -22,3 +22,7 @@ class BookingContractCreateRequest(BaseModel):
     description: Optional[str] = None
     extra_data: Optional[List[ExtraProductItem]] = None
 
+
+class BookingContractScheduleUpdateRequest(BaseModel):
+    new_date: str = Field(..., description="Ngày mới (YYYY-MM-DD)")
+
