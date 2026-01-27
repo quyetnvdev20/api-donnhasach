@@ -26,3 +26,9 @@ class BookingContractCreateRequest(BaseModel):
 class BookingContractScheduleUpdateRequest(BaseModel):
     new_date: str = Field(..., description="Ngày mới (YYYY-MM-DD)")
 
+
+class BookingContractCheckPriceRequest(BaseModel):
+    contract_id: int = Field(..., description="ID hợp đồng")
+    schedule_id: int = Field(..., description="ID schedule")
+    new_date: str = Field(..., description="Ngày mới (YYYY-MM-DD)")
+

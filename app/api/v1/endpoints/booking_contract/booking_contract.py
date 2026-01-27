@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from app.api.deps import get_current_user
 from .booking_contract_service import BookingContractService
-from app.schemas.booking_contract_schema import BookingContractCreateRequest, BookingContractScheduleUpdateRequest
+from app.schemas.booking_contract_schema import BookingContractCreateRequest, BookingContractScheduleUpdateRequest, BookingContractCheckPriceRequest
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +67,30 @@ async def get_booking_contract_detail(
         raise HTTPException(
             status_code=500,
             detail="Có lỗi xảy ra khi lấy chi tiết hợp đồng định kỳ"
+        )
+
+
+@router.post("/check-price", summary="Kiểm tra giá khi đổi lịch")
+async def check_schedule_price(
+        request: BookingContractCheckPriceRequest = Body(...),
+        current_user=Depends(get_current_user),
+):
+    try:
+        result = await BookingContractService.check_schedule_price(
+            request.contract_id, request.schedule_id, request.new_date, current_user
+        )
+        return {
+            "success": True,
+            "message": "Kiểm tra giá thành công",
+            "data": result,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in check_schedule_price: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi kiểm tra giá"
         )
 
 

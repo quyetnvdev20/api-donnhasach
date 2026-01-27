@@ -63,6 +63,32 @@ class BookingContractService:
             raise
 
     @classmethod
+    async def check_schedule_price(
+        cls,
+        contract_id: int,
+        schedule_id: int,
+        new_date: str,
+        current_user: UserObject,
+    ) -> Dict[str, Any]:
+        """Kiểm tra giá khi đổi lịch"""
+        try:
+            result = await odoo.call_method_not_record(
+                model='booking.contract',
+                method='check_schedule_price_api',
+                token=settings.ODOO_TOKEN,
+                kwargs={
+                    'contract_id': contract_id,
+                    'schedule_id': schedule_id,
+                    'new_date': new_date,
+                    'partner_id': current_user.partner_id,
+                },
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Error checking schedule price: {str(e)}")
+            raise
+
+    @classmethod
     async def update_schedule_date(
         cls,
         contract_id: int,
