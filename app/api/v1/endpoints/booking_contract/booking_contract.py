@@ -4,7 +4,12 @@ import logging
 from datetime import datetime
 from app.api.deps import get_current_user
 from .booking_contract_service import BookingContractService
-from app.schemas.booking_contract_schema import BookingContractCreateRequest, BookingContractScheduleUpdateRequest, BookingContractCheckPriceRequest
+from app.api.v1.endpoints.payment.payment_service import PaymentService
+from app.schemas.booking_contract_schema import (
+    BookingContractCreateRequest, 
+    BookingContractScheduleUpdateRequest, 
+    BookingContractCheckPriceRequest
+)
 
 logger = logging.getLogger(__name__)
 
@@ -140,4 +145,6 @@ async def create_booking_contract_post(
             status_code=500,
             detail="Có lỗi xảy ra khi tạo hợp đồng định kỳ"
         )
+
+
 

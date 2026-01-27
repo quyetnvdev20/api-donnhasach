@@ -235,3 +235,34 @@ async def get_weekdays(
             status_code=500,
             detail="Có lỗi xảy ra khi lấy danh sách thứ trong tuần"
         )
+
+@router.get("/payment-methods", summary="Lấy danh sách phương thức thanh toán")
+async def get_payment_methods(
+        is_periodic: Optional[str] = Query("false", description="Là gói định kỳ (chỉ trả về chuyển khoản). Giá trị: 'true' hoặc 'false'"),
+        current_user=Depends(get_current_user),
+):
+    try:
+        # Convert string to boolean
+        is_periodic_bool = is_periodic.lower() in ('true', '1', 'yes') if is_periodic else False
+        
+        result = await MasterdatasService.get_payment_methods(is_periodic=is_periodic_bool)
+        
+        if not result["success"]:
+            raise HTTPException(
+                status_code=500,
+                detail=result.get("error", "Có lỗi xảy ra khi lấy danh sách phương thức thanh toán")
+            )
+        
+        return {
+            "success": True,
+            "message": "Lấy danh sách phương thức thanh toán thành công",
+            "data": result["data"],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in get_payment_methods: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi lấy danh sách phương thức thanh toán"
+        )

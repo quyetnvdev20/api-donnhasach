@@ -13,6 +13,7 @@ from .api.v1.endpoints.employee import router as employee_router
 from .api.v1.endpoints.booking import router as booking_router
 from .api.v1.endpoints.booking_contract import router as booking_contract_router
 from .api.v1.endpoints.masterdatas import router as masterdata_router
+from .api.v1.endpoints.payment import router as payment_router
 from .api.v1.endpoints.pricelist import router as pricelist_router
 from .api.v1.endpoints.loyalty import router as loyalty_router
 from .config import settings
@@ -56,6 +57,7 @@ app.include_router(pricelist_router, prefix="/pricelist", tags=["pricelist"])
 
 app.include_router(masterdata_router, prefix="/masterdatas", tags=["masterdatas"])
 app.include_router(loyalty_router, prefix="/loyalty", tags=["loyalty"])
+app.include_router(payment_router, prefix="/payment", tags=["payment"])
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):

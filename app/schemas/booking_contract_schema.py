@@ -32,3 +32,8 @@ class BookingContractCheckPriceRequest(BaseModel):
     schedule_id: int = Field(..., description="ID schedule")
     new_date: str = Field(..., description="Ngày mới (YYYY-MM-DD)")
 
+
+class CreatePayOSPaymentRequest(BaseModel):
+    contract_id: int = Field(..., description="ID hợp đồng")
+    payment_method_id: int = Field(..., description="ID phương thức thanh toán")
+

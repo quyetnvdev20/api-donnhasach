@@ -152,3 +152,49 @@ class MasterdatasService:
                 "error": f"Lỗi khi lấy danh sách gói định kỳ: {str(e)}",
                 "data": None
             }
+    
+    @staticmethod
+    async def get_payment_methods(is_periodic: bool = False) -> Dict[str, Any]:
+        """
+        Lấy danh sách phương thức thanh toán
+        
+        :param is_periodic: True nếu là gói định kỳ (chỉ trả về chuyển khoản), False nếu là gói lẻ (cả 2 loại)
+        :return: Danh sách payment methods
+        """
+        try:
+            # Build WHERE clause dựa trên loại booking
+            where_clause = "active = true"
+            
+            if is_periodic:
+                # Gói định kỳ: chỉ chuyển khoản
+                where_clause += " AND is_bank_transfer = true"
+            else:
+                # Gói lẻ: cả thanh toán khi hoàn thành và chuyển khoản
+                where_clause += " AND (is_cash_on_delivery = true OR is_bank_transfer = true)"
+            
+            query = f'''
+                SELECT 
+                    id,
+                    name,
+                    code,
+                    COALESCE(is_cash_on_delivery, false) as is_cash_on_delivery,
+                    COALESCE(is_bank_transfer, false) as is_bank_transfer,
+                    COALESCE(is_payos, false) as is_payos
+                FROM payment_method
+                WHERE {where_clause}
+                ORDER BY name
+            '''
+            
+            result = await PostgresDB.execute_query(query)
+            
+            return {
+                "success": True,
+                "data": result,
+            }
+        except Exception as e:
+            logger.error(f"Error getting payment methods: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Lỗi khi lấy danh sách phương thức thanh toán: {str(e)}",
+                "data": None
+            }
