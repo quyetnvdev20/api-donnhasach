@@ -11,7 +11,8 @@ from app.schemas.booking_schema import (
     BookingCreateRequest, 
     BookingCancelRequest,
     CalculateCleaningDatesRequest,
-    PeriodicPricingRequest
+    PeriodicPricingRequest,
+    PeriodicBookingCreateRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -233,4 +234,27 @@ async def calculate_periodic_pricing(
             status_code=500,
             detail="Có lỗi xảy ra khi tính giá định kỳ"
         )
+
+
+@router.post("/periodic/", summary="Đặt lịch dọn dẹp định kỳ")
+async def create_periodic_booking_post(
+        current_user=Depends(get_current_user),
+        request: PeriodicBookingCreateRequest = Body(...),
+):
+    try:
+        result = await BookingService.create_periodic_booking(request.dict(), current_user)
+        return {
+            "success": True,
+            "message": "Đặt lịch định kỳ thành công",
+            "data": result,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in create_periodic_booking: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi đặt lịch định kỳ"
+        )
+
 

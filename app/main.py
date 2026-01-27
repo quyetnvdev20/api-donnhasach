@@ -11,6 +11,7 @@ from .api.v1.endpoints.category import router as category_router
 from .api.v1.endpoints.partner import router as partner_router
 from .api.v1.endpoints.employee import router as employee_router
 from .api.v1.endpoints.booking import router as booking_router
+from .api.v1.endpoints.booking_contract import router as booking_contract_router
 from .api.v1.endpoints.masterdatas import router as masterdata_router
 from .api.v1.endpoints.pricelist import router as pricelist_router
 from .api.v1.endpoints.loyalty import router as loyalty_router
@@ -50,6 +51,7 @@ app.include_router(partner_router, prefix="/partner", tags=["partner"])
 
 app.include_router(employee_router, prefix="/employee", tags=["employee"])
 app.include_router(booking_router, prefix="/booking", tags=["booking"])
+app.include_router(booking_contract_router, prefix="/booking-contract", tags=["booking-contract"])
 app.include_router(pricelist_router, prefix="/pricelist", tags=["pricelist"])
 
 app.include_router(masterdata_router, prefix="/masterdatas", tags=["masterdatas"])

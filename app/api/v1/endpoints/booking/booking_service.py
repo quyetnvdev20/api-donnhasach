@@ -474,3 +474,17 @@ class BookingService:
             kwargs=data,
         )
         return result
+
+    @classmethod
+    async def create_periodic_booking(cls, data: dict, current_user: UserObject):
+        """Tạo đặt lịch định kỳ"""
+        data.update({
+            'partner_id': current_user.partner_id
+        })
+        result = await odoo.call_method_not_record(
+            model='booking.contract',
+            method='create_periodic_booking_api',
+            token=settings.ODOO_TOKEN,
+            kwargs=data,
+        )
+        return result
