@@ -1,13 +1,60 @@
 from fastapi import APIRouter, HTTPException, Query, Path, Depends, Header, Body
-from typing import Optional
+from typing import Optional, Annotated
 import logging
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, verify_signature
+from app.schemas.common_schema import CommonHeaderPortal
 from .loyalty_service import LoyaltyService
 from app.schemas.loyalty_schema import LoyaltyProgramsRequest, LoyaltyProgramByCardRequest
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+@router.get("/", summary="Lấy danh sách chương trình khuyến mại")
+async def get_loyalty_programs_list(
+        headers: Annotated[CommonHeaderPortal, Header()],
+        search: Optional[str] = None,
+        limit: int = 10,
+        page: int = 1,
+        _=Depends(verify_signature),
+):
+    """
+    API lấy danh sách chương trình khuyến mại (không cần đăng nhập)
+    Tự động lọc các chương trình đang hiệu lực theo date_from và date_to
+    Bao gồm cả các chương trình không có date_from hoặc date_to (vĩnh viễn)
+    """
+    try:
+        result = await LoyaltyService.get_loyalty_programs_list_service(
+            page=page,
+            limit=limit,
+            search=search
+        )
+
+        if not result["success"]:
+            raise HTTPException(
+                status_code=500,
+                detail=result["error"]
+            )
+
+        return {
+            "success": True,
+            "message": "Lấy danh sách chương trình khuyến mại thành công",
+            "data": result["data"],
+            "current_page": result["current_page"],
+            "limit": result["limit"],
+            "total": result["total"],
+            "total_pages": result["total_pages"]
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in get_loyalty_programs_list: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi lấy danh sách chương trình khuyến mại"
+        )
 
 
 @router.post("/programs", summary="Lấy danh sách các chính sách bán hàng và chương trình khuyến mại")

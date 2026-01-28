@@ -17,6 +17,7 @@ class BookingContractCreateRequest(BaseModel):
     package_id: int = Field(..., description="ID của gói định kỳ")
     base_amount: float = Field(..., description="Tổng tiền cơ bản của gói")
     extra_amount: float = Field(..., description="Tổng tiền dịch vụ thêm của gói")
+    payment_method_id: Optional[int] = Field(None, description="ID phương thức thanh toán")
     program_id: Optional[int] = None
     card_id: Optional[int] = None
     description: Optional[str] = None
