@@ -238,14 +238,12 @@ async def get_weekdays(
 
 @router.get("/payment-methods", summary="Lấy danh sách phương thức thanh toán")
 async def get_payment_methods(
-        is_periodic: Optional[str] = Query("false", description="Là gói định kỳ (chỉ trả về chuyển khoản). Giá trị: 'true' hoặc 'false'"),
+        is_periodic: bool = Query(False, description="Là gói định kỳ (chỉ trả về chuyển khoản). Giá trị: true hoặc false"),
         current_user=Depends(get_current_user),
 ):
     try:
-        # Convert string to boolean
-        is_periodic_bool = is_periodic.lower() in ('true', '1', 'yes') if is_periodic else False
-        
-        result = await MasterdatasService.get_payment_methods(is_periodic=is_periodic_bool)
+        # FastAPI tự động convert query string sang boolean
+        result = await MasterdatasService.get_payment_methods(is_periodic=is_periodic)
         
         if not result["success"]:
             raise HTTPException(
