@@ -73,10 +73,10 @@ BOOKING_HOURS = [
 ]
 
 APPOINTMENT_DURATION = [
-    {"key": 2, "value": "2 Giờ", "description": "Tối đa 60m2 sàn" },
-    {"key": 3, "value": "3 Giờ", "description": "Tối đa 90m2 sàn"},
-    {"key": 4, "value": "4 Giờ", "description": "Tối đa 120m2 sàn"},
-    {"key": 5, "value": "5 Giờ", "description": "Tối đa 150m2 sàn"},
+    {"key": 2, "value": "2 Giờ", "description": "Tối đa 55m2 sàn" },
+    {"key": 3, "value": "3 Giờ", "description": "Tối đa 85m2 sàn"},
+    {"key": 4, "value": "4 Giờ", "description": "Tối đa 105m2 sàn"},
+    {"key": 5, "value": "5 Giờ", "description": "Tối đa 125m2 sàn"},
 ]
 
 QUANTITY = [
