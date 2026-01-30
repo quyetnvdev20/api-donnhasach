@@ -25,7 +25,17 @@ class CategoryService:
                 where_clause += " AND pc.name  ILIKE '%{}%' ".format( search )
 
             query = '''
-                select pc.id, pc.name, pc.active, pc.icon, pc.url_image, is_recurring_service, description_detail from product_category pc where pc.is_service_main is true and {} order by pc.sequence asc
+                select 
+                    pc.id, 
+                    pc.name, 
+                    pc.active, 
+                    pc.icon, 
+                    pc.url_image, 
+                    is_recurring_service, 
+                    description_detail
+                from product_category pc 
+                where pc.is_service_main is true and {} 
+                order by pc.sequence asc
                 LIMIT {} OFFSET {}
             '''.format(where_clause, limit, offset)
 
@@ -173,5 +183,40 @@ class CategoryService:
             return {
                 "success": False,
                 "error": f"Lỗi khi lấy kịch bản dọn nhà: {str(e)}",
+                "data": None
+            }
+
+    @staticmethod
+    async def get_employee_configs_service(
+            category_id: int
+    ) -> Dict[str, Any]:
+        """
+        Lấy danh sách cấu hình nhân viên theo category_id
+        """
+        try:
+            query = '''
+                SELECT 
+                    pcec.id,
+                    pcec.name,
+                    pcec.employee_count,
+                    pcec.duration_hours,
+                    pcec.area
+                FROM product_category_employee_config pcec
+                WHERE pcec.category_id = {} AND pcec.active = true
+                ORDER BY pcec.employee_count ASC, pcec.sequence ASC
+            '''.format(category_id)
+
+            result = await PostgresDB.execute_query(query)
+
+            return {
+                "success": True,
+                "data": result if result else [],
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting employee configs: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Lỗi khi lấy cấu hình nhân viên: {str(e)}",
                 "data": None
             }

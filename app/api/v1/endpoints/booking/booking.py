@@ -10,10 +10,10 @@ from app.schemas.booking_schema import (
     BookingCalculateRequest,
     BookingCreateRequest, 
     BookingCancelRequest,
-    CalculateCleaningDatesRequest,
     PeriodicPricingRequest,
     PeriodicBookingCreateRequest,
 )
+from app.api.v1.endpoints.payment.payment_service import PaymentService
 
 logger = logging.getLogger(__name__)
 
@@ -181,35 +181,6 @@ async def cancel_booking_post(
             detail="Có lỗi xảy ra khi hủy đặt lịch"
         )
 
-@router.post("/periodic/calculate-dates", summary="Tính các ngày dọn dẹp định kỳ")
-async def calculate_cleaning_dates(
-        current_user=Depends(get_current_user),
-        request: CalculateCleaningDatesRequest = Body(...),
-):
-    try:
-        result = await BookingService.calculate_cleaning_dates(
-            weekday=request.weekday,
-            package_id=request.package_id,
-            start_date=request.start_date
-        )
-        
-        if not result.get("success"):
-            raise HTTPException(
-                status_code=400,
-                detail=result.get("error", "Có lỗi xảy ra khi tính ngày dọn dẹp")
-            )
-        
-        return result
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error in calculate_cleaning_dates: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="Có lỗi xảy ra khi tính ngày dọn dẹp"
-        )
-
 @router.post("/periodic/calculate-pricing", summary="Tính giá cho lịch định kỳ")
 async def calculate_periodic_pricing(
         current_user=Depends(get_current_user),
@@ -236,25 +207,73 @@ async def calculate_periodic_pricing(
         )
 
 
-@router.post("/periodic/", summary="Đặt lịch dọn dẹp định kỳ")
-async def create_periodic_booking_post(
+@router.post("/{booking_id}/payos/create-payment", summary="Tạo payment link từ PayOS cho booking")
+async def create_payos_payment_booking(
+        booking_id: int = Path(..., description="ID booking"),
+        payment_method_id: int = Body(..., description="ID phương thức thanh toán"),
+        return_url: Optional[str] = Body(None, description="URL redirect sau khi thanh toán thành công"),
+        cancel_url: Optional[str] = Body(None, description="URL redirect khi hủy thanh toán"),
         current_user=Depends(get_current_user),
-        request: PeriodicBookingCreateRequest = Body(...),
 ):
+    """
+    Tạo payment link từ PayOS cho booking (calendar.event)
+    """
     try:
-        result = await BookingService.create_periodic_booking(request.dict(), current_user)
+        result = await PaymentService.create_payos_payment_link_booking(
+            booking_id=booking_id,
+            payment_method_id=payment_method_id,
+            current_user=current_user,
+            return_url=return_url,
+            cancel_url=cancel_url,
+        )
+        
+        if not result.get('success'):
+            raise HTTPException(status_code=400, detail=result.get('error', 'Lỗi không xác định'))
+        
         return {
             "success": True,
-            "message": "Đặt lịch định kỳ thành công",
+            "message": "Tạo payment link thành công",
             "data": result,
         }
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Unexpected error in create_periodic_booking: {str(e)}")
+        logger.error(f"Unexpected error in create_payos_payment_booking: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail="Có lỗi xảy ra khi đặt lịch định kỳ"
+            detail="Có lỗi xảy ra khi tạo payment link"
+        )
+
+
+@router.get("/{booking_id}/payos/status", summary="Lấy trạng thái thanh toán của booking")
+async def get_payment_status_booking(
+        booking_id: int = Path(..., description="ID booking"),
+        current_user=Depends(get_current_user),
+):
+    """
+    Lấy trạng thái thanh toán của booking (calendar.event)
+    """
+    try:
+        result = await PaymentService.get_payment_status_booking(
+            booking_id=booking_id,
+            current_user=current_user,
+        )
+        
+        if not result.get('success'):
+            raise HTTPException(status_code=400, detail=result.get('error', 'Lỗi không xác định'))
+        
+        return {
+            "success": True,
+            "message": "Lấy trạng thái thanh toán thành công",
+            "data": result,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in get_payment_status_booking: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi lấy trạng thái thanh toán"
         )
 
 

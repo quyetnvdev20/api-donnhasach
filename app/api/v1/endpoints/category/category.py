@@ -117,3 +117,36 @@ async def get_cleaning_script(
             detail="Có lỗi xảy ra khi lấy kịch bản dọn nhà"
         )
 
+
+@router.get("/employee-configs", summary="Lấy danh sách cấu hình nhân viên theo category")
+async def get_employee_configs(
+        headers: Annotated[CommonHeaderPortal, Header()],
+        category_id: int = Query(..., description="ID của category"),
+        _=Depends(verify_signature),
+):
+    try:
+        result = await CategoryService.get_employee_configs_service(
+            category_id=category_id
+        )
+
+        if not result["success"]:
+            raise HTTPException(
+                status_code=500,
+                detail=result["error"]
+            )
+
+        return {
+            "success": True,
+            "message": "Lấy danh sách cấu hình nhân viên thành công",
+            "data": result["data"]
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in employee-configs: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi lấy danh sách cấu hình nhân viên"
+        )
+

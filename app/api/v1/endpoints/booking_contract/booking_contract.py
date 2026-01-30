@@ -5,12 +5,14 @@ from datetime import datetime
 from app.api.deps import get_current_user
 from .booking_contract_service import BookingContractService
 from app.api.v1.endpoints.payment.payment_service import PaymentService
+from app.api.v1.endpoints.booking.booking_service import BookingService
 from app.schemas.booking_contract_schema import CreatePayOSPaymentRequest
 from app.schemas.booking_contract_schema import (
     BookingContractCreateRequest, 
     BookingContractScheduleUpdateRequest, 
     BookingContractCheckPriceRequest
 )
+from app.schemas.booking_schema import CalculateCleaningDatesRequest
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +162,7 @@ async def create_payos_payment(
     Tạo payment link từ PayOS cho hợp đồng
     """
     try:
-        result = await PaymentService.create_payos_payment_link(
+        result = await PaymentService.create_payos_payment_contract_link(
             contract_id=contract_id,
             payment_method_id=payment_method_id,
             current_user=current_user,
@@ -215,6 +217,36 @@ async def get_payment_status(
         raise HTTPException(
             status_code=500,
             detail="Có lỗi xảy ra khi lấy trạng thái thanh toán"
+        )
+
+
+@router.post("/periodic/calculate-dates", summary="Tính các ngày dọn dẹp định kỳ")
+async def calculate_cleaning_dates(
+        current_user=Depends(get_current_user),
+        request: CalculateCleaningDatesRequest = Body(...),
+):
+    try:
+        result = await BookingService.calculate_cleaning_dates(
+            weekdays=request.weekdays,
+            package_id=request.package_id,
+            start_date=request.start_date
+        )
+        
+        if not result.get("success"):
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("error", "Có lỗi xảy ra khi tính ngày dọn dẹp")
+            )
+        
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in calculate_cleaning_dates: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi tính ngày dọn dẹp"
         )
 
 

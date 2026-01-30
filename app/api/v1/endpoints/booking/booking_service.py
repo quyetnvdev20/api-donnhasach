@@ -378,14 +378,21 @@ class BookingService:
 
     @staticmethod
     async def calculate_cleaning_dates(
-            weekday: int,
+            weekdays: List[int],
             package_id: int,
             start_date: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Tính các ngày dọn dẹp dựa trên thứ trong tuần và gói"""
+        """Tính các ngày dọn dẹp dựa trên danh sách thứ trong tuần và gói"""
         try:
             from datetime import datetime, timedelta
             from dateutil.relativedelta import relativedelta
+            
+            # Validate weekdays
+            if not weekdays or len(weekdays) == 0:
+                return {
+                    "success": False,
+                    "error": "Vui lòng chọn ít nhất một thứ trong tuần"
+                }
             
             # Lấy thông tin gói từ database
             package_query = '''
@@ -414,31 +421,49 @@ class BookingService:
             else:
                 start_date_obj = datetime.now().date()
             
-            # Chuyển đổi weekday: 0=Thứ 2 -> 0 (Monday), 6=CN -> 6 (Sunday)
-            python_weekday = weekday if weekday < 6 else 6
-            
-            # Tìm ngày đầu tiên có thứ trùng với weekday
-            current_weekday = start_date_obj.weekday()  # 0=Monday, 6=Sunday
-            days_ahead = python_weekday - current_weekday
-            if days_ahead < 0:  # Ngày đã qua trong tuần này
-                days_ahead += 7
-            first_cleaning_date = start_date_obj + timedelta(days=days_ahead)
-            
             # Tính ngày kết thúc (start_date + duration_months tháng)
             end_date = start_date_obj + relativedelta(months=duration_months)
             
-            # Lấy tất cả các ngày có thứ trùng với weekday trong khoảng thời gian
+            # Lấy tất cả các ngày có thứ trùng với bất kỳ weekday nào trong danh sách
             cleaning_dates = []
             weekday_names = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật']
             
-            current_cleaning_date = first_cleaning_date
-            while current_cleaning_date <= end_date:
-                cleaning_dates.append({
-                    'date': current_cleaning_date.strftime('%Y-%m-%d'),
-                    'weekday': current_cleaning_date.weekday(),
-                    'weekday_name': weekday_names[current_cleaning_date.weekday()]
-                })
-                current_cleaning_date += timedelta(days=7)  # Tuần sau
+            # Chuyển đổi weekdays: 0=Thứ 2 -> 0 (Monday), 6=CN -> 6 (Sunday)
+            python_weekdays = []
+            for wd in weekdays:
+                python_weekday = wd if wd < 6 else 6
+                if python_weekday not in python_weekdays:
+                    python_weekdays.append(python_weekday)
+            
+            # Tìm ngày đầu tiên cho mỗi weekday
+            first_dates = {}
+            for python_weekday in python_weekdays:
+                current_weekday = start_date_obj.weekday()  # 0=Monday, 6=Sunday
+                days_ahead = python_weekday - current_weekday
+                if days_ahead < 0:  # Ngày đã qua trong tuần này
+                    days_ahead += 7
+                first_dates[python_weekday] = start_date_obj + timedelta(days=days_ahead)
+            
+            # Lấy tất cả các ngày có thứ trùng với bất kỳ weekday nào trong khoảng thời gian
+            all_dates_set = set()  # Dùng set để tránh trùng lặp
+            
+            for python_weekday in python_weekdays:
+                first_cleaning_date = first_dates[python_weekday]
+                current_cleaning_date = first_cleaning_date
+                
+                while current_cleaning_date <= end_date:
+                    date_str = current_cleaning_date.strftime('%Y-%m-%d')
+                    if date_str not in all_dates_set:
+                        all_dates_set.add(date_str)
+                        cleaning_dates.append({
+                            'date': date_str,
+                            'weekday': current_cleaning_date.weekday(),
+                            'weekday_name': weekday_names[current_cleaning_date.weekday()]
+                        })
+                    current_cleaning_date += timedelta(days=7)  # Tuần sau
+            
+            # Sắp xếp theo ngày
+            cleaning_dates.sort(key=lambda x: x['date'])
             
             # Kiểm tra số lượng tối thiểu
             if len(cleaning_dates) < min_booking_count:
@@ -470,20 +495,6 @@ class BookingService:
         result = await odoo.call_method_not_record(
             model='calendar.event',
             method='calculate_periodic_booking_price_api',
-            token=settings.ODOO_TOKEN,
-            kwargs=data,
-        )
-        return result
-
-    @classmethod
-    async def create_periodic_booking(cls, data: dict, current_user: UserObject):
-        """Tạo đặt lịch định kỳ"""
-        data.update({
-            'partner_id': current_user.partner_id
-        })
-        result = await odoo.call_method_not_record(
-            model='booking.contract',
-            method='create_periodic_booking_api',
             token=settings.ODOO_TOKEN,
             kwargs=data,
         )
