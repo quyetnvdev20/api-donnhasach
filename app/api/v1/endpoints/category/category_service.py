@@ -35,7 +35,7 @@ class CategoryService:
                     description_detail
                 from product_category pc 
                 where pc.is_service_main is true and {} 
-                order by pc.sequence asc
+                order by pc.sequence desc
                 LIMIT {} OFFSET {}
             '''.format(where_clause, limit, offset)
 

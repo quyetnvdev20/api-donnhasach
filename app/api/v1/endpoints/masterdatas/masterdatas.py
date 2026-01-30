@@ -44,7 +44,7 @@ async def get_booking(
         )
 
 @router.get("/state", summary="Lấy danh sách tỉnh thành phố")
-async def get_booking(
+async def get_state(
         headers: Annotated[CommonHeaderPortal, Header()],
         limit: int = 10,
         page: int = 1,
@@ -52,7 +52,9 @@ async def get_booking(
         _=Depends(verify_signature),
 ):
     try:
+        logger.info(f"Getting states with params: page={page}, limit={limit}, search={search}")
         result = await MasterdatasService.get_state(page, limit, search)
+        logger.info(f"States result: success={result.get('success')}, total={result.get('total')}, data_count={len(result.get('data', []))}")
 
         if not result["success"]:
             raise HTTPException(
@@ -65,7 +67,7 @@ async def get_booking(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Unexpected error in category: {str(e)}")
+        logger.error(f"Unexpected error in get_state: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail="Có lỗi xảy ra khi lấy danh sách tỉnh thành phố"

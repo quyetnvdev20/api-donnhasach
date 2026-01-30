@@ -140,3 +140,17 @@ class PartnerService:
         )
         return result
 
+    @classmethod
+    async def delete_contact_partner(cls, contact_id: int, current_user: UserObject):
+        data = {
+            'partner_id': current_user.partner_id,
+            'id': contact_id
+        }
+        result = await odoo.call_method_not_record(
+            model='res.partner',
+            method='delete_contract_partner_api',
+            token=settings.ODOO_TOKEN,
+            kwargs=data,
+        )
+        return result
+

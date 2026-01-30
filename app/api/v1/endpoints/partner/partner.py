@@ -110,3 +110,32 @@ async def update_contact_partner(
             status_code=500,
             detail="Có lỗi xảy ra khi cập nhật liên hệ"
         )
+
+@router.delete("/contact/{contact_id}", summary="Xóa liên hệ khách hàng")
+async def delete_contact_partner(
+        current_user=Depends(get_current_user),
+        contact_id: int = Path(..., gt=0, description="ID của liên hệ"),
+):
+    try:
+        result = await PartnerService.delete_contact_partner(contact_id, current_user)
+        
+        if not result.get("success", True):
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("error", "Không thể xóa liên hệ")
+            )
+        
+        return {
+            "success": True,
+            "message": "Xóa địa chỉ khách hàng thành công",
+            "data": result,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in delete_contact_partner: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Có lỗi xảy ra khi xóa liên hệ"
+        )
