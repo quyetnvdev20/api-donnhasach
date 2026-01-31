@@ -42,6 +42,7 @@ class BookingService:
             query = '''
                     SELECT
                         ce.id,
+                        ce.code,
                         ce.cleaning_state,
                         ce.amount_subtotal,
                         ce.amount_tax,
@@ -59,7 +60,6 @@ class BookingService:
                         TO_CHAR(ce.start + interval '7 hours', 'DD-MM-YYYY HH24:MI') as start,
                         TO_CHAR(ce.stop + interval '7 hours', 'DD-MM-YYYY HH24:MI') as stop,
                         ce.description as description,
-                        rc.phone as company_phone,
                         rpc.id as contact_id,
                         rcw2.id as contact_ward_id,
                         rcs2.id as contact_state_id,
@@ -80,7 +80,7 @@ class BookingService:
                          left join res_country_ward rcw2 on rpc.ward_id = rcw2.id
                          left join res_country_state rcs2 on rcs2.id = rpc.state_id 
                     where  {}
-                    GROUP BY ce.id, ce.cleaning_state, ce.amount_subtotal, pt.name, rcw.name, rcs.name, rc.phone, 
+                    GROUP BY ce.id, ce.code, ce.cleaning_state, ce.amount_subtotal, pt.name, rcw.name, rcs.name, rc.phone, 
                     pp.id, rpc.id, rcw2.id, rcs2.id, rpc.phone, rpc.name, rpc.street, rcw2.name, rcs2.name,ce.estimated_total
                     LIMIT {} OFFSET {}
                 '''.format(where_clause, limit, offset)
@@ -125,6 +125,7 @@ class BookingService:
                 vals = {
 
                     'id': item.get('id'),
+                    'code': item.get('code'),
                     'cleaning_state': {
                         'key': item.get('cleaning_state'),
                         'value': leaning_state.get(item.get('cleaning_state'), ''),
@@ -185,7 +186,10 @@ class BookingService:
             detail_query = '''
                 SELECT
                         ce.id,
+                        ce.code,
                         ce.cleaning_state,
+                        ce.payment_status,
+                        ce.payment_method_id,
                         ce.price_per_hour,
                         ce.amount_before_discount,
                         ce.amount_subtotal,
@@ -201,7 +205,9 @@ class BookingService:
                         ce.estimated_discount_percent,
                         ce.appointment_duration,
                         pp.id as product_id,
-                        
+                        pm.id as pm_id,
+                        pm.name as payment_method_name,
+                        pm.code as payment_method_code,
                         COALESCE(pt.name ->> 'vi_VN', pt.name ->> 'en_US') AS product_name,
                         STRING_AGG(
                             CASE
@@ -232,9 +238,10 @@ class BookingService:
                          left join res_partner rpc on ce.contact_id = rpc.id
                          left join res_country_ward rcw2 on rpc.ward_id = rcw2.id
                          left join res_country_state rcs2 on rcs2.id = rpc.state_id
+                         left join payment_method pm on ce.payment_method_id = pm.id
                     where  ce.id = {}
-                    GROUP BY ce.id, ce.cleaning_state, ce.amount_subtotal, pt.name, rcw.name, rcs.name, rc.phone, 
-                    pp.id, rpc.id, rcw2.id, rcs2.id, rpc.phone, rpc.name, rpc.street, rcw2.name, rcs2.name, ce.price_per_hour,ce.estimated_price, ce.estimated_tax,ce.estimated_total, ce.discount_amount, ce.discount_percent, ce.estimated_discount_amount, ce.estimated_discount_percent, ce.amount_before_discount, ce.estimated_amount_before_discount
+                    GROUP BY ce.id, ce.code, ce.cleaning_state, ce.payment_status, ce.payment_method_id, ce.amount_subtotal, pt.name, rcw.name, rcs.name, rc.phone, 
+                    pp.id, rpc.id, rcw2.id, rcs2.id, rpc.phone, rpc.name, rpc.street, rcw2.name, rcs2.name, ce.price_per_hour,ce.estimated_price, ce.estimated_tax,ce.estimated_total, ce.discount_amount, ce.discount_percent, ce.estimated_discount_amount, ce.estimated_discount_percent, ce.amount_before_discount, ce.estimated_amount_before_discount, pm.id, pm.name, pm.code
             '''.format(booking_id)
 
             result = await PostgresDB.execute_query(detail_query)
@@ -275,13 +282,25 @@ class BookingService:
             # Lấy amount_subtotal hoặc estimated_price (tiền sau discount)
             amount_before_discount = item.get('amount_before_discount') if item.get('amount_before_discount') else item.get('estimated_amount_before_discount')
 
+            # Payment method info
+            payment_method = None
+            if item.get('pm_id'):
+                payment_method = {
+                    'id': item.get('pm_id'),
+                    'name': item.get('payment_method_name'),
+                    'code': item.get('payment_method_code'),
+                }
+
             data = {
 
                 'id': item.get('id'),
+                'code': item.get('code'),
                 'cleaning_state': {
                     'key': item.get('cleaning_state'),
                     'value': leaning_state.get(item.get('cleaning_state'), ''),
                 },
+                'payment_status': item.get('payment_status', 'pending'),
+                'payment_method': payment_method,
                 'price_per_hour': item.get('price_per_hour'),
                 'appointment_duration': item.get('appointment_duration'),
                 'amount_subtotal': item.get('amount_subtotal'),
