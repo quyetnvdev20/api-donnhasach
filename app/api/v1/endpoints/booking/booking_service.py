@@ -245,8 +245,13 @@ class BookingService:
             '''.format(booking_id)
 
             result = await PostgresDB.execute_query(detail_query)
+            
+            logger.info(f"📦 Query result count: {len(result) if result else 0}")
+            if result:
+                logger.info(f"✅ Found booking with ID: {result[0].get('id')}")
 
             if not result:
+                logger.warning(f"⚠️ No booking found for ID: {booking_id}")
                 return {
                     "success": False,
                     "error": "Không tìm thấy bài viết",
@@ -254,6 +259,7 @@ class BookingService:
                 }
 
             item = result[0]
+            logger.info(f"📋 Returning booking data - ID: {item.get('id')}, Code: {item.get('code')}")
 
             ## get select state
             leaning_state = await get_value_fields_selection('calendar.event', 'cleaning_state')
