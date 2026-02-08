@@ -77,6 +77,17 @@ class RedisClient:
         client = await self.get_client()
         return await client.ttl(key)
 
+    async def incr(self, key: str, expiry: int = None) -> int:
+        """Tăng giá trị của key lên 1, trả về giá trị sau khi tăng"""
+        client = await self.get_client()
+        value = await client.incr(key)
+        
+        # Nếu key mới được tạo (value = 1), set expiry
+        if value == 1 and expiry:
+            await client.expire(key, expiry)
+        
+        return value
+
     async def keys(self, pattern: str = "*") -> List[str]:
         """Lấy danh sách các key theo pattern"""
         client = await self.get_client()

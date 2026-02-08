@@ -67,9 +67,6 @@ BOOKING_HOURS = [
     {"key": 17, "value": "17:00"},
     {"key": 18, "value": "18:00"},
     {"key": 19, "value": "19:00"},
-    {"key": 20, "value": "20:00"},
-    {"key": 21, "value": "21:00"},
-    {"key": 22, "value": "22:00"}
 ]
 
 APPOINTMENT_DURATION = [

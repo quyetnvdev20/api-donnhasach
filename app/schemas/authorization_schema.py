@@ -25,4 +25,12 @@ class UserObject(BaseModel):
     token: str
     uid: str
 
+class SendOTPRequest(BaseModel):
+    phone: str
+
+class VerifyOTPRequest(BaseModel):
+    phone: str
+    otp_code: str
+    device_id: Optional[str] = None
+
 
