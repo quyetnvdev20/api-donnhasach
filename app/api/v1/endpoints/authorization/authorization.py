@@ -2,7 +2,7 @@ from fastapi import APIRouter, Header, Depends, Body, HTTPException, status, Req
 import logging
 from typing import List, Optional, Dict, Any, Annotated
 from app.schemas.common_schema import CommonHeaderPortal
-from app.schemas.authorization_schema import RegisterRequest,DeviceLoginRequest, LoginRequest, SendOTPRequest, VerifyOTPRequest
+from app.schemas.authorization_schema import RegisterRequest,DeviceLoginRequest, LoginRequest, SendOTPRequest, VerifyOTPRequest, ZaloMiniappLoginRequest, ZaloPhoneTokenRequest
 from app.api.deps import verify_signature
 from .authorization_service import AuthorizationService
 
@@ -76,5 +76,21 @@ async def verify_otp(
     logger.info(f"Verifying OTP for phone: {request.phone}")
     result = await AuthorizationService.verify_otp(request.dict())
     logger.info(f"OTP verified successfully for phone: {request.phone}")
+    return result
+
+@router.post("/zalo-miniapp-login", summary="Đăng nhập/tạo tài khoản từ Zalo Mini App")
+async def zalo_miniapp_login(
+        headers: Annotated[CommonHeaderPortal, Header()],
+        request: ZaloMiniappLoginRequest = Body(...),
+):
+    """
+    API dành cho Zalo Mini App:
+    - Tự động lấy zalo_id và phone từ Zalo SDK
+    - Nếu user đã tồn tại (theo phone): tự động login
+    - Nếu user chưa tồn tại: tạo user mới với phone, name, zalo_id rồi login
+    """
+    logger.info(f"Zalo Mini App login/register for phone: {request.phone}, zalo_id: {request.zalo_id}")
+    result = await AuthorizationService.zalo_miniapp_login(request.dict())
+    logger.info(f"Zalo Mini App login/register result for phone: {request.phone}")
     return result
 

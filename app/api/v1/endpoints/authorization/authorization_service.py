@@ -464,6 +464,151 @@ class AuthorizationService:
                 detail=f"Lỗi hệ thống: {str(e)}"
             )
 
+    @classmethod
+    async def zalo_miniapp_login(cls, data: dict):
+        """
+        API dành cho Zalo Mini App:
+        - Tự động lấy zalo_id và phone từ Zalo SDK
+        - Nếu user đã tồn tại (theo phone): tự động login
+        - Nếu user chưa tồn tại: tạo user mới với phone, name, zalo_id rồi login
+        """
+        phone = data.get('phone')
+        name = data.get('name')
+        zalo_id = data.get('zalo_id')
+        device_id = data.get('device_id')
+        
+        if not phone or not name or not zalo_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Thiếu thông tin: phone, name, zalo_id là bắt buộc"
+            )
+        
+        try:
+            # Query user theo phone
+            sql = f"""
+                    SELECT ru.id AS uid, ru.login, rp.name, ru.token, ru.partner_id
+                    FROM res_users ru
+                    JOIN res_partner rp ON ru.partner_id = rp.id
+                    WHERE ru.login = '{phone}' or  ru.zalo_id = '{zalo_id}'
+                """
+            
+            user_data = await PostgresDB.execute_query(sql)
+            
+            # Nếu user tồn tại, tự động login
+            if user_data and len(user_data) > 0:
+                user = user_data[0]
+                user_info = {
+                    'token': user.get('token'),
+                    'uid': user.get('uid'),
+                    'login': user.get('login'),
+                    'partner_id': user.get('partner_id'),
+                }
+                
+                # Tạo token
+                token = await cls.create_token(user_info)
+                
+                # Update device_id nếu có
+                if device_id:
+                    try:
+                        await cls.create_update_device_id({
+                            'phone': phone,
+                            'device_id': device_id
+                        })
+                    except Exception as e:
+                        logger.warning(f"Không thể update device_id: {str(e)}")
+                
+                logger.info(f"Zalo Mini App: Tự động login thành công cho số điện thoại: {phone}")
+                
+                return {
+                    "success": True,
+                    "message": "Đăng nhập thành công",
+                    "data": {
+                        "phone": phone,
+                        "token": token,
+                        "new_user": False
+                    }
+                }
+            
+            # Nếu user không tồn tại, tự động tạo user mới
+            logger.info(f"Zalo Mini App: User chưa tồn tại, đang tạo user mới: {phone}, zalo_id: {zalo_id}")
+            
+            try:
+                # Gọi Odoo để tạo user với phone, name, zalo_id
+                await odoo.call_method_not_record(
+                    model='res.users',
+                    method='create_users_portal',
+                    token=settings.ODOO_TOKEN,
+                    kwargs={
+                        'phone': phone,
+                        'name': name,
+                        'zalo_id': zalo_id
+                    },
+                )
+                
+                logger.info(f"Zalo Mini App: Đã tạo user mới thành công: {phone}")
+                
+                # Sau khi tạo user, query lại để lấy thông tin user vừa tạo
+                user_data = await PostgresDB.execute_query(sql)
+                
+                if user_data and len(user_data) > 0:
+                    user = user_data[0]
+                    user_info = {
+                        'token': user.get('token'),
+                        'uid': user.get('uid'),
+                        'login': user.get('login'),
+                        'partner_id': user.get('partner_id'),
+                    }
+                    
+                    # Tạo token
+                    token = await cls.create_token(user_info)
+                    
+                    # Update device_id nếu có
+                    if device_id:
+                        try:
+                            await cls.create_update_device_id({
+                                'phone': phone,
+                                'device_id': device_id
+                            })
+                        except Exception as e:
+                            logger.warning(f"Không thể update device_id cho user mới: {str(e)}")
+                    
+                    logger.info(f"Zalo Mini App: Tự động login thành công cho user mới: {phone}")
+                    
+                    return {
+                        "success": True,
+                        "message": "Đã tạo tài khoản và đăng nhập thành công",
+                        "data": {
+                            "phone": phone,
+                            "token": token,
+                            "new_user": True
+                        }
+                    }
+                else:
+                    # Nếu sau khi tạo vẫn không query được user, trả về lỗi
+                    logger.error(f"Zalo Mini App: Đã tạo user nhưng không thể query lại: {phone}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Đã tạo tài khoản nhưng không thể đăng nhập. Vui lòng thử lại."
+                    )
+                    
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Zalo Mini App: Lỗi khi tạo user mới: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Không thể tạo tài khoản mới: {str(e)}"
+                )
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Zalo Mini App: Lỗi trong zalo_miniapp_login: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Lỗi hệ thống: {str(e)}"
+            )
+
 
 
 

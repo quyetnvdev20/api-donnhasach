@@ -33,4 +33,13 @@ class VerifyOTPRequest(BaseModel):
     otp_code: str
     device_id: Optional[str] = None
 
+class ZaloMiniappLoginRequest(BaseModel):
+    phone: str
+    name: str
+    zalo_id: str
+    device_id: Optional[str] = None
+
+class ZaloPhoneTokenRequest(BaseModel):
+    token: str  # Token từ getPhoneNumber() của Zalo SDK
+
 
