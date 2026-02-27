@@ -1,4 +1,4 @@
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, model_validator
 from typing import Optional
 from datetime import datetime
 
@@ -34,10 +34,22 @@ class VerifyOTPRequest(BaseModel):
     device_id: Optional[str] = None
 
 class ZaloMiniappLoginRequest(BaseModel):
-    phone: str
+    """Phone trực tiếp HOẶC token + access_token (backend gọi Zalo graph API để đổi token → số điện thoại)."""
+    phone: Optional[str] = None
+    token: Optional[str] = None  # Token từ getPhoneNumber() của Zalo SDK
+    access_token: Optional[str] = None  # Từ sdk.getAccessToken() trên miniapp
     name: str
     zalo_id: str
     device_id: Optional[str] = None
+
+    @model_validator(mode="after")
+    def require_phone_or_token(self):
+        if self.phone:
+            return self
+        if self.token and self.access_token:
+            return self
+        raise ValueError("Cần truyền phone HOẶC (token và access_token)")
+
 
 class ZaloPhoneTokenRequest(BaseModel):
     token: str  # Token từ getPhoneNumber() của Zalo SDK

@@ -30,6 +30,9 @@ class Settings(BaseSettings):
 
     PORTAL_KEY: str
 
+    # Zalo Mini App: secret key để gọi Zalo Open API đổi token (getPhoneNumber) → số điện thoại
+    ZALO_APP_SECRET_KEY: str = ""
+
     @property
     def DATABASE_URL(self) -> str:
         return self.POSTGRES_DATABASE_URL

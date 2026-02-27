@@ -2,6 +2,7 @@ from fastapi import APIRouter, Header, Depends, Body, HTTPException, status
 from typing import Optional
 import logging
 import random
+import httpx
 from app.config import settings, odoo
 from app.utils.erp_db import PostgresDB
 from app.utils.redis_client import redis_client as redis_client_instance
@@ -465,10 +466,52 @@ class AuthorizationService:
             )
 
     @classmethod
+    async def _zalo_token_to_phone(cls, access_token: str, code: str, secret_key: str) -> str:
+        """
+        Gọi Zalo Open API để đổi token (từ getPhoneNumber) thành số điện thoại.
+        GET https://graph.zalo.me/v2.0/me/info
+        Headers: access_token, code (token), secret_key
+        """
+        if not secret_key:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Thiếu cấu hình ZALO_APP_SECRET_KEY để đổi token sang số điện thoại"
+            )
+        url = "https://graph.zalo.me/v2.0/me/info"
+        headers = {
+            "access_token": access_token,
+            "code": code,
+            "secret_key": secret_key,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(url, headers=headers)
+            body = resp.json()
+            if body.get("error") != 0:
+                logger.warning(f"Zalo graph API error: {body}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=body.get("message", "Không thể lấy số điện thoại từ Zalo")
+                )
+            number = (body.get("data") or {}).get("number")
+            if not number:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Zalo không trả về số điện thoại"
+                )
+            return number
+        except httpx.RequestError as e:
+            logger.error(f"Zalo graph API request error: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Lỗi kết nối tới Zalo. Vui lòng thử lại."
+            )
+
+    @classmethod
     async def zalo_miniapp_login(cls, data: dict):
         """
         API dành cho Zalo Mini App:
-        - Tự động lấy zalo_id và phone từ Zalo SDK
+        - Body có thể gửi phone (số điện thoại trực tiếp) HOẶC token + access_token (backend gọi Zalo graph API để đổi token → số điện thoại).
         - Nếu user đã tồn tại (theo phone): tự động login
         - Nếu user chưa tồn tại: tạo user mới với phone, name, zalo_id rồi login
         """
@@ -476,11 +519,28 @@ class AuthorizationService:
         name = data.get('name')
         zalo_id = data.get('zalo_id')
         device_id = data.get('device_id')
-        
-        if not phone or not name or not zalo_id:
+        token = data.get('token')
+        access_token = data.get('access_token')
+
+        if not name or not zalo_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Thiếu thông tin: phone, name, zalo_id là bắt buộc"
+                detail="Thiếu thông tin: name, zalo_id là bắt buộc"
+            )
+
+        # Nếu chưa có phone nhưng có token + access_token → gọi Zalo API để lấy số điện thoại
+        if not phone and token and access_token:
+            phone = await cls._zalo_token_to_phone(
+                access_token=access_token,
+                code=token,
+                secret_key=settings.ZALO_APP_SECRET_KEY,
+            )
+            logger.info(f"Zalo Mini App: Đã đổi token sang số điện thoại: {phone[:4]}***")
+
+        if not phone:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Thiếu thông tin: cần phone hoặc (token và access_token) để lấy số điện thoại"
             )
         
         try:

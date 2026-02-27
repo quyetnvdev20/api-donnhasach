@@ -89,8 +89,11 @@ async def zalo_miniapp_login(
     - Nếu user đã tồn tại (theo phone): tự động login
     - Nếu user chưa tồn tại: tạo user mới với phone, name, zalo_id rồi login
     """
-    logger.info(f"Zalo Mini App login/register for phone: {request.phone}, zalo_id: {request.zalo_id}")
-    result = await AuthorizationService.zalo_miniapp_login(request.dict())
-    logger.info(f"Zalo Mini App login/register result for phone: {request.phone}")
+    logger.info(
+        f"Zalo Mini App login/register: phone={getattr(request, 'phone', None)}, "
+        f"token={'***' if request.token else None}, zalo_id={request.zalo_id}"
+    )
+    result = await AuthorizationService.zalo_miniapp_login(request.model_dump())
+    logger.info("Zalo Mini App login/register result success=%s", result.get("success"))
     return result
 
